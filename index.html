@@ -1290,6 +1290,128 @@
 
     .booking-modal__error.visible { display: block; }
 
+    /* ═══════════════════════════════════════════════════════════════
+       PAYMENT POPUP (iframe)
+    ═══════════════════════════════════════════════════════════════ */
+    .payment-popup {
+      position: fixed;
+      inset: 0;
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s var(--ease-out-expo);
+    }
+
+    .payment-popup.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .payment-popup__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 27, 51, 0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .payment-popup__container {
+      position: relative;
+      width: 94%;
+      max-width: 520px;
+      height: 85vh;
+      max-height: 750px;
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      transform: translateY(30px);
+      transition: transform 0.5s var(--ease-out-expo);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .payment-popup.active .payment-popup__container {
+      transform: translateY(0);
+    }
+
+    .payment-popup__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    .payment-popup__title {
+      font-family: var(--font-body);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--color-navy);
+    }
+
+    .payment-popup__close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .payment-popup__close:hover {
+      background: rgba(176, 141, 87, 0.08);
+    }
+
+    .payment-popup__close:focus-visible {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 2px;
+    }
+
+    .payment-popup__iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+    }
+
+    .payment-popup__loading {
+      position: absolute;
+      inset: 0;
+      top: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      background: var(--color-white);
+    }
+
+    .payment-popup__spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .payment-popup__loading-text {
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+    }
+
     /* Room cards — selected state */
     .room-card.selected {
       outline: 2px solid var(--color-gold);
@@ -2716,7 +2838,7 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
             Select & Book <i data-lucide="arrow-right"></i>
           </div>
         </div>
@@ -2741,7 +2863,7 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
             Select & Book <i data-lucide="arrow-right"></i>
           </div>
         </div>
@@ -2766,7 +2888,7 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
             Select & Book <i data-lucide="arrow-right"></i>
           </div>
         </div>
@@ -3261,6 +3383,24 @@
     </div>
   </div>
 
+  <!-- ═══════════════ PAYMENT POPUP ═══════════════ -->
+  <div class="payment-popup" id="paymentPopup">
+    <div class="payment-popup__backdrop" onclick="closePaymentPopup()"></div>
+    <div class="payment-popup__container">
+      <div class="payment-popup__header">
+        <span class="payment-popup__title">Secure Checkout</span>
+        <button class="payment-popup__close" onclick="closePaymentPopup()" aria-label="Close payment">
+          <i data-lucide="x" style="width:16px;height:16px;color:var(--color-text-muted);"></i>
+        </button>
+      </div>
+      <div class="payment-popup__loading" id="paymentLoading">
+        <div class="payment-popup__spinner"></div>
+        <div class="payment-popup__loading-text">Loading secure checkout…</div>
+      </div>
+      <iframe class="payment-popup__iframe" id="paymentIframe" title="Payment checkout"></iframe>
+    </div>
+  </div>
+
   <!-- ═══════════════ FOOTER ═══════════════ -->
   <footer class="footer">
     <div class="container">
@@ -3683,6 +3823,15 @@
     const ROOM_PRICES = { studio: 100, deluxe: 120, superior: 190 };
     const ROOM_NAMES = { studio: 'Studio Penthouse', deluxe: 'Deluxe One-Bedroom', superior: 'Superior Two-Bedroom' };
 
+    function selectAndScroll(linkEl) {
+      const card = linkEl.closest('.room-card');
+      selectRoom(card, card.dataset.room);
+      const target = document.getElementById('bookingBar');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
     function selectRoom(cardEl, roomValue) {
       document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
@@ -3788,8 +3937,12 @@
     }
 
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && document.getElementById('bookingModal').classList.contains('active')) {
-        closeBookingModal();
+      if (e.key === 'Escape') {
+        if (document.getElementById('paymentPopup').classList.contains('active')) {
+          closePaymentPopup();
+        } else if (document.getElementById('bookingModal').classList.contains('active')) {
+          closeBookingModal();
+        }
       }
     });
 
@@ -3876,7 +4029,33 @@
       });
 
       closeBookingModal();
-      window.open('https://pay.flotme.ai/belvoirhotel?' + params.toString(), '_blank');
+      openPaymentPopup('https://pay.flotme.ai/belvoirhotel?' + params.toString());
+    }
+
+    function openPaymentPopup(url) {
+      const popup = document.getElementById('paymentPopup');
+      const iframe = document.getElementById('paymentIframe');
+      const loading = document.getElementById('paymentLoading');
+
+      loading.style.display = 'flex';
+      iframe.src = '';
+      popup.classList.add('active');
+      document.body.style.overflow = 'hidden';
+
+      iframe.src = url;
+      iframe.onload = function() {
+        loading.style.display = 'none';
+      };
+
+      lucide.createIcons({ nodes: document.querySelectorAll('#paymentPopup [data-lucide]') });
+    }
+
+    function closePaymentPopup() {
+      const popup = document.getElementById('paymentPopup');
+      const iframe = document.getElementById('paymentIframe');
+      iframe.src = '';
+      popup.classList.remove('active');
+      document.body.style.overflow = '';
     }
 
     /* ─── Smooth Scroll for Anchor Links ─── */
