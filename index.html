@@ -979,6 +979,317 @@
     .booking-bar__submit:focus-visible { outline: 2px solid var(--color-gold-light); outline-offset: 3px; }
     .booking-bar__submit span { position: relative; z-index: 1; }
 
+    .booking-bar__submit.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BOOKING MODAL
+    ═══════════════════════════════════════════════════════════════ */
+    .booking-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s var(--ease-out-expo);
+    }
+
+    .booking-modal.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .booking-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 27, 51, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .booking-modal__container {
+      position: relative;
+      width: 90%;
+      max-width: 680px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--color-bg-cream);
+      border: 1px solid var(--color-border);
+      padding: clamp(2rem, 4vw, 3rem);
+      transform: translateY(30px);
+      transition: transform 0.5s var(--ease-out-expo);
+    }
+
+    .booking-modal.active .booking-modal__container {
+      transform: translateY(0);
+    }
+
+    .booking-modal__close {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .booking-modal__close:hover {
+      background: rgba(176, 141, 87, 0.08);
+      border-color: var(--color-gold-muted);
+    }
+
+    .booking-modal__close:focus-visible {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 2px;
+    }
+
+    .booking-modal__step-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .booking-modal__step-dot {
+      width: 32px;
+      height: 3px;
+      background: var(--color-border);
+      transition: background 0.4s;
+    }
+
+    .booking-modal__step-dot.active {
+      background: var(--color-gold);
+    }
+
+    .booking-modal__step-label {
+      font-family: var(--font-body);
+      font-size: 0.65rem;
+      font-weight: 400;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-left: 0.75rem;
+    }
+
+    .booking-modal__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.3rem, 3vw, 1.6rem);
+      font-weight: 400;
+      color: var(--color-navy);
+      margin-bottom: 0.5rem;
+    }
+
+    .booking-modal__desc {
+      font-family: var(--font-accent);
+      font-size: 1rem;
+      font-style: italic;
+      color: var(--color-text-muted);
+      margin-bottom: 2rem;
+    }
+
+    .booking-modal__summary {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+    }
+
+    .booking-modal__summary-item {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .booking-modal__summary-label {
+      font-family: var(--font-body);
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--color-text-light);
+      margin-bottom: 0.25rem;
+    }
+
+    .booking-modal__summary-value {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-navy);
+    }
+
+    .booking-modal__form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .booking-modal__label {
+      display: block;
+      font-family: var(--font-body);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .booking-modal__input {
+      width: 100%;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 300;
+      color: var(--color-text);
+      background: var(--color-white);
+      border: 1px solid rgba(176, 141, 87, 0.2);
+      padding: 0.85rem 1rem;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+
+    .booking-modal__input:focus {
+      border-color: var(--color-gold);
+    }
+
+    .booking-modal__input::placeholder {
+      color: var(--color-text-light);
+    }
+
+    .booking-modal__row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 500px) {
+      .booking-modal__row { grid-template-columns: 1fr; }
+    }
+
+    .booking-modal__payment-options {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .booking-modal__payment-card {
+      border: 2px solid var(--color-border);
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: border-color 0.3s, background 0.3s;
+      position: relative;
+    }
+
+    .booking-modal__payment-card:hover {
+      border-color: var(--color-gold-muted);
+      background: rgba(176, 141, 87, 0.03);
+    }
+
+    .booking-modal__payment-card.selected {
+      border-color: var(--color-gold);
+      background: rgba(176, 141, 87, 0.05);
+    }
+
+    .booking-modal__payment-card.selected::after {
+      content: '';
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-gold);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230C1B33' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+      background-size: 12px;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .booking-modal__payment-name {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-navy);
+      margin-bottom: 0.25rem;
+    }
+
+    .booking-modal__payment-desc {
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 300;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
+    .booking-modal__payment-amount {
+      font-family: var(--font-body);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-gold);
+      margin-top: 0.5rem;
+    }
+
+    .booking-modal__actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .booking-modal__btn {
+      font-family: var(--font-body);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 1rem 2rem;
+      cursor: pointer;
+      transition: transform 0.3s var(--ease-out-expo), opacity 0.3s;
+    }
+
+    .booking-modal__btn:hover { transform: translateY(-2px); }
+    .booking-modal__btn:active { transform: translateY(0); }
+    .booking-modal__btn:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 3px; }
+
+    .booking-modal__btn--primary {
+      color: var(--color-navy);
+      background: var(--color-gold);
+      border: none;
+      flex: 1;
+    }
+
+    .booking-modal__btn--secondary {
+      color: var(--color-text-muted);
+      background: transparent;
+      border: 1px solid var(--color-border);
+    }
+
+    .booking-modal__btn--secondary:hover {
+      border-color: var(--color-gold-muted);
+    }
+
+    .booking-modal__error {
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      color: #c0392b;
+      margin-top: -0.5rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .booking-modal__error.visible { display: block; }
+
     /* Room cards — selected state */
     .room-card.selected {
       outline: 2px solid var(--color-gold);
@@ -2377,12 +2688,12 @@
             <option value="superior">Superior Two-Bedroom — $190/night</option>
           </select>
         </div>
-        <button type="button" class="booking-bar__submit" id="bookingSubmit" onclick="handleBooking()">
+        <button type="button" class="booking-bar__submit disabled" id="bookingSubmit" onclick="openBookingModal()" disabled>
           <span>Book Now</span>
         </button>
       </div>
 
-      <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room below or choose from the dropdown, then click Book Now.</p>
+      <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room, choose your dates, and Book Now will activate. Pay in full or reserve with a 20% deposit.</p>
 
       <div class="rooms__grid">
         <!-- Room 1 -->
@@ -2405,9 +2716,9 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <a href="https://pay.flotme.ai/belvoirhotel" target="_blank" rel="noopener noreferrer" class="room-card__link" onclick="event.stopPropagation();">
-            Reserve Directly <i data-lucide="arrow-right"></i>
-          </a>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
         </div>
 
         <!-- Room 2 -->
@@ -2430,9 +2741,9 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <a href="https://pay.flotme.ai/belvoirhotel" target="_blank" rel="noopener noreferrer" class="room-card__link" onclick="event.stopPropagation();">
-            Reserve Directly <i data-lucide="arrow-right"></i>
-          </a>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
         </div>
 
         <!-- Room 3 -->
@@ -2455,9 +2766,9 @@
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
-          <a href="https://pay.flotme.ai/belvoirhotel" target="_blank" rel="noopener noreferrer" class="room-card__link" onclick="event.stopPropagation();">
-            Reserve Directly <i data-lucide="arrow-right"></i>
-          </a>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectRoom(this.closest('.room-card'), this.closest('.room-card').dataset.room); lenis.scrollTo('#bookingBar', { offset: -100 });">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
         </div>
       </div>
 
@@ -2832,6 +3143,124 @@
     </div>
   </section>
 
+  <!-- ═══════════════ BOOKING MODAL ═══════════════ -->
+  <div class="booking-modal" id="bookingModal">
+    <div class="booking-modal__backdrop" onclick="closeBookingModal()"></div>
+    <div class="booking-modal__container">
+      <button class="booking-modal__close" onclick="closeBookingModal()" aria-label="Close booking modal">
+        <i data-lucide="x" style="width:18px;height:18px;color:var(--color-text-muted);"></i>
+      </button>
+
+      <!-- Step Indicator -->
+      <div class="booking-modal__step-indicator">
+        <div class="booking-modal__step-dot active" id="stepDot1"></div>
+        <div class="booking-modal__step-dot" id="stepDot2"></div>
+        <span class="booking-modal__step-label" id="stepLabel">Step 1 of 2</span>
+      </div>
+
+      <!-- STEP 1: Guest Details -->
+      <div id="bookingStep1">
+        <h3 class="booking-modal__title">Guest Details</h3>
+        <p class="booking-modal__desc">Tell us who's checking in</p>
+
+        <!-- Booking Summary -->
+        <div class="booking-modal__summary" id="modalSummary">
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Room</div>
+            <div class="booking-modal__summary-value" id="summaryRoom">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Check-in</div>
+            <div class="booking-modal__summary-value" id="summaryCheckin">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Check-out</div>
+            <div class="booking-modal__summary-value" id="summaryCheckout">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Nights</div>
+            <div class="booking-modal__summary-value" id="summaryNights">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Total</div>
+            <div class="booking-modal__summary-value" id="summaryTotal">—</div>
+          </div>
+        </div>
+
+        <div class="booking-modal__row">
+          <div class="booking-modal__form-group">
+            <label class="booking-modal__label" for="guestName">Full Name *</label>
+            <input type="text" id="guestName" class="booking-modal__input" placeholder="John Doe" required autocomplete="name">
+          </div>
+          <div class="booking-modal__form-group">
+            <label class="booking-modal__label" for="guestPhone">Phone Number *</label>
+            <input type="tel" id="guestPhone" class="booking-modal__input" placeholder="+232 76 123 456" required autocomplete="tel">
+          </div>
+        </div>
+        <div class="booking-modal__form-group">
+          <label class="booking-modal__label" for="guestEmail">Email Address *</label>
+          <input type="email" id="guestEmail" class="booking-modal__input" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="booking-modal__form-group">
+          <label class="booking-modal__label" for="guestRequests">Special Requests <span style="text-transform:none;letter-spacing:0;font-weight:300;">(optional)</span></label>
+          <input type="text" id="guestRequests" class="booking-modal__input" placeholder="Early check-in, extra pillows, airport transfer…">
+        </div>
+        <div class="booking-modal__error" id="step1Error">Please fill in all required fields.</div>
+
+        <div class="booking-modal__actions">
+          <button class="booking-modal__btn booking-modal__btn--secondary" onclick="closeBookingModal()">Cancel</button>
+          <button class="booking-modal__btn booking-modal__btn--primary" onclick="goToStep2()">Continue to Payment</button>
+        </div>
+      </div>
+
+      <!-- STEP 2: Payment Choice -->
+      <div id="bookingStep2" style="display:none;">
+        <h3 class="booking-modal__title">Choose Payment</h3>
+        <p class="booking-modal__desc">How would you like to secure your reservation?</p>
+
+        <!-- Booking Summary (repeated for context) -->
+        <div class="booking-modal__summary" id="modalSummary2">
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Guest</div>
+            <div class="booking-modal__summary-value" id="summaryGuest2">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Room</div>
+            <div class="booking-modal__summary-value" id="summaryRoom2">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Dates</div>
+            <div class="booking-modal__summary-value" id="summaryDates2">—</div>
+          </div>
+          <div class="booking-modal__summary-item">
+            <div class="booking-modal__summary-label">Total</div>
+            <div class="booking-modal__summary-value" id="summaryTotal2">—</div>
+          </div>
+        </div>
+
+        <div class="booking-modal__payment-options">
+          <div class="booking-modal__payment-card" id="payFull" onclick="selectPayment('full')">
+            <div class="booking-modal__payment-name">Reserve & Pay Now</div>
+            <div class="booking-modal__payment-desc">Pay the full amount now and your room is confirmed instantly. No further payment needed on arrival.</div>
+            <div class="booking-modal__payment-amount" id="payFullAmount">$0</div>
+          </div>
+          <div class="booking-modal__payment-card" id="payDeposit" onclick="selectPayment('deposit')">
+            <div class="booking-modal__payment-name">Reserve & Pay Later</div>
+            <div class="booking-modal__payment-desc">Secure your booking with a 20% deposit now. Pay the remaining balance on check-in.</div>
+            <div class="booking-modal__payment-amount" id="payDepositAmount">$0 <small style="font-size:0.75rem;font-weight:300;color:var(--color-text-muted);">(20% deposit)</small></div>
+          </div>
+        </div>
+
+        <div class="booking-modal__error" id="step2Error">Please select a payment option.</div>
+
+        <div class="booking-modal__actions">
+          <button class="booking-modal__btn booking-modal__btn--secondary" onclick="goToStep1()">Back</button>
+          <button class="booking-modal__btn booking-modal__btn--primary" onclick="completeBooking()">Proceed to Checkout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════ FOOTER ═══════════════ -->
   <footer class="footer">
     <div class="container">
@@ -2891,7 +3320,7 @@
 
       <div class="footer__bottom">
         <div class="footer__copy">&copy; <span id="copyrightYear"></span> Belvoir Hotel & Furnished Residence. All rights reserved.</div>
-        <div class="footer__tagline">Be Inspired… We Deliver</div>
+        <div class="footer__tagline">Built and Powered by <a href="https://www.flotme.ai" target="_blank" rel="noopener noreferrer" style="color: var(--color-gold); text-decoration: underline; text-underline-offset: 3px;">Flot</a></div>
       </div>
     </div>
   </footer>
@@ -3247,82 +3676,206 @@
       }
     });
 
-    /* ─── Booking Flow: Room Selection & Date Logic ─── */
+    /* ─── Booking Flow: Room Selection, Dates & Modal ─── */
     let selectedRoom = '';
+    let selectedPayment = '';
+
+    const ROOM_PRICES = { studio: 100, deluxe: 120, superior: 190 };
+    const ROOM_NAMES = { studio: 'Studio Penthouse', deluxe: 'Deluxe One-Bedroom', superior: 'Superior Two-Bedroom' };
 
     function selectRoom(cardEl, roomValue) {
-      // Deselect all
       document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
-      // Select this one
       cardEl.classList.add('selected');
       selectedRoom = roomValue;
-      // Sync the dropdown
       document.getElementById('roomSelect').value = roomValue;
+      updateBookButton();
     }
 
-    // Sync dropdown → card selection
     document.getElementById('roomSelect').addEventListener('change', function() {
       const val = this.value;
       selectedRoom = val;
       document.querySelectorAll('.room-card').forEach(c => {
         c.classList.toggle('selected', c.dataset.room === val);
       });
+      updateBookButton();
     });
 
-    // Set min dates
     (function initDates() {
       const today = new Date();
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const fmt = d => d.toISOString().split('T')[0];
-      document.getElementById('checkin').min = fmt(today);
-      document.getElementById('checkin').value = fmt(today);
-      document.getElementById('checkout').min = fmt(tomorrow);
-      document.getElementById('checkout').value = fmt(tomorrow);
 
-      document.getElementById('checkin').addEventListener('change', function() {
-        const ci = new Date(this.value);
-        ci.setDate(ci.getDate() + 1);
-        document.getElementById('checkout').min = fmt(ci);
-        if (new Date(document.getElementById('checkout').value) <= new Date(this.value)) {
-          document.getElementById('checkout').value = fmt(ci);
+      const ci = document.getElementById('checkin');
+      const co = document.getElementById('checkout');
+      ci.min = fmt(today);
+      ci.value = '';
+      co.min = fmt(tomorrow);
+      co.value = '';
+
+      ci.addEventListener('change', function() {
+        const d = new Date(this.value);
+        d.setDate(d.getDate() + 1);
+        co.min = fmt(d);
+        if (co.value && new Date(co.value) <= new Date(this.value)) {
+          co.value = fmt(d);
         }
+        updateBookButton();
       });
+
+      co.addEventListener('change', updateBookButton);
     })();
 
-    function handleBooking() {
+    function updateBookButton() {
+      const btn = document.getElementById('bookingSubmit');
+      const room = selectedRoom || document.getElementById('roomSelect').value;
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+
+      if (room && checkin && checkout) {
+        btn.classList.remove('disabled');
+        btn.disabled = false;
+      } else {
+        btn.classList.add('disabled');
+        btn.disabled = true;
+      }
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function getNights(checkin, checkout) {
+      const ms = new Date(checkout) - new Date(checkin);
+      return Math.max(1, Math.round(ms / 86400000));
+    }
+
+    function openBookingModal() {
+      const room = selectedRoom || document.getElementById('roomSelect').value;
       const checkin = document.getElementById('checkin').value;
       const checkout = document.getElementById('checkout').value;
       const guests = document.getElementById('guests').value;
+
+      if (!room || !checkin || !checkout) return;
+
+      const nights = getNights(checkin, checkout);
+      const price = ROOM_PRICES[room] || 100;
+      const total = nights * price;
+
+      document.getElementById('summaryRoom').textContent = ROOM_NAMES[room] || room;
+      document.getElementById('summaryCheckin').textContent = formatDate(checkin);
+      document.getElementById('summaryCheckout').textContent = formatDate(checkout);
+      document.getElementById('summaryNights').textContent = nights + (nights === 1 ? ' night' : ' nights');
+      document.getElementById('summaryTotal').textContent = '$' + total.toLocaleString();
+
+      selectedPayment = '';
+      document.getElementById('step1Error').classList.remove('visible');
+      document.getElementById('bookingStep1').style.display = '';
+      document.getElementById('bookingStep2').style.display = 'none';
+      document.getElementById('stepDot1').classList.add('active');
+      document.getElementById('stepDot2').classList.remove('active');
+      document.getElementById('stepLabel').textContent = 'Step 1 of 2';
+
+      document.getElementById('bookingModal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+      lucide.createIcons({ nodes: document.querySelectorAll('#bookingModal [data-lucide]') });
+    }
+
+    function closeBookingModal() {
+      document.getElementById('bookingModal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.getElementById('bookingModal').classList.contains('active')) {
+        closeBookingModal();
+      }
+    });
+
+    function goToStep2() {
+      const name = document.getElementById('guestName').value.trim();
+      const phone = document.getElementById('guestPhone').value.trim();
+      const email = document.getElementById('guestEmail').value.trim();
+
+      if (!name || !phone || !email) {
+        document.getElementById('step1Error').classList.add('visible');
+        return;
+      }
+      document.getElementById('step1Error').classList.remove('visible');
+
       const room = selectedRoom || document.getElementById('roomSelect').value;
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+      const nights = getNights(checkin, checkout);
+      const price = ROOM_PRICES[room] || 100;
+      const total = nights * price;
+      const deposit = Math.ceil(total * 0.2);
 
-      if (!room) {
-        // Flash the room select dropdown
-        const sel = document.getElementById('roomSelect');
-        sel.style.borderColor = '#C9A96E';
-        sel.focus();
-        setTimeout(() => { sel.style.borderColor = ''; }, 2000);
+      document.getElementById('summaryGuest2').textContent = name;
+      document.getElementById('summaryRoom2').textContent = ROOM_NAMES[room] || room;
+      document.getElementById('summaryDates2').textContent = formatDate(checkin) + ' — ' + formatDate(checkout);
+      document.getElementById('summaryTotal2').textContent = '$' + total.toLocaleString() + ' (' + nights + (nights === 1 ? ' night)' : ' nights)');
 
-        // Also scroll to cards and flash hint
-        document.querySelectorAll('.room-card__select-hint').forEach(h => {
-          h.style.color = 'var(--color-gold)';
-          setTimeout(() => { h.style.color = ''; }, 2000);
-        });
+      document.getElementById('payFullAmount').textContent = '$' + total.toLocaleString();
+      document.getElementById('payDepositAmount').innerHTML = '$' + deposit.toLocaleString() + ' <small style="font-size:0.75rem;font-weight:300;color:var(--color-text-muted);">(20% deposit · $' + (total - deposit).toLocaleString() + ' due at check-in)</small>';
+
+      selectedPayment = '';
+      document.querySelectorAll('.booking-modal__payment-card').forEach(c => c.classList.remove('selected'));
+      document.getElementById('step2Error').classList.remove('visible');
+
+      document.getElementById('bookingStep1').style.display = 'none';
+      document.getElementById('bookingStep2').style.display = '';
+      document.getElementById('stepDot1').classList.add('active');
+      document.getElementById('stepDot2').classList.add('active');
+      document.getElementById('stepLabel').textContent = 'Step 2 of 2';
+    }
+
+    function goToStep1() {
+      document.getElementById('bookingStep1').style.display = '';
+      document.getElementById('bookingStep2').style.display = 'none';
+      document.getElementById('stepDot2').classList.remove('active');
+      document.getElementById('stepLabel').textContent = 'Step 1 of 2';
+    }
+
+    function selectPayment(type) {
+      selectedPayment = type;
+      document.querySelectorAll('.booking-modal__payment-card').forEach(c => c.classList.remove('selected'));
+      document.getElementById(type === 'full' ? 'payFull' : 'payDeposit').classList.add('selected');
+      document.getElementById('step2Error').classList.remove('visible');
+    }
+
+    function completeBooking() {
+      if (!selectedPayment) {
+        document.getElementById('step2Error').classList.add('visible');
         return;
       }
 
-      if (!checkin || !checkout) {
-        document.getElementById('checkin').focus();
-        return;
-      }
+      const room = selectedRoom || document.getElementById('roomSelect').value;
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+      const guests = document.getElementById('guests').value;
+      const nights = getNights(checkin, checkout);
+      const price = ROOM_PRICES[room] || 100;
+      const total = nights * price;
+      const deposit = Math.ceil(total * 0.2);
 
-      // Build checkout URL with params
       const params = new URLSearchParams({
         room: room,
         checkin: checkin,
         checkout: checkout,
-        guests: guests
+        guests: guests,
+        nights: nights,
+        name: document.getElementById('guestName').value.trim(),
+        email: document.getElementById('guestEmail').value.trim(),
+        phone: document.getElementById('guestPhone').value.trim(),
+        requests: document.getElementById('guestRequests').value.trim(),
+        payment: selectedPayment,
+        amount: selectedPayment === 'full' ? total : deposit,
+        total: total
       });
+
+      closeBookingModal();
       window.open('https://pay.flotme.ai/belvoirhotel?' + params.toString(), '_blank');
     }
 
