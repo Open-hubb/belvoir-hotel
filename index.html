@@ -2805,9 +2805,11 @@
           <label class="booking-bar__label" for="roomSelect">Room Type</label>
           <select id="roomSelect" class="booking-bar__input">
             <option value="">Select a room below...</option>
-            <option value="studio">Studio Penthouse — $100/night</option>
-            <option value="deluxe">Deluxe One-Bedroom — $120/night</option>
-            <option value="superior">Superior Two-Bedroom — $190/night</option>
+            <option value="standard">Deluxe Standard Room — $80/night</option>
+            <option value="superior-deluxe">Superior Deluxe Room — $90/night</option>
+            <option value="superior-twin">Superior Deluxe Twin — $100/night</option>
+            <option value="studio">Studio Penthouse — $120/night</option>
+            <option value="two-bed">Two-Bedroom Apartment — $170/night</option>
           </select>
         </div>
         <button type="button" class="booking-bar__submit disabled" id="bookingSubmit" onclick="openBookingModal()" disabled>
@@ -2818,20 +2820,20 @@
       <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room, choose your dates, and Book Now will activate. Pay in full or reserve with a 20% deposit.</p>
 
       <div class="rooms__grid">
-        <!-- Room 1 -->
-        <div class="room-card reveal" data-room="studio" onclick="selectRoom(this, 'studio')">
+        <!-- Room 1: Deluxe Standard Room -->
+        <div class="room-card reveal" data-room="standard" onclick="selectRoom(this, 'standard')">
           <div class="room-card__image">
-            <img src="images/deluxe-bedroom-1.jpeg" alt="Penthouse Studio apartment at Belvoir" loading="lazy">
+            <img src="images/standard-bedroom-art.jpeg" alt="Deluxe Standard Room at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Popular</div>
+            <div class="room-card__badge">Value</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$100 <small>/night</small></div>
+            <div class="room-card__price">$80 <small>/night</small></div>
           </div>
           <div class="room-card__body">
-            <h3 class="room-card__name">Studio Penthouse</h3>
-            <p class="room-card__desc">Spacious, luxurious studio apartment at the summit with panoramic views of Lumley and Aberdeen beaches.</p>
+            <h3 class="room-card__name">Deluxe Standard Room</h3>
+            <p class="room-card__desc">Comfortable en-suite room with king bed, air conditioning, and modern furnishings — perfect for short stays.</p>
             <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> Studio</span>
+              <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
               <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
               <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
               <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
@@ -2843,22 +2845,22 @@
           </div>
         </div>
 
-        <!-- Room 2 -->
-        <div class="room-card reveal" data-room="deluxe" onclick="selectRoom(this, 'deluxe')">
+        <!-- Room 2: Superior Deluxe Room -->
+        <div class="room-card reveal" data-room="superior-deluxe" onclick="selectRoom(this, 'superior-deluxe')">
           <div class="room-card__image">
-            <img src="images/deluxe-bedroom-2.jpeg" alt="Deluxe 1-Bedroom apartment at Belvoir" loading="lazy">
+            <img src="images/standard-bedroom-king.jpeg" alt="Superior Deluxe Room at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
             <div class="room-card__badge">Deluxe</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$120 <small>/night</small></div>
+            <div class="room-card__price">$90 <small>/night</small></div>
           </div>
           <div class="room-card__body">
-            <h3 class="room-card__name">Deluxe One-Bedroom</h3>
-            <p class="room-card__desc">Elegant en-suite apartment with Jacuzzi, rainfall showerhead, and private balcony overlooking the ocean.</p>
+            <h3 class="room-card__name">Superior Deluxe Room</h3>
+            <p class="room-card__desc">Upgraded en-suite room with premium bedding, elegant decor, and all modern comforts for a restful stay.</p>
             <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> 1 Bed</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> Jacuzzi</span>
-              <span class="room-card__feature"><i data-lucide="mountain-snow"></i> View</span>
+              <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
+              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
               <span class="room-card__feature"><i data-lucide="tv"></i> LED TV</span>
             </div>
           </div>
@@ -2868,18 +2870,68 @@
           </div>
         </div>
 
-        <!-- Room 3 -->
-        <div class="room-card reveal" data-room="superior" onclick="selectRoom(this, 'superior')">
+        <!-- Room 3: Superior Deluxe Twin -->
+        <div class="room-card reveal" data-room="superior-twin" onclick="selectRoom(this, 'superior-twin')">
           <div class="room-card__image">
-            <img src="images/dining-kitchen-1.jpeg" alt="Superior Two-Bedroom Suite dining and kitchen" loading="lazy">
+            <img src="images/standard-bedroom-twin.jpeg" alt="Superior Deluxe Twin Room at Belvoir" loading="lazy">
+            <div class="room-card__image-overlay"></div>
+            <div class="room-card__badge">Twin</div>
+            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
+            <div class="room-card__price">$100 <small>/night</small></div>
+          </div>
+          <div class="room-card__body">
+            <h3 class="room-card__name">Superior Deluxe Twin</h3>
+            <p class="room-card__desc">Spacious twin room with two single beds, ideal for colleagues, friends, or family sharing a room.</p>
+            <div class="room-card__features">
+              <span class="room-card__feature"><i data-lucide="bed-double"></i> Twin Beds</span>
+              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
+              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+            </div>
+          </div>
+          <div class="room-card__select-hint">Click to select</div>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
+        </div>
+
+        <!-- Room 4: Studio Penthouse -->
+        <div class="room-card reveal" data-room="studio" onclick="selectRoom(this, 'studio')">
+          <div class="room-card__image">
+            <img src="images/deluxe-bedroom-1.jpeg" alt="Studio Penthouse at Belvoir" loading="lazy">
+            <div class="room-card__image-overlay"></div>
+            <div class="room-card__badge">Popular</div>
+            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
+            <div class="room-card__price">$120 <small>/night</small></div>
+          </div>
+          <div class="room-card__body">
+            <h3 class="room-card__name">Studio Penthouse</h3>
+            <p class="room-card__desc">Luxurious studio apartment at the summit with panoramic views, premium furnishings, and breakfast included.</p>
+            <div class="room-card__features">
+              <span class="room-card__feature"><i data-lucide="bed-double"></i> Studio</span>
+              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
+              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
+            </div>
+          </div>
+          <div class="room-card__select-hint">Click to select</div>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
+        </div>
+
+        <!-- Room 5: Two-Bedroom Apartment -->
+        <div class="room-card reveal" data-room="two-bed" onclick="selectRoom(this, 'two-bed')">
+          <div class="room-card__image">
+            <img src="images/apartment-open-plan.jpeg" alt="Two-Bedroom Apartment at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
             <div class="room-card__badge">Suite</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$190 <small>/night</small></div>
+            <div class="room-card__price">$170 <small>/night</small></div>
           </div>
           <div class="room-card__body">
-            <h3 class="room-card__name">Superior Two-Bedroom</h3>
-            <p class="room-card__desc">Extended-stay luxury suite with two bedrooms, two bathrooms, and stunning views — seconds from Wilkinson Road.</p>
+            <h3 class="room-card__name">Two-Bedroom Apartment</h3>
+            <p class="room-card__desc">Full apartment with two bedrooms, two bathrooms, living area, and equipped kitchen — ideal for families and extended stays.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> 2 Beds</span>
               <span class="room-card__feature"><i data-lucide="bath"></i> 2 Baths</span>
@@ -2976,12 +3028,12 @@
             </div>
           </div>
 
-          <!-- Row 3: Hot Tub | Parking | Concierge (wide) -->
+          <!-- Row 3: Mini Mart | Parking | Concierge (wide) -->
           <div class="amenity-card amenity-card--hottub reveal">
-            <i data-lucide="waves" class="amenity-card__icon"></i>
+            <i data-lucide="shopping-bag" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
-              <div class="amenity-card__title">Hot Tub & Terrace</div>
-              <div class="amenity-card__desc">Jacuzzi with sea views</div>
+              <div class="amenity-card__title">Mini Mart</div>
+              <div class="amenity-card__desc">On-site convenience store</div>
             </div>
           </div>
           <div class="amenity-card amenity-card--parking reveal">
@@ -3076,7 +3128,12 @@
         <div class="gallery__item reveal">
           <img src="images/standard-bedroom-twin.jpeg" alt="Twin bedroom at Belvoir with wooden headboard" loading="lazy">
           <div class="gallery__item-overlay"></div>
-          <div class="gallery__item-label">Aberdeen Beach</div>
+          <div class="gallery__item-label">Twin Room</div>
+        </div>
+        <div class="gallery__item reveal">
+          <img src="images/mini-mart.jpeg" alt="On-site mini mart at Belvoir" loading="lazy">
+          <div class="gallery__item-overlay"></div>
+          <div class="gallery__item-label">Mini Mart</div>
         </div>
       </div>
     </div>
@@ -3820,8 +3877,8 @@
     let selectedRoom = '';
     let selectedPayment = '';
 
-    const ROOM_PRICES = { studio: 100, deluxe: 120, superior: 190 };
-    const ROOM_NAMES = { studio: 'Studio Penthouse', deluxe: 'Deluxe One-Bedroom', superior: 'Superior Two-Bedroom' };
+    const ROOM_PRICES = { standard: 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 120, 'two-bed': 170 };
+    const ROOM_NAMES = { standard: 'Deluxe Standard Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'two-bed': 'Two-Bedroom Apartment' };
 
     function selectAndScroll(linkEl) {
       const card = linkEl.closest('.room-card');
