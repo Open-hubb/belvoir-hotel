@@ -2808,7 +2808,8 @@
             <option value="standard">Deluxe Standard Room — $80/night</option>
             <option value="superior-deluxe">Superior Deluxe Room — $90/night</option>
             <option value="superior-twin">Superior Deluxe Twin — $100/night</option>
-            <option value="studio">Studio Penthouse — $120/night</option>
+            <option value="studio">Studio Penthouse — $130/night</option>
+            <option value="one-bed">One-Bedroom Apartment — $125/night</option>
             <option value="two-bed">Two-Bedroom Apartment — $170/night</option>
           </select>
         </div>
@@ -2823,7 +2824,7 @@
         <!-- Room 1: Deluxe Standard Room -->
         <div class="room-card reveal" data-room="standard" onclick="selectRoom(this, 'standard')">
           <div class="room-card__image">
-            <img src="images/standard-bedroom-art.jpeg" alt="Deluxe Standard Room at Belvoir" loading="lazy">
+            <img src="images/deluxe-standard-room.jpg" alt="Deluxe Standard Room at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
             <div class="room-card__badge">Value</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
@@ -2898,11 +2899,11 @@
         <!-- Room 4: Studio Penthouse -->
         <div class="room-card reveal" data-room="studio" onclick="selectRoom(this, 'studio')">
           <div class="room-card__image">
-            <img src="images/deluxe-bedroom-1.jpeg" alt="Studio Penthouse at Belvoir" loading="lazy">
+            <img src="images/studio-penthouse.jpg" alt="Studio Penthouse at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
             <div class="room-card__badge">Popular</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$120 <small>/night</small></div>
+            <div class="room-card__price">$130 <small>/night</small></div>
           </div>
           <div class="room-card__body">
             <h3 class="room-card__name">Studio Penthouse</h3>
@@ -2920,10 +2921,35 @@
           </div>
         </div>
 
-        <!-- Room 5: Two-Bedroom Apartment -->
+        <!-- Room 5: One-Bedroom Apartment -->
+        <div class="room-card reveal" data-room="one-bed" onclick="selectRoom(this, 'one-bed')">
+          <div class="room-card__image">
+            <img src="images/one-bed-apartment.jpg" alt="One-Bedroom Apartment at Belvoir" loading="lazy">
+            <div class="room-card__image-overlay"></div>
+            <div class="room-card__badge">Apartment</div>
+            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
+            <div class="room-card__price">$125 <small>/night</small></div>
+          </div>
+          <div class="room-card__body">
+            <h3 class="room-card__name">One-Bedroom Apartment</h3>
+            <p class="room-card__desc">Fully furnished apartment with separate bedroom, living area, and equipped kitchen — ideal for extended stays.</p>
+            <div class="room-card__features">
+              <span class="room-card__feature"><i data-lucide="bed-double"></i> 1 Bed</span>
+              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="chef-hat"></i> Kitchen</span>
+              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+            </div>
+          </div>
+          <div class="room-card__select-hint">Click to select</div>
+          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
+            Select & Book <i data-lucide="arrow-right"></i>
+          </div>
+        </div>
+
+        <!-- Room 6: Two-Bedroom Apartment -->
         <div class="room-card reveal" data-room="two-bed" onclick="selectRoom(this, 'two-bed')">
           <div class="room-card__image">
-            <img src="images/apartment-open-plan.jpeg" alt="Two-Bedroom Apartment at Belvoir" loading="lazy">
+            <img src="images/two-bed-apartment.jpg" alt="Two-Bedroom Apartment at Belvoir" loading="lazy">
             <div class="room-card__image-overlay"></div>
             <div class="room-card__badge">Suite</div>
             <div class="room-card__select-badge"><i data-lucide="check"></i></div>
@@ -2931,7 +2957,7 @@
           </div>
           <div class="room-card__body">
             <h3 class="room-card__name">Two-Bedroom Apartment</h3>
-            <p class="room-card__desc">Full apartment with two bedrooms, two bathrooms, living area, and equipped kitchen — ideal for families and extended stays.</p>
+            <p class="room-card__desc">Spacious apartment with two bedrooms, living area, and full kitchen — perfect for families and groups.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> 2 Beds</span>
               <span class="room-card__feature"><i data-lucide="bath"></i> 2 Baths</span>
@@ -3093,6 +3119,19 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ MINI MART BANNER ═══════════════ -->
+  <section class="reveal" style="position: relative; overflow: hidden; height: clamp(320px, 45vw, 480px);">
+    <img src="images/mini-mart.jpeg" alt="Belvoir Mini Mart" loading="lazy" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+    <div style="position: absolute; inset: 0; background: linear-gradient(135deg, rgba(10,25,47,0.85) 0%, rgba(10,25,47,0.4) 60%, transparent 100%);"></div>
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: clamp(2rem, 5vw, 5rem);">
+      <div class="section__marker reveal" style="color: var(--gold);">
+        <i data-lucide="shopping-bag" style="width: 14px; height: 14px;"></i> On-Site Convenience
+      </div>
+      <h2 style="font-family: var(--font-display); color: #fff; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -0.03em; margin: 0.5rem 0 1rem; max-width: 560px;">Our Mini Mart<br>Has You Covered</h2>
+      <p style="font-family: var(--font-body); color: rgba(255,255,255,0.8); font-size: clamp(0.95rem, 1.2vw, 1.15rem); line-height: 1.7; max-width: 480px; margin: 0;">Snacks, drinks, toiletries, and everyday essentials — available right on the premises so you never have to leave the comfort of Belvoir.</p>
     </div>
   </section>
 
@@ -3871,8 +3910,8 @@
     let selectedRoom = '';
     let selectedPayment = '';
 
-    const ROOM_PRICES = { standard: 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 120, 'two-bed': 170 };
-    const ROOM_NAMES = { standard: 'Deluxe Standard Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'two-bed': 'Two-Bedroom Apartment' };
+    const ROOM_PRICES = { standard: 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
+    const ROOM_NAMES = { standard: 'Deluxe Standard Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
     function selectAndScroll(linkEl) {
       const card = linkEl.closest('.room-card');
