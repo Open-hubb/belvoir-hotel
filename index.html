@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Belvoir Hotel & Residence — Freetown, Sierra Leone</title>
-  <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $55/night. Be Inspired… We Deliver.">
+  <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night. Be Inspired… We Deliver.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230C1B33'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' fill='%23B08D57'%3EB%3C/text%3E%3C/svg%3E">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,6 +40,15 @@
       --color-text-light: #9B9590;
       --color-white: #FFFFFF;
       --color-border: rgba(176, 141, 87, 0.15);
+
+      /* Pastel accent palette — soft coastal tones derived from the brand */
+      --color-sand: #F2ECE2;
+      --color-sage: #E9EEE7;
+      --color-blue-pale: #E9EFF4;
+      --color-peach: #F6EDE4;
+
+      --shadow-card: 0 1px 2px rgba(12, 27, 51, 0.04), 0 8px 24px rgba(12, 27, 51, 0.06), 0 24px 48px rgba(176, 141, 87, 0.08);
+      --shadow-card-hover: 0 2px 4px rgba(12, 27, 51, 0.05), 0 16px 32px rgba(12, 27, 51, 0.1), 0 32px 64px rgba(176, 141, 87, 0.12);
 
       --font-display: 'Cinzel', serif;
       --font-body: 'Josefin Sans', sans-serif;
@@ -2637,6 +2647,471 @@
       pointer-events: none;
       opacity: 0.3;
     }
+    /* ═══════════════════════════════════════════════════════════════
+       PASTEL SECTION VARIANTS
+    ═══════════════════════════════════════════════════════════════ */
+    .section--sand { background: var(--color-sand); }
+    .section--sage { background: var(--color-sage); }
+    .section--blue { background: var(--color-blue-pale); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       ACCOMMODATION TYPE SHOWCASE
+    ═══════════════════════════════════════════════════════════════ */
+    .acc-types {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(1.5rem, 3vw, 2.5rem);
+      margin-bottom: clamp(4rem, 8vh, 6rem);
+    }
+
+    .acc-card {
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: var(--shadow-card);
+      transition: transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .acc-card:hover,
+    .acc-card:focus-visible {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .acc-card:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 3px; }
+    .acc-card:active { transform: translateY(-2px); }
+
+    .acc-card__image {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+    }
+
+    .acc-card__image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.8s var(--ease-out-expo);
+    }
+
+    .acc-card:hover .acc-card__image img { transform: scale(1.06); }
+
+    .acc-card__image::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(12, 27, 51, 0.45), transparent 55%);
+      pointer-events: none;
+    }
+
+    .acc-card__tag {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 2;
+      background: rgba(250, 248, 245, 0.92);
+      color: var(--color-navy);
+      font-size: 0.62rem;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 0.45rem 0.9rem;
+      border-radius: 100px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .acc-card__tag i { width: 12px; height: 12px; color: var(--color-gold); }
+
+    .acc-card__view {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: 2;
+      color: var(--color-white);
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0.85;
+      transition: opacity 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo);
+    }
+
+    .acc-card:hover .acc-card__view { opacity: 1; transform: translateX(3px); }
+    .acc-card__view i { width: 14px; height: 14px; }
+
+    .acc-card__body {
+      padding: clamp(1.5rem, 2.5vw, 2.25rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      flex: 1;
+    }
+
+    .acc-card__name {
+      font-family: var(--font-display);
+      font-size: clamp(1.15rem, 1.6vw, 1.45rem);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--color-navy);
+    }
+
+    .acc-card__desc {
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      line-height: 1.7;
+      flex: 1;
+    }
+
+    .acc-card__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .acc-chip {
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      color: var(--color-navy);
+      background: var(--color-sage);
+      border-radius: 100px;
+      padding: 0.35rem 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .acc-chip--breakfast { background: var(--color-peach); }
+    .acc-chip i { width: 12px; height: 12px; color: var(--color-gold); }
+
+    @media (max-width: 768px) {
+      .acc-types { grid-template-columns: 1fr; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DIRECT BOOKING RIBBON
+    ═══════════════════════════════════════════════════════════════ */
+    .direct-ribbon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-light) 100%);
+      border: 1px solid rgba(176, 141, 87, 0.35);
+      border-radius: 6px;
+      color: var(--color-gold-muted);
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.25rem;
+      text-align: center;
+      flex-wrap: wrap;
+    }
+
+    .direct-ribbon i { width: 16px; height: 16px; color: var(--color-gold-light); flex-shrink: 0; }
+    .direct-ribbon strong { color: var(--color-white); font-weight: 400; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       ROOM DETAIL MODAL
+    ═══════════════════════════════════════════════════════════════ */
+    .detail-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(0.5rem, 2vw, 2rem);
+    }
+
+    .detail-modal.active { display: flex; }
+
+    .detail-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 27, 51, 0.75);
+      backdrop-filter: blur(6px);
+    }
+
+    .detail-modal__container {
+      position: relative;
+      z-index: 2;
+      background: var(--color-bg-cream);
+      border-radius: 8px;
+      width: min(1080px, 100%);
+      max-height: 92vh;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      animation: detailIn 0.5s var(--ease-out-expo);
+      box-shadow: 0 32px 80px rgba(12, 27, 51, 0.4);
+    }
+
+    @keyframes detailIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .detail-modal__container { animation: none; }
+    }
+
+    .detail-modal__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 5;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(250, 248, 245, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s var(--ease-spring);
+    }
+
+    .detail-modal__close:hover { transform: rotate(90deg); }
+    .detail-modal__close:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+
+    .detail-modal__gallery,
+    .detail-modal__content { min-width: 0; }
+
+    .detail-modal__gallery {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: var(--color-navy);
+    }
+
+    .detail-modal__stage {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      overflow: hidden;
+    }
+
+    .detail-modal__stage img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .detail-modal__nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(250, 248, 245, 0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      transition: transform 0.3s var(--ease-spring), background 0.3s var(--ease-out-expo);
+    }
+
+    .detail-modal__nav:hover { background: var(--color-white); transform: translateY(-50%) scale(1.08); }
+    .detail-modal__nav:active { transform: translateY(-50%) scale(0.96); }
+    .detail-modal__nav:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+    .detail-modal__nav--prev { left: 0.9rem; }
+    .detail-modal__nav--next { right: 0.9rem; }
+    .detail-modal__nav i { width: 18px; height: 18px; color: var(--color-navy); }
+
+    .detail-modal__thumbs {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      overflow-x: auto;
+      background: var(--color-navy);
+    }
+
+    .detail-modal__thumb {
+      width: 72px;
+      height: 52px;
+      flex-shrink: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      opacity: 0.5;
+      border: 2px solid transparent;
+      transition: opacity 0.3s var(--ease-out-expo), border-color 0.3s var(--ease-out-expo);
+      padding: 0;
+    }
+
+    .detail-modal__thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-modal__thumb.active { opacity: 1; border-color: var(--color-gold); }
+    .detail-modal__thumb:hover { opacity: 1; }
+    .detail-modal__thumb:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 1px; opacity: 1; }
+
+    .detail-modal__content {
+      padding: clamp(1.75rem, 3vw, 2.75rem);
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    .detail-modal__eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .detail-modal__eyebrow::before {
+      content: '';
+      width: 24px;
+      height: 1px;
+      background: var(--color-gold);
+    }
+
+    .detail-modal__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 2.4vw, 2rem);
+      font-weight: 500;
+      color: var(--color-navy);
+      line-height: 1.2;
+    }
+
+    .detail-modal__desc {
+      font-size: 0.92rem;
+      color: var(--color-text-muted);
+      line-height: 1.75;
+    }
+
+    .detail-modal__info-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .detail-modal__info-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: var(--color-sand);
+      border-radius: 100px;
+      padding: 0.45rem 1rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      color: var(--color-navy);
+    }
+
+    .detail-modal__info-chip i { width: 13px; height: 13px; color: var(--color-gold); }
+    .detail-modal__info-chip--muted { background: var(--color-bg-deep); color: var(--color-text-muted); }
+
+    .detail-modal__features-title {
+      font-size: 0.68rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-text-light);
+      margin-top: 0.35rem;
+    }
+
+    .detail-modal__features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem 1rem;
+      list-style: none;
+    }
+
+    .detail-modal__features li {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.85rem;
+      color: var(--color-text);
+    }
+
+    .detail-modal__features li i { width: 14px; height: 14px; color: var(--color-gold); flex-shrink: 0; }
+
+    .detail-modal__note {
+      font-family: var(--font-accent);
+      font-style: italic;
+      font-size: 0.95rem;
+      color: var(--color-text-muted);
+      border-left: 2px solid var(--color-gold);
+      padding-left: 1rem;
+    }
+
+    .detail-modal__cta {
+      margin-top: auto;
+      padding-top: 0.75rem;
+    }
+
+    @media (max-width: 860px) {
+      .detail-modal__container { grid-template-columns: 1fr; max-height: 94vh; }
+      .detail-modal__features { grid-template-columns: 1fr; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       AMENITIES SERVICES STRIP
+    ═══════════════════════════════════════════════════════════════ */
+    .services-strip {
+      margin-top: clamp(2.5rem, 5vh, 4rem);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.9rem;
+    }
+
+    .services-strip__item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(176, 141, 87, 0.18);
+      border-radius: 6px;
+      padding: 1rem 1.1rem;
+      font-size: 0.8rem;
+      line-height: 1.55;
+      color: var(--color-gold-muted);
+    }
+
+    .services-strip__item i {
+      width: 15px;
+      height: 15px;
+      color: var(--color-gold-light);
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .services-strip__item strong {
+      display: block;
+      color: var(--color-white);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.15rem;
+    }
+
+    .badge-soon {
+      display: inline-block;
+      font-size: 0.55rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-navy);
+      background: var(--color-gold-light);
+      border-radius: 100px;
+      padding: 0.2rem 0.6rem;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 1024px) {
+      .services-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 560px) {
+      .services-strip { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -2781,6 +3256,87 @@
         <a href="#rooms" class="btn-primary reveal"><span>View All Rooms</span></a>
       </div>
 
+      <!-- Accommodation Type Showcase -->
+      <div class="acc-types">
+        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('studio-rooms')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('studio-rooms');}">
+          <div class="acc-card__image">
+            <img src="images/deluxe-standard-room.jpg" alt="Studio room at Belvoir with king bed and modern furnishings" loading="lazy" width="800" height="500">
+            <span class="acc-card__tag"><i data-lucide="coffee"></i> Breakfast Included</span>
+            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+          </div>
+          <div class="acc-card__body">
+            <h3 class="acc-card__name">Studio Rooms</h3>
+            <p class="acc-card__desc">Elegant en-suite rooms with balconies and sea views — the perfect base for short stays, with breakfast served each morning.</p>
+            <div class="acc-card__chips">
+              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
+              <span class="acc-chip"><i data-lucide="bath"></i> Bathtub &amp; Shower</span>
+              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
+              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('apartments')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('apartments');}">
+          <div class="acc-card__image">
+            <img src="images/one-bed-apartment.jpg" alt="Serviced apartment at Belvoir with kitchen, dining and living area" loading="lazy" width="800" height="500">
+            <span class="acc-card__tag"><i data-lucide="chef-hat"></i> Full Kitchen</span>
+            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+          </div>
+          <div class="acc-card__body">
+            <h3 class="acc-card__name">Serviced Apartments</h3>
+            <p class="acc-card__desc">One and two-bedroom apartments with living areas and full kitchens — a furnished home for families and longer stays. Breakfast included with one-bedroom apartments.</p>
+            <div class="acc-card__chips">
+              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
+              <span class="acc-chip"><i data-lucide="sun"></i> Balcony</span>
+              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
+              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('penthouse')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('penthouse');}">
+          <div class="acc-card__image">
+            <img src="images/studio-penthouse.jpg" alt="Penthouse apartment at Belvoir with open-plan living and panoramic views" loading="lazy" width="800" height="500">
+            <span class="acc-card__tag"><i data-lucide="coffee"></i> Breakfast Included</span>
+            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+          </div>
+          <div class="acc-card__body">
+            <h3 class="acc-card__name">Penthouse Apartments</h3>
+            <p class="acc-card__desc">At the summit of Belvoir — open-plan penthouse living with panoramic sea views, premium furnishings, and breakfast each morning.</p>
+            <div class="acc-card__chips">
+              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
+              <span class="acc-chip"><i data-lucide="sun"></i> Balcony</span>
+              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
+              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('ground-floor')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('ground-floor');}">
+          <div class="acc-card__image">
+            <img src="images/deluxe-bedroom-1.jpeg" alt="Ground floor room at Belvoir with step-free access" loading="lazy" width="800" height="500">
+            <span class="acc-card__tag"><i data-lucide="accessibility"></i> Step-Free Access</span>
+            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+          </div>
+          <div class="acc-card__body">
+            <h3 class="acc-card__name">Ground Floor Rooms</h3>
+            <p class="acc-card__desc">All the comfort of our rooms with no stairs to climb — recommended for elderly guests and guests with limited mobility. Breakfast included.</p>
+            <div class="acc-card__chips">
+              <span class="acc-chip"><i data-lucide="accessibility"></i> No Stairs</span>
+              <span class="acc-chip"><i data-lucide="coffee"></i> Breakfast</span>
+              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
+              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direct Booking Ribbon -->
+      <div class="direct-ribbon reveal">
+        <i data-lucide="badge-percent"></i>
+        <span><strong>Book directly on our website</strong> and enjoy an exclusive discount.</span>
+      </div>
+
       <!-- Booking Bar -->
       <div class="booking-bar reveal" id="bookingBar">
         <div class="booking-bar__group">
@@ -2818,7 +3374,7 @@
         </button>
       </div>
 
-      <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room, choose your dates, and Book Now will activate. Pay in full or reserve with a 20% deposit.</p>
+      <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room, choose your dates, and Book Now will activate. Pay in full or reserve with a 20% deposit. &middot; Check-out is at 10:00 AM.</p>
 
       <div class="rooms__grid">
         <!-- Room 1: Deluxe Standard Room -->
@@ -2835,9 +3391,9 @@
             <p class="room-card__desc">Comfortable en-suite room with king bed, air conditioning, and modern furnishings — perfect for short stays.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
               <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
-              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
@@ -2860,9 +3416,9 @@
             <p class="room-card__desc">Upgraded en-suite room with premium bedding, elegant decor, and all modern comforts for a restful stay.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
-              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
+              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
               <span class="room-card__feature"><i data-lucide="tv"></i> LED TV</span>
+              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
@@ -2885,9 +3441,9 @@
             <p class="room-card__desc">Spacious twin room with two single beds, ideal for colleagues, friends, or family sharing a room.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> Twin Beds</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
               <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
-              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
@@ -2910,7 +3466,7 @@
             <p class="room-card__desc">Luxurious studio apartment at the summit with panoramic views, premium furnishings, and breakfast included.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> Studio</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
+              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
               <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
               <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
             </div>
@@ -2935,9 +3491,9 @@
             <p class="room-card__desc">Fully furnished apartment with separate bedroom, living area, and equipped kitchen — ideal for extended stays.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> 1 Bed</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> En-suite</span>
               <span class="room-card__feature"><i data-lucide="chef-hat"></i> Kitchen</span>
-              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
+              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
@@ -2957,12 +3513,12 @@
           </div>
           <div class="room-card__body">
             <h3 class="room-card__name">Two-Bedroom Apartment</h3>
-            <p class="room-card__desc">Spacious apartment with two bedrooms, living area, and full kitchen — perfect for families and groups.</p>
+            <p class="room-card__desc">Spacious apartment with two bedrooms, living area, and full kitchen — perfect for families and groups. Self-catering; breakfast not included.</p>
             <div class="room-card__features">
               <span class="room-card__feature"><i data-lucide="bed-double"></i> 2 Beds</span>
-              <span class="room-card__feature"><i data-lucide="bath"></i> 2 Baths</span>
               <span class="room-card__feature"><i data-lucide="chef-hat"></i> Kitchen</span>
-              <span class="room-card__feature"><i data-lucide="wifi"></i> WiFi</span>
+              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
+              <span class="room-card__feature"><i data-lucide="tv"></i> TV</span>
             </div>
           </div>
           <div class="room-card__select-hint">Click to select</div>
@@ -2977,7 +3533,7 @@
         <div class="longstay-banner__text">
           <div class="longstay-banner__label">Extended Stays</div>
           <div class="longstay-banner__heading">Monthly from <span>$1,000</span> &middot; Annually from <span>$15,000</span></div>
-          <div class="longstay-banner__desc">Ideal for expats, diplomats, and business professionals seeking a furnished home.</div>
+          <div class="longstay-banner__desc">Tailor-made packages for business travellers, relocating guests, and extended vacations — a fully furnished home for as long as you need.</div>
         </div>
         <a href="#contact" class="btn-outline">Enquire Now</a>
       </div>
@@ -3019,8 +3575,8 @@
           <div class="amenity-card amenity-card--shuttle reveal">
             <i data-lucide="car" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
-              <div class="amenity-card__title">Airport Shuttle</div>
-              <div class="amenity-card__desc">5 min to Lungi water taxi</div>
+              <div class="amenity-card__title">Pickup & Drop-off</div>
+              <div class="amenity-card__desc">Transfers arranged on request</div>
             </div>
           </div>
           <div class="amenity-card amenity-card--security reveal">
@@ -3042,8 +3598,8 @@
           <div class="amenity-card amenity-card--spa reveal">
             <i data-lucide="dumbbell" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
-              <div class="amenity-card__title">Wellness & Spa</div>
-              <div class="amenity-card__desc">Massage & fitness centre</div>
+              <div class="amenity-card__title">Gym <span class="badge-soon">Coming Soon</span></div>
+              <div class="amenity-card__desc">On-site fitness facilities</div>
             </div>
           </div>
           <div class="amenity-card amenity-card--business reveal">
@@ -3078,11 +3634,46 @@
           </div>
         </div>
       </div>
+
+      <div class="services-strip">
+        <div class="services-strip__item reveal">
+          <i data-lucide="zap"></i>
+          <div><strong>24-Hour Electricity</strong> Uninterrupted power throughout your stay</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="gauge"></i>
+          <div><strong>Individual Meters</strong> Some apartments include their own electricity meter, so you can manage and pay your own usage</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="ship"></i>
+          <div><strong>Sea Coach Tickets</strong> Booking assistance for Sea Coach water transfers</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="calendar-clock"></i>
+          <div><strong>Long Stay Packages</strong> Tailor-made rates for extended stays</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="cigarette-off"></i>
+          <div><strong>Non-Smoking Property</strong> With a dedicated outdoor smoking area</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="clock"></i>
+          <div><strong>Check-out at 10:00 AM</strong> Late check-out on request, subject to availability</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="accessibility"></i>
+          <div><strong>Ground Floor Rooms</strong> Step-free rooms for guests who prefer to avoid stairs</div>
+        </div>
+        <div class="services-strip__item reveal">
+          <i data-lucide="shopping-bag"></i>
+          <div><strong>On-Site Mini Mart</strong> Everyday essentials without leaving the property</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ═══════════════ DINING ═══════════════ -->
-  <section class="section" id="dining">
+  <section class="section section--sand" id="dining">
     <div class="container">
       <div class="dining__layout">
         <div class="dining__image-grid">
@@ -3104,18 +3695,15 @@
           <div class="section__marker reveal">04 — Dining</div>
           <h2 class="section__title reveal">A World of<br>Flavour</h2>
           <div class="hr-divider reveal"></div>
-          <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Our on-site restaurant brings together the vibrant flavours of Africa with the refinement of European cuisine — open for breakfast through dinner, with outdoor seating overlooking the sea.</p>
+          <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Our on-site restaurant celebrates two traditions: the vibrant, generous flavours of African cuisine, and refined Continental favourites — open for breakfast through dinner.</p>
 
           <div class="about__body reveal" style="margin-top: 1.5rem;">
-            From à la carte breakfast to high tea and candlelit dinners, our kitchen crafts every meal with locally sourced ingredients and international technique. Custom meal preparation is available on request.
+            From à la carte breakfast to candlelit dinners, our kitchen crafts every meal with locally sourced ingredients and international technique. Breakfast is included with studio rooms, one-bedroom apartments, penthouses, and ground floor rooms. Custom meal preparation is available on request.
           </div>
 
           <div class="dining__cuisines reveal">
-            <span class="dining__cuisine-tag">African</span>
-            <span class="dining__cuisine-tag">British</span>
-            <span class="dining__cuisine-tag">French</span>
-            <span class="dining__cuisine-tag">Italian</span>
-            <span class="dining__cuisine-tag">International</span>
+            <span class="dining__cuisine-tag">African Cuisine</span>
+            <span class="dining__cuisine-tag">Continental Cuisine</span>
           </div>
         </div>
       </div>
@@ -3173,7 +3761,7 @@
   </section>
 
   <!-- ═══════════════ LOCATION ═══════════════ -->
-  <section class="section" id="location">
+  <section class="section section--blue" id="location">
     <div class="container">
       <div class="location__layout">
         <div>
@@ -3355,6 +3943,42 @@
     </div>
   </section>
 
+  <!-- ═══════════════ ROOM DETAIL MODAL ═══════════════ -->
+  <div class="detail-modal" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="detail-modal__backdrop" onclick="closeDetailModal()"></div>
+    <div class="detail-modal__container">
+      <button class="detail-modal__close" onclick="closeDetailModal()" aria-label="Close room details">
+        <i data-lucide="x" style="width:18px;height:18px;color:var(--color-navy);"></i>
+      </button>
+
+      <div class="detail-modal__gallery">
+        <div class="detail-modal__stage">
+          <img id="detailStageImg" src="" alt="">
+          <button class="detail-modal__nav detail-modal__nav--prev" onclick="detailPrev()" aria-label="Previous photo">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <button class="detail-modal__nav detail-modal__nav--next" onclick="detailNext()" aria-label="Next photo">
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+        <div class="detail-modal__thumbs" id="detailThumbs"></div>
+      </div>
+
+      <div class="detail-modal__content">
+        <div class="detail-modal__eyebrow">Belvoir Accommodation</div>
+        <h3 class="detail-modal__title" id="detailTitle"></h3>
+        <p class="detail-modal__desc" id="detailDesc"></p>
+        <div class="detail-modal__info-strip" id="detailInfoStrip"></div>
+        <div class="detail-modal__features-title">Room Features</div>
+        <ul class="detail-modal__features" id="detailFeatures"></ul>
+        <p class="detail-modal__note" id="detailNote" style="display:none;"></p>
+        <div class="detail-modal__cta">
+          <button class="btn-primary" id="detailBookBtn" onclick="bookFromDetail()" style="width:100%;justify-content:center;"><span>Book This Stay</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════ BOOKING MODAL ═══════════════ -->
   <div class="booking-modal" id="bookingModal">
     <div class="booking-modal__backdrop" onclick="closeBookingModal()"></div>
@@ -3449,6 +4073,8 @@
             <div class="booking-modal__summary-value" id="summaryTotal2">—</div>
           </div>
         </div>
+
+        <p style="font-size:0.78rem;color:var(--color-gold);display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;"><i data-lucide="badge-percent" style="width:15px;height:15px;flex-shrink:0;"></i> You're booking directly with us — an exclusive direct-booking discount is applied at checkout.</p>
 
         <div class="booking-modal__payment-options">
           <div class="booking-modal__payment-card" id="payFull" onclick="selectPayment('full')">
@@ -3921,6 +4547,166 @@
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
+
+    /* ─────────── Accommodation Detail Modal ─────────── */
+    const ACC_TYPES = {
+      'studio-rooms': {
+        title: 'Studio Rooms',
+        desc: 'Elegant en-suite rooms finished with premium bedding and modern furnishings. Each studio room opens onto a private balcony with sea views, and breakfast is served each morning of your stay.',
+        images: [
+          { src: 'images/deluxe-standard-room.jpg', alt: 'Studio room with king bed and modern furnishings' },
+          { src: 'images/standard-bedroom-king.jpeg', alt: 'Studio room with king bed and premium bedding' },
+          { src: 'images/standard-bedroom-twin.jpeg', alt: 'Twin studio room with two single beds' },
+          { src: 'images/standard-bedroom-art.jpeg', alt: 'Studio room with artwork and warm lighting' },
+          { src: 'images/bathroom-shower.jpeg', alt: 'En-suite bathroom with walk-in shower' },
+          { src: 'images/bathroom-1.jpeg', alt: 'Modern en-suite bathroom' }
+        ],
+        breakfast: true,
+        features: ['Private balcony', 'Sea view', 'Bathtub', 'Walk-in shower', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
+        note: '',
+        bookValue: 'standard'
+      },
+      'apartments': {
+        title: 'Serviced Apartments',
+        desc: 'Fully furnished one and two-bedroom apartments with separate living areas and equipped kitchens — everything you need to settle in, whether for a week or a year. Breakfast is included with one-bedroom apartments.',
+        images: [
+          { src: 'images/one-bed-apartment.jpg', alt: 'One-bedroom apartment with kitchen, dining and living area' },
+          { src: 'images/two-bed-apartment.jpg', alt: 'Two-bedroom apartment living room' },
+          { src: 'images/apartment-open-plan.jpeg', alt: 'Open-plan apartment dining and living area' },
+          { src: 'images/kitchen-dining.jpeg', alt: 'Fully equipped kitchen and dining setup' },
+          { src: 'images/living-room-1.jpeg', alt: 'Apartment living room' },
+          { src: 'images/apartment-stone-wall.jpeg', alt: 'Apartment with stone accent wall' }
+        ],
+        breakfast: 'partial',
+        features: ['Private balcony', 'Sea view', 'Air conditioning', 'Flat-screen TV', 'Full kitchen', 'Separate living area', 'Fitted wardrobes', 'Free high-speed WiFi'],
+        note: 'Breakfast is included with one-bedroom apartments. Two-bedroom apartments have full kitchens for self-catering.',
+        bookValue: 'one-bed'
+      },
+      'penthouse': {
+        title: 'Penthouse Apartments',
+        desc: 'At the summit of Belvoir — open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches, premium furnishings, and breakfast served each morning.',
+        images: [
+          { src: 'images/studio-penthouse.jpg', alt: 'Penthouse with open-plan living and curved sofa' },
+          { src: 'images/apartment-full-view.jpeg', alt: 'Full view of penthouse apartment interior' },
+          { src: 'images/living-room-stone.jpeg', alt: 'Penthouse lounge with stone accent wall' },
+          { src: 'images/dining-kitchen-2.jpeg', alt: 'Penthouse dining area with kitchen' }
+        ],
+        breakfast: true,
+        features: ['Private balcony', 'Panoramic sea view', 'Air conditioning', 'Flat-screen TV', 'Open-plan living', 'Premium furnishings', 'Free high-speed WiFi', 'Daily housekeeping'],
+        note: '',
+        bookValue: 'studio'
+      },
+      'ground-floor': {
+        title: 'Ground Floor Rooms',
+        desc: 'All the comfort of our rooms with step-free access and no stairs to climb — recommended for elderly guests and guests with limited mobility. Breakfast is served each morning.',
+        images: [
+          { src: 'images/deluxe-bedroom-1.jpeg', alt: 'Ground floor room with comfortable king bed' },
+          { src: 'images/deluxe-bedroom-2.jpeg', alt: 'Ground floor deluxe bedroom' },
+          { src: 'images/standard-bedroom-3.jpeg', alt: 'Ground floor bedroom with modern decor' },
+          { src: 'images/bathroom-2.jpeg', alt: 'Accessible en-suite bathroom' }
+        ],
+        breakfast: true,
+        features: ['Step-free access', 'No stairs', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping', 'Close to reception'],
+        note: 'Ideal for elderly guests and guests who prefer avoiding stairs — let us know when booking and we will reserve a ground floor room for you.',
+        bookValue: 'standard'
+      }
+    };
+
+    let currentAccType = null;
+    let currentImgIndex = 0;
+    let detailLastFocus = null;
+
+    function openDetailModal(typeKey) {
+      const data = ACC_TYPES[typeKey];
+      if (!data) return;
+      currentAccType = typeKey;
+      currentImgIndex = 0;
+      detailLastFocus = document.activeElement;
+
+      document.getElementById('detailTitle').textContent = data.title;
+      document.getElementById('detailDesc').textContent = data.desc;
+
+      const strip = document.getElementById('detailInfoStrip');
+      let chips = '';
+      if (data.breakfast === true) {
+        chips += '<span class="detail-modal__info-chip"><i data-lucide="coffee"></i> Breakfast Included</span>';
+      } else if (data.breakfast === 'partial') {
+        chips += '<span class="detail-modal__info-chip"><i data-lucide="coffee"></i> Breakfast with 1-Bedroom</span>';
+      } else {
+        chips += '<span class="detail-modal__info-chip detail-modal__info-chip--muted"><i data-lucide="chef-hat"></i> Self-Catering</span>';
+      }
+      chips += '<span class="detail-modal__info-chip detail-modal__info-chip--muted"><i data-lucide="clock"></i> Check-out 10:00 AM</span>';
+      strip.innerHTML = chips;
+
+      document.getElementById('detailFeatures').innerHTML = data.features
+        .map(f => '<li><i data-lucide="check"></i>' + f + '</li>').join('');
+
+      const note = document.getElementById('detailNote');
+      if (data.note) { note.textContent = data.note; note.style.display = ''; }
+      else { note.style.display = 'none'; }
+
+      document.getElementById('detailThumbs').innerHTML = data.images
+        .map((img, i) => '<button class="detail-modal__thumb' + (i === 0 ? ' active' : '') + '" onclick="detailGoTo(' + i + ')" aria-label="View photo ' + (i + 1) + '"><img src="' + img.src + '" alt="" loading="lazy"></button>').join('');
+
+      updateDetailStage();
+      document.getElementById('detailModal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+      if (window.lucide) lucide.createIcons();
+      document.querySelector('#detailModal .detail-modal__close').focus();
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+      document.body.style.overflow = '';
+      if (detailLastFocus && detailLastFocus.focus) detailLastFocus.focus();
+    }
+
+    function updateDetailStage() {
+      const data = ACC_TYPES[currentAccType];
+      if (!data) return;
+      const img = data.images[currentImgIndex];
+      const stage = document.getElementById('detailStageImg');
+      stage.src = img.src;
+      stage.alt = img.alt;
+      document.querySelectorAll('#detailThumbs .detail-modal__thumb').forEach((t, i) => {
+        t.classList.toggle('active', i === currentImgIndex);
+      });
+    }
+
+    function detailGoTo(i) { currentImgIndex = i; updateDetailStage(); }
+
+    function detailNext() {
+      const data = ACC_TYPES[currentAccType];
+      if (!data) return;
+      currentImgIndex = (currentImgIndex + 1) % data.images.length;
+      updateDetailStage();
+    }
+
+    function detailPrev() {
+      const data = ACC_TYPES[currentAccType];
+      if (!data) return;
+      currentImgIndex = (currentImgIndex - 1 + data.images.length) % data.images.length;
+      updateDetailStage();
+    }
+
+    function bookFromDetail() {
+      const data = ACC_TYPES[currentAccType];
+      closeDetailModal();
+      if (!data) return;
+      const select = document.getElementById('roomSelect');
+      select.value = data.bookValue;
+      select.dispatchEvent(new Event('change'));
+      const target = document.getElementById('bookingBar');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      const modal = document.getElementById('detailModal');
+      if (!modal.classList.contains('active')) return;
+      if (e.key === 'Escape') closeDetailModal();
+      else if (e.key === 'ArrowRight') detailNext();
+      else if (e.key === 'ArrowLeft') detailPrev();
+    });
 
     function selectRoom(cardEl, roomValue) {
       document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
