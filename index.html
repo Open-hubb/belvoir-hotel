@@ -3054,6 +3054,483 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
+       FRAMED HERO (reference design)
+    ═══════════════════════════════════════════════════════════════ */
+    :root {
+      --fhero-green: #11473A;
+      --fhero-green-deep: #0A4A3D;
+      --fhero-cream: #FBF3E7;
+      --fh-peach: #F7D9C4;
+      --fh-blue: #CBDEED;
+      --fh-sage: #D3E4D3;
+      --fh-butter: #F6E7C1;
+      --fh-blush: #F2D3CC;
+      --fh-terra: #C96F4A;
+      --fh-paper: #FFFDF8;
+    }
+
+    .fhero {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background-color: var(--fhero-cream);
+      background-image:
+        radial-gradient(46% 40% at 10% 6%, var(--fh-peach) 0%, transparent 100%),
+        radial-gradient(40% 34% at 92% 10%, var(--fh-blue) 0%, transparent 100%),
+        radial-gradient(46% 42% at 6% 92%, var(--fh-sage) 0%, transparent 100%),
+        radial-gradient(42% 36% at 94% 88%, var(--fh-blush) 0%, transparent 100%);
+      display: flex;
+      position: relative;
+    }
+
+    .fhero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='fn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23fn)'/%3E%3C/svg%3E");
+      background-size: 160px 160px;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .fhero__card {
+      background: transparent;
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: clamp(1.5rem, 3.5vh, 2.75rem);
+      overflow: hidden;
+    }
+
+    .fhero__nav {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 1rem;
+      padding: clamp(0.9rem, 1.6vh, 1.35rem) clamp(1.25rem, 3vw, 3rem);
+      border-bottom: 1px solid rgba(14, 90, 74, 0.35);
+      opacity: 0;
+    }
+
+    .fhero__brand {
+      display: inline-flex;
+      align-items: center;
+      justify-self: start;
+    }
+
+    .fhero__logo {
+      height: clamp(52px, 6vw, 72px);
+      width: auto;
+      display: block;
+    }
+
+    .fhero__links {
+      display: flex;
+      align-items: center;
+      gap: clamp(1.5rem, 3vw, 2.75rem);
+    }
+
+    .fhero__links a {
+      font-family: var(--font-accent);
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--fhero-green);
+      position: relative;
+      padding: 0.2rem 0;
+    }
+
+    .fhero__links a::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: var(--fhero-green);
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.4s var(--ease-out-expo);
+    }
+
+    .fhero__links a:hover::after,
+    .fhero__links a:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+    .fhero__links a:focus-visible { outline: 2px solid var(--fhero-green); outline-offset: 3px; }
+
+    .fhero__phone {
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: var(--font-accent);
+      font-size: 1.02rem;
+      font-weight: 500;
+      color: var(--fhero-green);
+      border: 1px solid var(--fhero-green);
+      border-radius: 999px;
+      padding: 0.6rem 1.4rem;
+      transition: background 0.35s var(--ease-out-expo), color 0.35s var(--ease-out-expo), transform 0.35s var(--ease-out-expo);
+    }
+
+    .fhero__phone i,
+    .fhero__phone svg { width: 15px; height: 15px; }
+    .fhero__phone:hover { background: var(--fhero-green); color: var(--fhero-cream); transform: translateY(-1px); }
+    .fhero__phone:active { transform: translateY(0); }
+    .fhero__phone:focus-visible { outline: 2px solid var(--fhero-green); outline-offset: 3px; }
+
+    .fhero__stage {
+      position: relative;
+      text-align: center;
+    }
+
+    .fhero__headline {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: clamp(2.3rem, 5vw, 4.3rem);
+      line-height: 1.04;
+      letter-spacing: -0.02em;
+      color: var(--fhero-green);
+      text-align: center;
+      margin: clamp(1rem, 2.5vh, 2rem) auto 0;
+    }
+
+    .fhero__headline .fh-line {
+      display: block;
+      overflow: hidden;
+      padding-bottom: 0.14em;
+      margin-bottom: -0.06em;
+    }
+
+    .fhero__headline .fh-line > span {
+      display: inline-block;
+      transform: translateY(112%);
+    }
+
+    .fhero__headline em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--fh-terra);
+      padding-bottom: 0.12em;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'%3E%3Cpath d='M2 9 C 30 3, 62 2.5, 118 6.5' stroke='%23C96F4A' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat bottom 0.02em center / 100% 0.16em;
+    }
+
+    .fh-spark {
+      position: absolute;
+      font-size: 1.5rem;
+      line-height: 1;
+      color: var(--fh-terra);
+      pointer-events: none;
+      animation: fhFloat 5s ease-in-out infinite;
+      z-index: 3;
+    }
+
+    .fh-spark--1 { top: 34%; left: clamp(4%, 16vw, 24%); }
+    .fh-spark--2 {
+      top: 12%;
+      right: clamp(4%, 15vw, 22%);
+      color: #8FB6D6;
+      font-size: 1.05rem;
+      animation-delay: 2.2s;
+    }
+
+    @keyframes fhFloat {
+      0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.9; }
+      50% { transform: translateY(-12px) rotate(18deg); opacity: 0.55; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fh-spark { animation: none; }
+    }
+
+    .fhero__photos {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(0.7rem, 2.2vw, 2rem);
+      margin-top: clamp(1.25rem, 3.5vh, 2.5rem);
+      padding: 0 clamp(1rem, 2.5vw, 2.5rem);
+      min-height: 0;
+    }
+
+    .fhero__ph {
+      padding: 9px;
+      border-radius: 220px 220px 18px 18px;
+      background: var(--fh-paper);
+      box-shadow:
+        0 2px 6px rgba(17, 71, 58, 0.06),
+        0 18px 40px rgba(17, 71, 58, 0.14),
+        0 36px 72px rgba(201, 111, 74, 0.1);
+      opacity: 0;
+      transform: translateY(46px);
+      flex-shrink: 0;
+      transition: transform 0.55s var(--ease-out-expo), box-shadow 0.55s var(--ease-out-expo);
+      overflow: hidden;
+    }
+
+    .fhero__ph:nth-child(1) { background: var(--fh-butter); }
+    .fhero__ph:nth-child(2) { background: var(--fh-blue); }
+    .fhero__ph:nth-child(4) { background: var(--fh-sage); }
+    .fhero__ph:nth-child(5) { background: var(--fh-blush); }
+
+    .fhero__ph:hover {
+      transform: translateY(-10px) !important;
+      box-shadow:
+        0 4px 10px rgba(17, 71, 58, 0.08),
+        0 28px 56px rgba(17, 71, 58, 0.2),
+        0 48px 90px rgba(201, 111, 74, 0.14);
+    }
+
+    .fhero__ph img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 210px 210px 10px 10px;
+    }
+
+    .fhero__ph--xs { width: clamp(90px, min(11vw, 15.5vh), 156px); aspect-ratio: 156 / 226; }
+    .fhero__ph--sm { width: clamp(120px, min(15.4vw, 19vh), 220px); aspect-ratio: 220 / 340; }
+    .fhero__ph--lg { width: clamp(160px, min(22vw, 24vh), 312px); aspect-ratio: 312 / 500; }
+
+    /* Spinning badge over the photo row */
+    .fhero__badge {
+      position: absolute;
+      top: -34px;
+      left: calc(50% + clamp(80px, 9.5vw, 132px));
+      width: clamp(96px, 9vw, 128px);
+      height: clamp(96px, 9vw, 128px);
+      border-radius: 50%;
+      background: var(--fh-paper);
+      box-shadow: 0 12px 32px rgba(17, 71, 58, 0.16);
+      z-index: 4;
+      opacity: 0;
+      transform: scale(0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fhero__badge svg.fh-badge-ring {
+      position: absolute;
+      inset: 7px;
+      animation: fhSpin 22s linear infinite;
+    }
+
+    .fhero__badge svg.fh-badge-ring text {
+      font-family: var(--font-body);
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      fill: var(--fh-terra);
+    }
+
+    .fhero__badge > i,
+    .fhero__badge > svg:not(.fh-badge-ring) {
+      width: 20px;
+      height: 20px;
+      color: var(--fhero-green);
+    }
+
+    @keyframes fhSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fhero__badge svg.fh-badge-ring { animation: none; }
+    }
+
+    @media (max-width: 900px) {
+      .fhero__nav { grid-template-columns: auto 1fr; }
+      .fhero__links { display: none; }
+      .fhero__phone { justify-self: end; }
+      .fhero__photos { gap: clamp(0.5rem, 1.6vw, 1.1rem); }
+      .fhero__ph--xs { width: 11vw; }
+      .fhero__ph--sm { width: 17vw; }
+      .fhero__ph--lg { width: 25vw; }
+      .fhero__badge { left: calc(50% + 13.5vw); }
+    }
+
+    @media (max-width: 640px) {
+      .fhero__photos { gap: 0.6rem; padding: 0 0.75rem; }
+      .fhero__ph--xs { display: none; }
+      .fhero__ph--sm { width: 21vw; }
+      .fhero__ph--lg { width: 34vw; }
+      .fhero__ph { padding: 6px; }
+      .fhero__badge { top: -24px; left: calc(50% + 17vw); }
+      .fhero__phone { font-size: 0.9rem; padding: 0.5rem 1rem; }
+      .fhero__headline { max-width: 16ch; }
+      .fh-spark--1 { top: 42%; }
+    }
+
+    @media (min-width: 901px) {
+      .fhero__badge { left: calc(50% + clamp(66px, min(9vw, 12vh), 132px)); }
+    }
+
+    @media (max-height: 840px) and (min-width: 901px) {
+      .fhero__headline { font-size: clamp(2.1rem, 4.5vw, 3.8rem); }
+      .fhero__photos { margin-top: 1rem; }
+      .fhero__actions { margin-top: 1rem; }
+      .fhero__card { padding-bottom: 1.25rem; }
+      .fhero__badge { width: 92px; height: 92px; top: -22px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fhero__nav, .fhero__ph, .fhero__badge { opacity: 1; transform: none; }
+      .fhero__headline .fh-line > span { transform: none; }
+    }
+
+    /* ─── Hero subtitle + actions (framed variant) ─── */
+    .fhero__sub {
+      font-family: var(--font-accent);
+      font-style: italic;
+      font-size: clamp(0.95rem, 1.3vw, 1.2rem);
+      font-weight: 400;
+      line-height: 1.65;
+      color: rgba(17, 71, 58, 0.78);
+      text-align: center;
+      max-width: 72ch;
+      margin: 0.9rem auto 0;
+      padding: 0 1.5rem;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .fhero__actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.75rem;
+      flex-wrap: wrap;
+      margin-top: clamp(1.25rem, 3vh, 2rem);
+      opacity: 0;
+    }
+
+    .fhero__cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.15rem;
+      background: var(--fhero-green);
+      color: var(--fhero-cream);
+      border-radius: 999px;
+      padding: 0.5rem 0.5rem 0.5rem 2.4rem;
+      font-family: var(--font-body);
+      font-size: 0.74rem;
+      font-weight: 400;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        0 8px 20px rgba(17, 71, 58, 0.22),
+        0 22px 44px rgba(17, 71, 58, 0.16);
+      transition: transform 0.45s var(--ease-out-expo), box-shadow 0.45s var(--ease-out-expo);
+    }
+
+    .fhero__cta::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -70%;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(105deg, transparent, rgba(255, 253, 248, 0.28), transparent);
+      transform: skewX(-20deg);
+      transition: left 0.7s var(--ease-out-expo);
+      pointer-events: none;
+    }
+
+    .fhero__cta:hover {
+      transform: translateY(-3px);
+      box-shadow:
+        0 12px 28px rgba(17, 71, 58, 0.28),
+        0 30px 60px rgba(17, 71, 58, 0.2);
+    }
+
+    .fhero__cta:hover::before { left: 130%; }
+    .fhero__cta:active { transform: translateY(-1px); }
+    .fhero__cta:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 4px; }
+
+    .fhero__cta-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--fh-terra);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.5s var(--ease-spring), background 0.4s var(--ease-out-expo);
+    }
+
+    .fhero__cta:hover .fhero__cta-icon {
+      transform: rotate(-45deg);
+      background: #B95F3C;
+    }
+
+    .fhero__cta-icon i,
+    .fhero__cta-icon svg { width: 18px; height: 18px; color: var(--fh-paper); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fhero__sub, .fhero__actions { opacity: 1; transform: none; }
+    }
+
+    /* ─── Hero variant switching ─── */
+    body.variant-b .hero { display: none; }
+    body.variant-a .fhero { display: none; }
+
+    /* Framed hero has its own nav; site nav appears on scroll (variant B only) */
+    body.variant-b .nav { opacity: 0; pointer-events: none; }
+    body.variant-b .nav.scrolled { opacity: 1; pointer-events: auto; }
+
+    /* ─── Floating variant toggle ─── */
+    .variant-toggle {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(12, 27, 51, 0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(176, 141, 87, 0.4);
+      border-radius: 999px;
+      padding: 0.3rem;
+      box-shadow: 0 8px 28px rgba(12, 27, 51, 0.35);
+    }
+
+    .variant-toggle__label {
+      font-family: var(--font-body);
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-gold-muted);
+      padding: 0 0.5rem 0 0.75rem;
+    }
+
+    .variant-toggle__btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--color-gold-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s var(--ease-out-expo), color 0.3s var(--ease-out-expo), transform 0.3s var(--ease-spring);
+    }
+
+    .variant-toggle__btn:hover { transform: scale(1.08); color: var(--color-white); }
+    .variant-toggle__btn:active { transform: scale(0.96); }
+    .variant-toggle__btn:focus-visible { outline: 2px solid var(--color-gold-light); outline-offset: 2px; }
+    .variant-toggle__btn.active { background: var(--color-gold); color: var(--color-navy); }
+
+    /* ═══════════════════════════════════════════════════════════════
        AMENITIES SERVICES STRIP
     ═══════════════════════════════════════════════════════════════ */
     .services-strip {
@@ -3112,9 +3589,148 @@
     @media (max-width: 560px) {
       .services-strip { grid-template-columns: 1fr; }
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       VARIANT B — PASTEL RIVIERA THEME FOR ALL SECTIONS
+    ═══════════════════════════════════════════════════════════════ */
+    body.variant-b {
+      --color-bg: #FBF3E7;
+      --color-bg-deep: #F4E9DA;
+      --color-bg-cream: #FFFBF3;
+      --color-navy: #11473A;
+      --color-navy-light: #17594A;
+      --color-gold: #C96F4A;
+      --color-gold-light: #D98B67;
+      --color-gold-muted: #ECD3C5;
+      --color-text: #24312B;
+      --color-text-muted: #5F6B62;
+      --color-text-light: #94A08F;
+      --color-border: rgba(201, 111, 74, 0.16);
+      --color-sand: #F6EBDD;
+      --color-sage: #E4EDDF;
+      --color-blue-pale: #E5EEF5;
+      --color-peach: #F9E5D5;
+    }
+
+    /* Soft pastel washes behind key sections */
+    body.variant-b #about {
+      background:
+        radial-gradient(38% 34% at 92% 4%, rgba(211, 228, 211, 0.55) 0%, transparent 100%),
+        radial-gradient(30% 26% at 4% 90%, rgba(249, 229, 213, 0.5) 0%, transparent 100%),
+        var(--color-bg-cream);
+    }
+
+    body.variant-b #rooms {
+      background:
+        radial-gradient(42% 30% at 6% 0%, rgba(247, 217, 196, 0.5) 0%, transparent 100%),
+        radial-gradient(38% 28% at 96% 10%, rgba(203, 222, 237, 0.45) 0%, transparent 100%),
+        radial-gradient(36% 26% at 8% 96%, rgba(228, 237, 223, 0.55) 0%, transparent 100%),
+        var(--color-bg);
+    }
+
+    body.variant-b .section--deep {
+      background:
+        radial-gradient(42% 32% at 6% 6%, rgba(242, 211, 204, 0.4) 0%, transparent 100%),
+        radial-gradient(38% 30% at 94% 90%, rgba(203, 222, 237, 0.4) 0%, transparent 100%),
+        var(--color-bg-deep);
+    }
+
+    body.variant-b #location {
+      background:
+        radial-gradient(40% 32% at 90% 8%, rgba(249, 229, 213, 0.55) 0%, transparent 100%),
+        var(--color-blue-pale);
+    }
+
+    body.variant-b #reviews {
+      background:
+        radial-gradient(38% 30% at 8% 10%, rgba(203, 222, 237, 0.4) 0%, transparent 100%),
+        var(--color-bg-cream);
+    }
+
+    /* Soft rounded surfaces with pastel-tinted shadows */
+    body.variant-b .acc-card,
+    body.variant-b .room-card,
+    body.variant-b .booking-bar,
+    body.variant-b .longstay-banner,
+    body.variant-b .amenity-card,
+    body.variant-b .services-strip__item,
+    body.variant-b .direct-ribbon,
+    body.variant-b .review-card {
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    body.variant-b .acc-card,
+    body.variant-b .room-card,
+    body.variant-b .review-card {
+      border: none;
+      box-shadow:
+        0 2px 6px rgba(17, 71, 58, 0.05),
+        0 18px 40px rgba(17, 71, 58, 0.1),
+        0 36px 72px rgba(201, 111, 74, 0.08);
+    }
+
+    body.variant-b .acc-card:hover,
+    body.variant-b .room-card:hover {
+      box-shadow:
+        0 4px 10px rgba(17, 71, 58, 0.07),
+        0 28px 56px rgba(17, 71, 58, 0.16),
+        0 48px 90px rgba(201, 111, 74, 0.12);
+    }
+
+    body.variant-b .gallery__item,
+    body.variant-b .img-wrap,
+    body.variant-b .parallax-divider {
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    body.variant-b .parallax-divider { border-radius: 0; }
+
+    /* Pill-shaped controls */
+    body.variant-b .btn-primary,
+    body.variant-b .btn-outline,
+    body.variant-b .nav__cta,
+    body.variant-b .booking-bar__submit,
+    body.variant-b .booking-modal__btn,
+    body.variant-b .room-card__link,
+    body.variant-b .dining__cuisine-tag {
+      border-radius: 999px;
+    }
+
+    body.variant-b .booking-bar__input,
+    body.variant-b .booking-modal__input,
+    body.variant-b .contact__form input,
+    body.variant-b .contact__form textarea,
+    body.variant-b .contact__form select {
+      border-radius: 14px;
+    }
+
+    body.variant-b .room-card__badge,
+    body.variant-b .room-card__price,
+    body.variant-b .acc-chip,
+    body.variant-b .badge-soon { border-radius: 999px; }
+
+    /* Modals */
+    body.variant-b .detail-modal__container,
+    body.variant-b .booking-modal__container,
+    body.variant-b .payment-popup__container { border-radius: 24px; }
+
+    /* Mini mart banner overlay: navy → deep green */
+    body.variant-b .minimart-overlay {
+      background: linear-gradient(135deg, rgba(17, 71, 58, 0.85) 0%, rgba(17, 71, 58, 0.4) 60%, transparent 100%) !important;
+    }
+
+    /* Marquee gets a pastel band */
+    body.variant-b .marquee {
+      background:
+        radial-gradient(50% 90% at 20% 50%, rgba(249, 229, 213, 0.6) 0%, transparent 100%),
+        radial-gradient(50% 90% at 80% 50%, rgba(228, 237, 223, 0.6) 0%, transparent 100%),
+        var(--color-bg);
+    }
   </style>
 </head>
-<body>
+<body class="variant-b">
   <!-- ═══════════════ PRELOADER ═══════════════ -->
   <div class="preloader" id="preloader">
     <div class="preloader__logo">Belvoir</div>
@@ -3156,7 +3772,70 @@
   </div>
 
   <!-- ═══════════════ HERO ═══════════════ -->
-  <section class="hero" id="hero">
+  <section class="fhero" id="hero">
+    <div class="fhero__card">
+      <header class="fhero__nav">
+        <a href="#hero" class="fhero__brand" aria-label="Belvoir Hotel Home">
+          <img src="images/logo.png" alt="Belvoir — Be Inspired. Hotel, Serviced Apartment, Residence. We deliver." class="fhero__logo" width="610" height="400">
+        </a>
+        <nav class="fhero__links" aria-label="Hero navigation">
+          <a href="#hero">Home</a>
+          <a href="#rooms">Accommodations</a>
+          <a href="#about">About</a>
+          <a href="#amenities">Amenities</a>
+        </nav>
+        <a href="tel:+23277777063" class="fhero__phone">+232 77 777 063 <i data-lucide="phone-call"></i></a>
+      </header>
+
+      <div class="fhero__stage">
+        <h1 class="fhero__headline">
+          <span class="fh-line"><span>Above the City,</span></span>
+          <span class="fh-line"><span>Beyond <em>Ordinary</em></span></span>
+        </h1>
+        <span class="fh-spark fh-spark--1" aria-hidden="true">&#10022;</span>
+        <span class="fh-spark fh-spark--2" aria-hidden="true">&#10022;</span>
+        <p class="fhero__sub">Luxury serviced apartments with breathtaking panoramic views of Lumley and Aberdeen beaches — your home away from home in the heart of Freetown.</p>
+      </div>
+
+      <div class="fhero__photos">
+        <div class="fhero__ph fhero__ph--xs">
+          <img src="https://picsum.photos/id/28/400/380" alt="Placeholder — lush green treetops" loading="eager" width="400" height="380">
+        </div>
+        <div class="fhero__ph fhero__ph--sm">
+          <img src="https://picsum.photos/id/15/500/640" alt="Placeholder — river flowing over rocks" loading="eager" width="500" height="640">
+        </div>
+        <div class="fhero__ph fhero__ph--lg">
+          <img src="https://picsum.photos/id/29/700/1024" alt="Placeholder — mountain range at dusk" loading="eager" width="700" height="1024">
+        </div>
+        <div class="fhero__ph fhero__ph--sm">
+          <img src="https://picsum.photos/id/12/500/640" alt="Placeholder — rocky shoreline" loading="eager" width="500" height="640">
+        </div>
+        <div class="fhero__ph fhero__ph--xs">
+          <img src="https://picsum.photos/id/27/400/380" alt="Placeholder — forest path" loading="eager" width="400" height="380">
+        </div>
+
+        <div class="fhero__badge" aria-hidden="true">
+          <svg class="fh-badge-ring" viewBox="0 0 100 100">
+            <defs>
+              <path id="fhBadgeCircle" d="M50,50 m-40,0 a40,40 0 1,1 80,0 a40,40 0 1,1 -80,0"/>
+            </defs>
+            <text><textPath href="#fhBadgeCircle">Be Inspired &#8226; We Deliver &#8226; Belvoir &#8226;</textPath></text>
+          </svg>
+          <i data-lucide="arrow-down"></i>
+        </div>
+      </div>
+
+      <div class="fhero__actions">
+        <a href="#rooms" class="fhero__cta">
+          Book Your Stay
+          <span class="fhero__cta-icon"><i data-lucide="arrow-right"></i></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ HERO — VARIANT A (classic) ═══════════════ -->
+  <section class="hero" id="hero-classic">
     <div class="hero__bg">
       <img src="images/hero-building.jpg" alt="Belvoir Hotel & Residence building exterior in Freetown" loading="eager">
     </div>
@@ -3186,19 +3865,26 @@
     </div>
   </section>
 
+  <!-- ═══════════════ HERO VARIANT TOGGLE ═══════════════ -->
+  <div class="variant-toggle" role="group" aria-label="Hero design variant switcher">
+    <span class="variant-toggle__label">Design</span>
+    <button class="variant-toggle__btn" id="variantBtnA" onclick="setVariant('a')" aria-label="Show hero design A (classic)" aria-pressed="false">A</button>
+    <button class="variant-toggle__btn active" id="variantBtnB" onclick="setVariant('b')" aria-label="Show hero design B (framed)" aria-pressed="true">B</button>
+  </div>
+
   <!-- ═══════════════ MARQUEE ═══════════════ -->
   <div class="marquee" aria-hidden="true">
     <div class="marquee__track">
       <span class="marquee__item">Panoramic Ocean Views</span>
       <span class="marquee__item">Luxury Serviced Apartments</span>
       <span class="marquee__item">Freetown, Sierra Leone</span>
-      <span class="marquee__item">From $55 Per Night</span>
+      <span class="marquee__item">From $80 Per Night</span>
       <span class="marquee__item">Be Inspired… We Deliver</span>
       <span class="marquee__item">10+ Years of Excellence</span>
       <span class="marquee__item">Panoramic Ocean Views</span>
       <span class="marquee__item">Luxury Serviced Apartments</span>
       <span class="marquee__item">Freetown, Sierra Leone</span>
-      <span class="marquee__item">From $55 Per Night</span>
+      <span class="marquee__item">From $80 Per Night</span>
       <span class="marquee__item">Be Inspired… We Deliver</span>
       <span class="marquee__item">10+ Years of Excellence</span>
     </div>
@@ -3713,7 +4399,7 @@
   <!-- ═══════════════ MINI MART BANNER ═══════════════ -->
   <section class="reveal" style="position: relative; overflow: hidden; height: clamp(320px, 45vw, 480px);">
     <img src="images/mini-mart.jpeg" alt="Belvoir Mini Mart" loading="lazy" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
-    <div style="position: absolute; inset: 0; background: linear-gradient(135deg, rgba(10,25,47,0.85) 0%, rgba(10,25,47,0.4) 60%, transparent 100%);"></div>
+    <div class="minimart-overlay" style="position: absolute; inset: 0; background: linear-gradient(135deg, rgba(10,25,47,0.85) 0%, rgba(10,25,47,0.4) 60%, transparent 100%);"></div>
     <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: clamp(2rem, 5vw, 5rem);">
       <div class="section__marker reveal" style="color: var(--gold);">
         <i data-lucide="shopping-bag" style="width: 14px; height: 14px;"></i> On-Site Convenience
@@ -3847,7 +4533,7 @@
       <div class="section__marker reveal" style="justify-content: center;">08 — Reserve</div>
       <h2 class="section__title reveal" style="text-align: center;">Begin Your<br>Freetown Story</h2>
       <div class="hr-divider hr-divider--center reveal"></div>
-      <p class="section__subtitle reveal" style="text-align: center; margin: 0 auto 3rem;">From $55 per night. Whether it's a weekend escape, a month-long business trip, or your new home — Belvoir is ready for you.</p>
+      <p class="section__subtitle reveal" style="text-align: center; margin: 0 auto 3rem;">From $80 per night. Whether it's a weekend escape, a month-long business trip, or your new home — Belvoir is ready for you.</p>
 
       <div class="cta-section__actions reveal">
         <a href="#rooms" class="btn-primary"><span>Choose Your Room</span></a>
@@ -4228,45 +4914,112 @@
         }
       }, '-=0.1');
 
-    /* ─── Hero Animations ─── */
+    /* ─── Hero Animations (variant-aware) ─── */
     function animateHero() {
-      const heroTl = gsap.timeline();
-
-      heroTl
-        .to('.hero__bg img', {
-          scale: 1,
-          duration: 1.8,
-          ease: 'power2.out'
-        }, 0)
-        .to('.hero__marker', {
-          opacity: 1,
-          duration: 0.6,
-          ease: 'power2.out'
-        }, 0.3)
-        .to('.hero__title .word-inner', {
-          y: 0,
-          duration: 1,
-          stagger: 0.08,
-          ease: 'power3.out'
-        }, 0.4)
-        .to('.hero__subtitle', {
-          opacity: 1,
-          duration: 0.8,
-          ease: 'power2.out'
-        }, 0.9)
-        .to('.hero__actions', {
-          opacity: 1,
-          duration: 0.6,
-          ease: 'power2.out'
-        }, 1.1)
-        .to('#heroScroll', {
-          opacity: 1,
-          duration: 0.6,
-          ease: 'power2.out'
-        }, 1.3);
+      if (document.body.classList.contains('variant-a')) {
+        animateHeroA();
+        setHeroBFinal();
+      } else {
+        animateHeroB();
+        setHeroAFinal();
+      }
     }
 
-    /* ─── Hero Parallax ─── */
+    const FH_TILTS = [-6, -3, 0, 3, 6];
+
+    function animateHeroB() {
+      gsap.timeline({ onComplete: () => { const w = document.querySelector('.fhero__photos'); if (w) w.dataset.ready = '1'; } })
+        .to('.fhero__nav', { opacity: 1, duration: 0.7, ease: 'power2.out' }, 0.1)
+        .to('.fhero__headline .fh-line > span', { y: 0, duration: 1.1, stagger: 0.12, ease: 'power4.out' }, 0.3)
+        .to('.fhero__sub', { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }, 0.75)
+        .to('.fhero__ph', {
+          opacity: 1, y: 0,
+          rotation: i => FH_TILTS[i],
+          duration: 1,
+          stagger: { each: 0.09, from: 'center' },
+          ease: 'power3.out'
+        }, 0.85)
+        .to('.fhero__badge', { opacity: 1, scale: 1, duration: 0.7, ease: 'back.out(1.6)' }, 1.35)
+        .to('.fhero__actions', { opacity: 1, duration: 0.7, ease: 'power2.out' }, 1.45);
+    }
+
+    /* ─── Hero B mouse parallax ─── */
+    (function fheroParallax() {
+      if (!window.matchMedia('(pointer: fine)').matches) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const wrap = document.querySelector('.fhero__photos');
+      if (!wrap) return;
+      const cards = wrap.querySelectorAll('.fhero__ph');
+      const depths = [10, 16, 26, 16, 10];
+      wrap.addEventListener('mousemove', e => {
+        if (wrap.dataset.ready !== '1') return;
+        const r = wrap.getBoundingClientRect();
+        const nx = (e.clientX - r.left) / r.width - 0.5;
+        const ny = (e.clientY - r.top) / r.height - 0.5;
+        cards.forEach((el, i) => {
+          gsap.to(el, { x: nx * depths[i], y: ny * depths[i] * 0.6, duration: 0.7, ease: 'power2.out', overwrite: 'auto' });
+        });
+      });
+      wrap.addEventListener('mouseleave', () => {
+        if (wrap.dataset.ready !== '1') return;
+        cards.forEach(el => gsap.to(el, { x: 0, y: 0, duration: 0.8, ease: 'power2.out' }));
+      });
+    })();
+
+    function animateHeroA() {
+      gsap.timeline()
+        .to('.hero__bg img', { scale: 1, duration: 1.8, ease: 'power2.out' }, 0)
+        .to('.hero__marker', { opacity: 1, duration: 0.6, ease: 'power2.out' }, 0.3)
+        .to('.hero__title .word-inner', { y: 0, duration: 1, stagger: 0.08, ease: 'power3.out' }, 0.4)
+        .to('.hero__subtitle', { opacity: 1, duration: 0.8, ease: 'power2.out' }, 0.9)
+        .to('.hero__actions', { opacity: 1, duration: 0.6, ease: 'power2.out' }, 1.1)
+        .to('#heroScroll', { opacity: 1, duration: 0.6, ease: 'power2.out' }, 1.3);
+    }
+
+    function setHeroAFinal() {
+      gsap.set('.hero__bg img', { scale: 1 });
+      gsap.set('.hero__marker, .hero__subtitle, .hero__actions, #heroScroll', { opacity: 1 });
+      gsap.set('.hero__title .word-inner', { y: 0 });
+    }
+
+    function setHeroBFinal() {
+      gsap.set('.fhero__nav, .fhero__actions', { opacity: 1 });
+      gsap.set('.fhero__headline .fh-line > span', { y: 0 });
+      gsap.set('.fhero__sub', { opacity: 1, y: 0 });
+      gsap.set('.fhero__ph', { opacity: 1, y: 0, rotation: i => FH_TILTS[i] });
+      gsap.set('.fhero__badge', { opacity: 1, scale: 1 });
+      const w = document.querySelector('.fhero__photos');
+      if (w) w.dataset.ready = '1';
+    }
+
+    /* ─── Hero Variant Toggle ─── */
+    function setVariant(v) {
+      document.body.classList.toggle('variant-a', v === 'a');
+      document.body.classList.toggle('variant-b', v === 'b');
+      document.getElementById('variantBtnA').classList.toggle('active', v === 'a');
+      document.getElementById('variantBtnB').classList.toggle('active', v === 'b');
+      document.getElementById('variantBtnA').setAttribute('aria-pressed', v === 'a');
+      document.getElementById('variantBtnB').setAttribute('aria-pressed', v === 'b');
+      setHeroAFinal();
+      setHeroBFinal();
+      try { localStorage.setItem('belvoirHeroVariant', v); } catch (e) {}
+      if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+    }
+
+    (function initVariant() {
+      let v = 'b';
+      try { v = localStorage.getItem('belvoirHeroVariant') || 'b'; } catch (e) {}
+      if (v === 'a') {
+        document.body.classList.remove('variant-b');
+        document.body.classList.add('variant-a');
+        document.getElementById('variantBtnA').classList.add('active');
+        document.getElementById('variantBtnA').setAttribute('aria-pressed', 'true');
+        document.getElementById('variantBtnB').classList.remove('active');
+        document.getElementById('variantBtnB').setAttribute('aria-pressed', 'false');
+      }
+    })();
+
+    /* ─── Hero Parallax (variant A) ─── */
     gsap.to('.hero__bg img', {
       yPercent: 20,
       ease: 'none',
@@ -4392,6 +5145,7 @@
     /* ─── 3D Particle Canvas (Hero) ─── */
     (function initHeroCanvas() {
       const canvas = document.getElementById('hero-canvas');
+      if (!canvas) return;
       const ctx = canvas.getContext('2d');
       let particles = [];
       let animId;
