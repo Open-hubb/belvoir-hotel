@@ -194,33 +194,6 @@
     /* ═══════════════════════════════════════════════════════════════
        CUSTOM CURSOR
     ═══════════════════════════════════════════════════════════════ */
-    .cursor {
-      position: fixed;
-      width: 20px;
-      height: 20px;
-      border: 1.5px solid var(--color-gold);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 9998;
-      transform: translate(-50%, -50%);
-      transition: width 0.3s var(--ease-out-expo),
-                  height 0.3s var(--ease-out-expo),
-                  border-color 0.3s,
-                  background 0.3s;
-      mix-blend-mode: difference;
-    }
-
-    .cursor.hover {
-      width: 60px;
-      height: 60px;
-      background: rgba(176, 141, 87, 0.08);
-      border-color: var(--color-gold-light);
-    }
-
-    @media (hover: none) {
-      .cursor { display: none; }
-    }
-
     /* ═══════════════════════════════════════════════════════════════
        NAVIGATION
     ═══════════════════════════════════════════════════════════════ */
@@ -4782,7 +4755,6 @@
   </div>
 
   <!-- ═══════════════ CUSTOM CURSOR ═══════════════ -->
-  <div class="cursor" id="cursor"></div>
 
   <!-- ═══════════════ NAVIGATION ═══════════════ -->
   <nav class="nav" id="nav" role="navigation" aria-label="Main navigation">
@@ -5972,31 +5944,6 @@
       mobileMenu.classList.remove('active');
       navToggle.setAttribute('aria-expanded', 'false');
     }
-
-    /* ─── Custom Cursor ─── */
-    const cursor = document.getElementById('cursor');
-    let mouseX = 0, mouseY = 0, cursorX = 0, cursorY = 0;
-
-    document.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-    });
-
-    function animateCursor() {
-      cursorX += (mouseX - cursorX) * 0.15;
-      cursorY += (mouseY - cursorY) * 0.15;
-      cursor.style.left = cursorX + 'px';
-      cursor.style.top = cursorY + 'px';
-      requestAnimationFrame(animateCursor);
-    }
-    animateCursor();
-
-    // Cursor hover effects
-    const hoverTargets = document.querySelectorAll('a, button, .room-card, .amenity-card, .gallery__item');
-    hoverTargets.forEach(el => {
-      el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-      el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-    });
 
     /* ─── 3D Particle Canvas (Hero) ─── */
     (function initHeroCanvas() {
