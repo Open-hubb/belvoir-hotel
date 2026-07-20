@@ -112,38 +112,83 @@
       position: fixed;
       inset: 0;
       z-index: 9999;
-      background: var(--color-navy);
+      background-color: #FBF3E7;
+      background-image:
+        radial-gradient(46% 40% at 10% 8%, #F7D9C4 0%, transparent 100%),
+        radial-gradient(42% 36% at 92% 12%, #CBDEED 0%, transparent 100%),
+        radial-gradient(46% 40% at 8% 92%, #D3E4D3 0%, transparent 100%),
+        radial-gradient(42% 38% at 92% 88%, #F2D3CC 0%, transparent 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      gap: 2rem;
+      gap: 1.75rem;
+      overflow: hidden;
     }
 
-    .preloader__logo {
-      font-family: var(--font-display);
-      font-size: clamp(1.5rem, 4vw, 2.5rem);
-      color: var(--color-gold);
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
+    .preloader::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='pn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23pn)'/%3E%3C/svg%3E");
+      background-size: 160px 160px;
+      opacity: 0.05;
+      pointer-events: none;
+    }
+
+    .preloader > * { position: relative; z-index: 1; }
+
+    .preloader__logo-img {
+      width: clamp(180px, 30vw, 280px);
+      height: auto;
+      opacity: 0;
+      transform: scale(0.85) translateY(12px);
+      filter: drop-shadow(0 18px 40px rgba(12, 27, 51, 0.16));
+    }
+
+    .preloader__bar {
+      width: clamp(160px, 22vw, 240px);
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(12, 27, 51, 0.12);
+      overflow: hidden;
       opacity: 0;
     }
 
-    .preloader__line {
-      width: 120px;
-      height: 1px;
-      background: var(--color-gold-muted);
-      transform-origin: left;
+    .preloader__bar-fill {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #B08D57, #0C1B33);
       transform: scaleX(0);
+      transform-origin: left;
     }
 
     .preloader__tagline {
       font-family: var(--font-accent);
       font-size: 1.1rem;
       font-style: italic;
-      color: var(--color-gold-muted);
+      color: rgba(12, 27, 51, 0.65);
       letter-spacing: 0.1em;
       opacity: 0;
+    }
+
+    .preloader__spark {
+      position: absolute;
+      font-size: 1.4rem;
+      line-height: 1;
+      color: #B08D57;
+      opacity: 0;
+      pointer-events: none;
+      animation: fhFloat 5s ease-in-out infinite;
+    }
+
+    .preloader__spark--1 { top: 30%; left: 24%; }
+    .preloader__spark--2 { bottom: 28%; right: 22%; color: #8FB6D6; font-size: 1rem; animation-delay: 2s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .preloader__spark { animation: none; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -2824,7 +2869,7 @@
     .detail-modal {
       position: fixed;
       inset: 0;
-      z-index: 1000;
+      z-index: 1100;
       display: none;
       align-items: center;
       justify-content: center;
@@ -3481,7 +3526,7 @@
     body.variant-b .hero { display: none; }
     body.variant-a .fhero { display: none; }
 
-    /* Framed hero has its own nav; site nav appears on scroll (variant B only) */
+    /* Framed hero (B) carries its own nav; site nav appears on scroll there */
     body.variant-b .nav { opacity: 0; pointer-events: none; }
     body.variant-b .nav.scrolled { opacity: 1; pointer-events: auto; }
 
@@ -3591,9 +3636,977 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       VARIANT B — PASTEL RIVIERA THEME FOR ALL SECTIONS
+       ACCOMMODATION CATEGORY CARDS (editorial duotone)
     ═══════════════════════════════════════════════════════════════ */
-    body.variant-b {
+    .cat-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(1.5rem, 3vw, 2.5rem);
+      margin-bottom: clamp(4rem, 8vh, 6rem);
+    }
+
+    .cat-card {
+      position: relative;
+      border-radius: 28px;
+      overflow: hidden;
+      cursor: pointer;
+      aspect-ratio: 4 / 4.6;
+      max-height: 660px;
+      box-shadow:
+        0 2px 6px rgba(17, 71, 58, 0.06),
+        0 22px 48px rgba(17, 71, 58, 0.16);
+      transition: transform 0.55s var(--ease-out-expo), box-shadow 0.55s var(--ease-out-expo);
+    }
+
+    .cat-card:hover,
+    .cat-card:focus-visible {
+      transform: translateY(-8px);
+      box-shadow:
+        0 4px 10px rgba(17, 71, 58, 0.08),
+        0 32px 64px rgba(17, 71, 58, 0.24);
+    }
+
+    .cat-card:focus-visible { outline: 3px solid var(--fh-terra); outline-offset: 3px; }
+    .cat-card:active { transform: translateY(-4px); }
+
+    .cat-card__img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.9s var(--ease-out-expo);
+    }
+
+    .cat-card:hover .cat-card__img { transform: scale(1.05); }
+
+    .cat-card__wash {
+      position: absolute;
+      inset: 0;
+      mix-blend-mode: multiply;
+      opacity: 0.75;
+    }
+
+    .cat-card--suites .cat-card__wash {
+      background: linear-gradient(165deg, var(--fh-blush) 0%, var(--fh-terra) 100%);
+    }
+
+    .cat-card--standard .cat-card__wash {
+      background: linear-gradient(165deg, var(--fh-blue) 0%, var(--fhero-green) 100%);
+    }
+
+    .cat-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(8, 16, 12, 0.72) 0%, rgba(8, 16, 12, 0.25) 45%, rgba(8, 16, 12, 0.12) 100%);
+      pointer-events: none;
+    }
+
+    .cat-card__meta {
+      position: absolute;
+      top: 1.4rem;
+      left: 1.5rem;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-family: var(--font-body);
+      font-size: 0.6rem;
+      font-weight: 400;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255, 253, 248, 0.85);
+    }
+
+    .cat-card__arrow {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 2;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.5s var(--ease-spring);
+    }
+
+    .cat-card--suites .cat-card__arrow { background: var(--fh-butter); }
+    .cat-card--standard .cat-card__arrow { background: var(--fh-paper); }
+    .cat-card__arrow i, .cat-card__arrow svg { width: 18px; height: 18px; color: #11332A; }
+    .cat-card:hover .cat-card__arrow { transform: rotate(-45deg); }
+
+    .cat-card__content {
+      position: absolute;
+      left: clamp(1.25rem, 2.5vw, 2.25rem);
+      right: clamp(1.25rem, 2.5vw, 2.25rem);
+      bottom: clamp(1.25rem, 2.5vw, 2rem);
+      z-index: 2;
+    }
+
+    .cat-card__title {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: clamp(2rem, 3.6vw, 3.3rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      color: #FFFDF8;
+    }
+
+    .cat-card__title em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--fh-butter);
+    }
+
+    .cat-card__title .cat-card__dot { color: var(--fh-terra); }
+
+    .cat-card__tagline {
+      font-family: var(--font-accent);
+      font-style: italic;
+      font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+      color: rgba(255, 253, 248, 0.85);
+      margin-top: 0.5rem;
+      max-width: 42ch;
+    }
+
+    .cat-card__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.1rem;
+    }
+
+    .cat-card__chips span {
+      font-family: var(--font-body);
+      font-size: 0.6rem;
+      font-weight: 400;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255, 253, 248, 0.92);
+      border: 1px solid rgba(255, 253, 248, 0.45);
+      border-radius: 999px;
+      padding: 0.5rem 1rem;
+    }
+
+    @media (max-width: 860px) {
+      .cat-cards { grid-template-columns: 1fr; }
+      .cat-card { aspect-ratio: 4 / 4.2; }
+    }
+
+    /* ─── Category overlay (room browser) ─── */
+    .cat-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1020;
+      display: none;
+      overflow-y: auto;
+      background-color: var(--color-bg);
+      background-image:
+        radial-gradient(42% 30% at 8% 0%, rgba(247, 217, 196, 0.45) 0%, transparent 100%),
+        radial-gradient(38% 28% at 94% 12%, rgba(203, 222, 237, 0.4) 0%, transparent 100%);
+    }
+
+    .cat-overlay.active { display: block; }
+
+    .cat-overlay__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: clamp(1.5rem, 4vh, 3rem) clamp(1.25rem, 3.5vw, 2.5rem) clamp(3rem, 6vh, 5rem);
+    }
+
+    .cat-overlay__head {
+      display: flex;
+      align-items: flex-start;
+      gap: clamp(1rem, 2.5vw, 1.75rem);
+      margin-bottom: clamp(1.75rem, 4vh, 3rem);
+    }
+
+    .cat-overlay__back {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--fh-paper);
+      box-shadow: 0 8px 20px rgba(17, 71, 58, 0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 0.4rem;
+      transition: transform 0.4s var(--ease-spring);
+    }
+
+    .cat-overlay__back:hover { transform: translateX(-3px); }
+    .cat-overlay__back:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+    .cat-overlay__back i, .cat-overlay__back svg { width: 18px; height: 18px; color: var(--fhero-green); }
+
+    .cat-overlay__eyebrow {
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--fh-terra);
+    }
+
+    .cat-overlay__title {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: clamp(1.9rem, 4vw, 3.1rem);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--fhero-green);
+      margin-top: 0.3rem;
+    }
+
+    .cat-overlay__tagline {
+      font-family: var(--font-accent);
+      font-style: italic;
+      font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+      color: var(--color-text-muted);
+      margin-top: 0.5rem;
+      max-width: 58ch;
+      line-height: 1.6;
+    }
+
+    .cat-overlay__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: clamp(1.25rem, 2.5vw, 2rem);
+    }
+
+    .cat-room {
+      background: var(--fh-paper);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow:
+        0 2px 6px rgba(17, 71, 58, 0.05),
+        0 16px 36px rgba(17, 71, 58, 0.1);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo);
+    }
+
+    .cat-room:hover {
+      transform: translateY(-5px);
+      box-shadow:
+        0 4px 10px rgba(17, 71, 58, 0.07),
+        0 24px 52px rgba(17, 71, 58, 0.16);
+    }
+
+    .cat-room__img {
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+    }
+
+    .cat-room__img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.8s var(--ease-out-expo);
+    }
+
+    .cat-room:hover .cat-room__img img { transform: scale(1.05); }
+
+    .cat-room__body {
+      padding: 1.25rem 1.4rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      flex: 1;
+    }
+
+    .cat-room__row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .cat-room__name {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.25rem;
+      color: var(--fhero-green);
+      line-height: 1.25;
+    }
+
+    .cat-room__price {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.15rem;
+      color: var(--fh-terra);
+      white-space: nowrap;
+    }
+
+    .cat-room__price small {
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      font-weight: 300;
+      color: var(--color-text-muted);
+    }
+
+    .cat-room__desc {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--color-text-muted);
+      flex: 1;
+    }
+
+    .cat-room__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .cat-room__chips span {
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      color: var(--fhero-green);
+      background: var(--color-sage);
+      border-radius: 999px;
+      padding: 0.32rem 0.8rem;
+    }
+
+    .cat-room__actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: 0.35rem;
+    }
+
+    .cat-room__ghost {
+      font-family: var(--font-body);
+      font-size: 0.64rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--fhero-green);
+      position: relative;
+      padding: 0.3rem 0;
+    }
+
+    .cat-room__ghost::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: var(--fh-terra);
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.4s var(--ease-out-expo);
+    }
+
+    .cat-room__ghost:hover::after,
+    .cat-room__ghost:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+    .cat-room__ghost:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+
+    .cat-room__book {
+      font-family: var(--font-body);
+      font-size: 0.64rem;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: var(--fhero-green);
+      color: var(--fh-paper);
+      border-radius: 999px;
+      padding: 0.8rem 1.5rem;
+      transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo);
+    }
+
+    .cat-room__book:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(17, 71, 58, 0.25);
+    }
+
+    .cat-room__book:active { transform: translateY(0); }
+    .cat-room__book:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BOOKING WIZARD
+    ═══════════════════════════════════════════════════════════════ */
+    .bw {
+      position: fixed;
+      inset: 0;
+      z-index: 1300;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: clamp(0.75rem, 3vh, 2.5rem) clamp(0.5rem, 2vw, 1.5rem);
+    }
+
+    .bw.active { display: flex; }
+
+    .bw__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 20, 15, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .bw__panel {
+      position: relative;
+      z-index: 2;
+      width: min(720px, 100%);
+      max-height: calc(100vh - clamp(1.5rem, 6vh, 5rem));
+      max-height: calc(100dvh - clamp(1.5rem, 6vh, 5rem));
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background:
+        radial-gradient(50% 26% at 8% 0%, rgba(247, 217, 196, 0.4) 0%, transparent 100%),
+        radial-gradient(44% 22% at 96% 4%, rgba(203, 222, 237, 0.35) 0%, transparent 100%),
+        var(--fh-paper);
+      border-radius: 28px;
+      padding: clamp(1.5rem, 3.5vw, 2.75rem);
+      box-shadow: 0 40px 100px rgba(10, 20, 15, 0.45);
+      animation: bwIn 0.5s var(--ease-out-expo);
+    }
+
+    @keyframes bwIn {
+      from { opacity: 0; transform: translateY(28px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bw__panel { animation: none; }
+    }
+
+    .bw__close {
+      position: absolute;
+      top: 1.1rem;
+      right: 1.1rem;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--color-sand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      transition: transform 0.35s var(--ease-spring), background 0.3s;
+    }
+
+    .bw__close:hover { transform: rotate(90deg); background: var(--fh-blush); }
+    .bw__close:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 2px; }
+    .bw__close i, .bw__close svg { width: 17px; height: 17px; color: var(--fhero-green); }
+
+    /* Stepper */
+    .bw__stepper {
+      list-style: none;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+      margin: 0.25rem auto 0;
+      padding: 0;
+      max-width: 560px;
+    }
+
+    .bw__step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      position: relative;
+      flex: 1;
+    }
+
+    .bw__step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 17px;
+      left: calc(50% + 24px);
+      right: calc(-50% + 24px);
+      height: 2px;
+      border-radius: 2px;
+      background: rgba(17, 71, 58, 0.15);
+      transition: background 0.4s;
+    }
+
+    .bw__step.done:not(:last-child)::after { background: var(--fhero-green); }
+
+    .bw__dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      font-weight: 500;
+      border: 2px solid rgba(17, 71, 58, 0.22);
+      color: rgba(17, 71, 58, 0.5);
+      background: transparent;
+      transition: background 0.35s, border-color 0.35s, color 0.35s;
+    }
+
+    .bw__dot-check { display: none; }
+    .bw__dot-check svg, svg.bw__dot-check { width: 15px; height: 15px; }
+
+    .bw__step.done .bw__dot {
+      background: var(--fhero-green);
+      border-color: var(--fhero-green);
+      color: var(--fh-paper);
+    }
+
+    .bw__step.done .bw__dot .bw__dot-num { display: none; }
+    .bw__step.done .bw__dot .bw__dot-check,
+    .bw__step.done .bw__dot svg { display: block; color: var(--fh-paper); }
+
+    .bw__step.current .bw__dot {
+      background: var(--fh-terra);
+      border-color: var(--fh-terra);
+      color: #fff;
+    }
+
+    .bw__step-label {
+      font-family: var(--font-body);
+      font-size: 0.58rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(17, 71, 58, 0.55);
+    }
+
+    .bw__step.current .bw__step-label { color: var(--fh-terra); }
+    .bw__step.done .bw__step-label { color: var(--fhero-green); }
+
+    /* Head */
+    .bw__head {
+      text-align: center;
+      margin: clamp(1.25rem, 3vh, 2rem) 0 clamp(1.25rem, 2.5vh, 1.75rem);
+    }
+
+    .bw__head-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      margin: 0 auto 0.9rem;
+      background: var(--color-peach);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bw__head-icon i, .bw__head-icon svg { width: 24px; height: 24px; color: var(--fh-terra); }
+
+    .bw__title {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      letter-spacing: -0.01em;
+      color: var(--fhero-green);
+      line-height: 1.15;
+    }
+
+    .bw__subtitle {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      margin-top: 0.4rem;
+    }
+
+    /* Body / fields */
+    .bw__room-chip {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--color-sand);
+      border-radius: 18px;
+      padding: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .bw__room-chip img {
+      width: 96px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+
+    .bw__room-chip-text { display: flex; flex-direction: column; gap: 0.15rem; }
+
+    .bw__room-chip-text strong {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--fhero-green);
+    }
+
+    .bw__room-chip-text span {
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      color: var(--fh-terra);
+    }
+
+    .bw__grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .bw__field { display: flex; flex-direction: column; gap: 0.4rem; }
+    .bw__field--full { grid-column: 1 / -1; }
+
+    .bw__field label {
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--fhero-green);
+    }
+
+    .bw__field label em {
+      font-style: normal;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      font-weight: 300;
+      color: var(--color-text-light);
+    }
+
+    .bw__field input,
+    .bw__field select {
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 300;
+      color: var(--color-text);
+      background: #fff;
+      border: 1.5px solid rgba(17, 71, 58, 0.16);
+      border-radius: 14px;
+      padding: 0.85rem 1rem;
+      min-height: 48px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      width: 100%;
+    }
+
+    .bw__field input:focus,
+    .bw__field select:focus {
+      outline: none;
+      border-color: var(--fh-terra);
+      box-shadow: 0 0 0 3px rgba(201, 111, 74, 0.15);
+    }
+
+    /* Review */
+    .bw__review {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .bw__review-card {
+      background: var(--color-sand);
+      border-radius: 18px;
+      padding: 1.1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .bw__review-card dl {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.8rem 1.25rem;
+      flex: 1;
+      margin: 0;
+    }
+
+    .bw__review-card dt {
+      font-family: var(--font-body);
+      font-size: 0.58rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-text-light);
+      margin-bottom: 0.2rem;
+    }
+
+    .bw__review-card dd {
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: var(--color-text);
+      margin: 0;
+    }
+
+    .bw__review-edit {
+      font-family: var(--font-body);
+      font-size: 0.6rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--fh-terra);
+      border-bottom: 1px solid var(--fh-terra);
+      padding-bottom: 0.1rem;
+      flex-shrink: 0;
+      transition: opacity 0.3s;
+    }
+
+    .bw__review-edit:hover { opacity: 0.7; }
+    .bw__review-edit:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+
+    .bw__review-total {
+      background: var(--fhero-green);
+      border-radius: 18px;
+      padding: 1.1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .bw__review-total span {
+      font-family: var(--font-body);
+      font-size: 0.68rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-gold-muted);
+    }
+
+    .bw__review-total strong {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.5rem;
+      color: var(--fh-paper);
+    }
+
+    /* Payment options */
+    .bw__pay {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      background: #fff;
+      border: 2px solid rgba(17, 71, 58, 0.12);
+      border-radius: 20px;
+      padding: 1.15rem 1.25rem;
+      cursor: pointer;
+      margin-bottom: 0.9rem;
+      position: relative;
+      transition: border-color 0.35s, box-shadow 0.35s, transform 0.35s var(--ease-out-expo);
+    }
+
+    .bw__pay:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(17, 71, 58, 0.1); }
+    .bw__pay:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+
+    .bw__pay.selected {
+      border-color: var(--fh-terra);
+      box-shadow: 0 12px 32px rgba(201, 111, 74, 0.18);
+    }
+
+    .bw__pay-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: var(--color-sage);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .bw__pay-icon--terra { background: var(--color-peach); }
+    .bw__pay-icon i, .bw__pay-icon svg { width: 20px; height: 20px; color: var(--fhero-green); }
+    .bw__pay-icon--terra i, .bw__pay-icon--terra svg { color: var(--fh-terra); }
+
+    .bw__pay-main { flex: 1; min-width: 0; }
+
+    .bw__pay-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .bw__pay-top strong {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.15rem;
+      color: var(--fhero-green);
+    }
+
+    .bw__pay-amt {
+      font-family: var(--font-accent);
+      font-weight: 600;
+      font-size: 1.35rem;
+      color: var(--fhero-green);
+      text-align: right;
+    }
+
+    .bw__pay-amt small {
+      display: block;
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      font-weight: 300;
+      color: var(--color-text-light);
+      letter-spacing: 0.04em;
+    }
+
+    .bw__pay-main p {
+      font-family: var(--font-body);
+      font-size: 0.83rem;
+      font-weight: 300;
+      line-height: 1.55;
+      color: var(--color-text-muted);
+      margin: 0.4rem 0 0.55rem;
+    }
+
+    .bw__pay-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: var(--font-body);
+      font-size: 0.74rem;
+      font-weight: 400;
+    }
+
+    .bw__pay-note i, .bw__pay-note svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .bw__pay-note--good { color: #2E7D57; }
+    .bw__pay-note--warn { color: #C34A36; }
+
+    .bw__pay-check {
+      position: absolute;
+      top: -10px;
+      right: -8px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--fh-terra);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(201, 111, 74, 0.4);
+    }
+
+    .bw__pay.selected .bw__pay-check { display: flex; }
+    .bw__pay-check i, .bw__pay-check svg { width: 14px; height: 14px; color: #fff; }
+
+    .bw__info {
+      display: flex;
+      gap: 0.85rem;
+      background: var(--color-peach);
+      border-radius: 18px;
+      padding: 1.05rem 1.15rem;
+      margin-top: 0.35rem;
+    }
+
+    .bw__info-icon { flex-shrink: 0; margin-top: 0.1rem; }
+    .bw__info-icon i, .bw__info-icon svg { width: 17px; height: 17px; color: var(--fh-terra); }
+
+    .bw__info strong {
+      font-family: var(--font-body);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--fhero-green);
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+
+    .bw__info p {
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--color-text-muted);
+      margin: 0;
+    }
+
+    .bw__info p b { font-weight: 500; color: var(--color-text); }
+
+    /* Error + footer */
+    .bw__error {
+      display: none;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      color: #C34A36;
+      background: rgba(195, 74, 54, 0.08);
+      border-radius: 12px;
+      padding: 0.7rem 1rem;
+      margin-top: 1rem;
+    }
+
+    .bw__error.visible { display: block; }
+
+    .bw__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 1.4rem;
+    }
+
+    .bw__ghost {
+      font-family: var(--font-body);
+      font-size: 0.66rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      padding: 0.85rem 1.25rem;
+      border-radius: 999px;
+      transition: color 0.3s, background 0.3s;
+    }
+
+    .bw__ghost:hover { color: var(--fhero-green); background: var(--color-sand); }
+    .bw__ghost:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 2px; }
+
+    .bw__next {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.9rem;
+      background: var(--fhero-green);
+      color: var(--fh-paper);
+      border-radius: 999px;
+      padding: 0.45rem 0.45rem 0.45rem 1.9rem;
+      font-family: var(--font-body);
+      font-size: 0.68rem;
+      font-weight: 400;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      box-shadow: 0 10px 26px rgba(17, 71, 58, 0.25);
+      transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo);
+    }
+
+    .bw__next:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(17, 71, 58, 0.32); }
+    .bw__next:active { transform: translateY(0); }
+    .bw__next:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
+
+    .bw__next-orb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--fh-terra);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.45s var(--ease-spring);
+    }
+
+    .bw__next:hover .bw__next-orb { transform: rotate(-45deg); }
+    .bw__next-orb i, .bw__next-orb svg { width: 16px; height: 16px; color: #fff; }
+
+    @media (max-width: 600px) {
+      .bw { padding: 0.5rem; align-items: flex-end; }
+      .bw__panel { border-radius: 24px 24px 18px 18px; padding: 1.4rem 1.15rem 1.25rem; }
+      .bw__step-label { display: none; }
+      .bw__step:not(:last-child)::after { left: calc(50% + 21px); right: calc(-50% + 21px); }
+      .bw__grid { grid-template-columns: 1fr; }
+      .bw__pay { flex-direction: column; gap: 0.7rem; }
+      .bw__pay-check { top: 10px; right: 10px; }
+      .bw__footer { flex-direction: column-reverse; }
+      .bw__footer .bw__next, .bw__footer .bw__ghost { width: 100%; justify-content: center; text-align: center; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PASTEL RIVIERA THEME — GLOBAL (both variants)
+    ═══════════════════════════════════════════════════════════════ */
+    body {
       --color-bg: #FBF3E7;
       --color-bg-deep: #F4E9DA;
       --color-bg-cream: #FFFBF3;
@@ -3613,14 +4626,14 @@
     }
 
     /* Soft pastel washes behind key sections */
-    body.variant-b #about {
+    body #about {
       background:
         radial-gradient(38% 34% at 92% 4%, rgba(211, 228, 211, 0.55) 0%, transparent 100%),
         radial-gradient(30% 26% at 4% 90%, rgba(249, 229, 213, 0.5) 0%, transparent 100%),
         var(--color-bg-cream);
     }
 
-    body.variant-b #rooms {
+    body #rooms {
       background:
         radial-gradient(42% 30% at 6% 0%, rgba(247, 217, 196, 0.5) 0%, transparent 100%),
         radial-gradient(38% 28% at 96% 10%, rgba(203, 222, 237, 0.45) 0%, transparent 100%),
@@ -3628,41 +4641,41 @@
         var(--color-bg);
     }
 
-    body.variant-b .section--deep {
+    body .section--deep {
       background:
         radial-gradient(42% 32% at 6% 6%, rgba(242, 211, 204, 0.4) 0%, transparent 100%),
         radial-gradient(38% 30% at 94% 90%, rgba(203, 222, 237, 0.4) 0%, transparent 100%),
         var(--color-bg-deep);
     }
 
-    body.variant-b #location {
+    body #location {
       background:
         radial-gradient(40% 32% at 90% 8%, rgba(249, 229, 213, 0.55) 0%, transparent 100%),
         var(--color-blue-pale);
     }
 
-    body.variant-b #reviews {
+    body #reviews {
       background:
         radial-gradient(38% 30% at 8% 10%, rgba(203, 222, 237, 0.4) 0%, transparent 100%),
         var(--color-bg-cream);
     }
 
     /* Soft rounded surfaces with pastel-tinted shadows */
-    body.variant-b .acc-card,
-    body.variant-b .room-card,
-    body.variant-b .booking-bar,
-    body.variant-b .longstay-banner,
-    body.variant-b .amenity-card,
-    body.variant-b .services-strip__item,
-    body.variant-b .direct-ribbon,
-    body.variant-b .review-card {
+    body .acc-card,
+    body .room-card,
+    body .booking-bar,
+    body .longstay-banner,
+    body .amenity-card,
+    body .services-strip__item,
+    body .direct-ribbon,
+    body .review-card {
       border-radius: 20px;
       overflow: hidden;
     }
 
-    body.variant-b .acc-card,
-    body.variant-b .room-card,
-    body.variant-b .review-card {
+    body .acc-card,
+    body .room-card,
+    body .review-card {
       border: none;
       box-shadow:
         0 2px 6px rgba(17, 71, 58, 0.05),
@@ -3670,59 +4683,87 @@
         0 36px 72px rgba(201, 111, 74, 0.08);
     }
 
-    body.variant-b .acc-card:hover,
-    body.variant-b .room-card:hover {
+    body .acc-card:hover,
+    body .room-card:hover {
       box-shadow:
         0 4px 10px rgba(17, 71, 58, 0.07),
         0 28px 56px rgba(17, 71, 58, 0.16),
         0 48px 90px rgba(201, 111, 74, 0.12);
     }
 
-    body.variant-b .gallery__item,
-    body.variant-b .img-wrap,
-    body.variant-b .parallax-divider {
+    body .gallery__item,
+    body .img-wrap,
+    body .parallax-divider {
       border-radius: 20px;
       overflow: hidden;
     }
 
-    body.variant-b .parallax-divider { border-radius: 0; }
+    body .parallax-divider { border-radius: 0; }
 
     /* Pill-shaped controls */
-    body.variant-b .btn-primary,
-    body.variant-b .btn-outline,
-    body.variant-b .nav__cta,
-    body.variant-b .booking-bar__submit,
-    body.variant-b .booking-modal__btn,
-    body.variant-b .room-card__link,
-    body.variant-b .dining__cuisine-tag {
+    body .btn-primary,
+    body .btn-outline,
+    body .nav__cta,
+    body .booking-bar__submit,
+    body .booking-modal__btn,
+    body .room-card__link,
+    body .dining__cuisine-tag {
       border-radius: 999px;
     }
 
-    body.variant-b .booking-bar__input,
-    body.variant-b .booking-modal__input,
-    body.variant-b .contact__form input,
-    body.variant-b .contact__form textarea,
-    body.variant-b .contact__form select {
+    body .booking-bar__input,
+    body .booking-modal__input,
+    body .contact__form input,
+    body .contact__form textarea,
+    body .contact__form select {
       border-radius: 14px;
     }
 
-    body.variant-b .room-card__badge,
-    body.variant-b .room-card__price,
-    body.variant-b .acc-chip,
-    body.variant-b .badge-soon { border-radius: 999px; }
+    body .room-card__badge,
+    body .room-card__price,
+    body .acc-chip,
+    body .badge-soon { border-radius: 999px; }
 
     /* Modals */
-    body.variant-b .detail-modal__container,
-    body.variant-b .booking-modal__container,
-    body.variant-b .payment-popup__container { border-radius: 24px; }
+    body .detail-modal__container,
+    body .booking-modal__container,
+    body .payment-popup__container { border-radius: 24px; }
 
     /* Mini mart banner overlay: navy → deep green */
-    body.variant-b .minimart-overlay {
+    body .minimart-overlay {
       background: linear-gradient(135deg, rgba(17, 71, 58, 0.85) 0%, rgba(17, 71, 58, 0.4) 60%, transparent 100%) !important;
     }
 
+    /* ─── Variant A: Coastal Navy — navy primary blended with cool pastels ─── */
+    body.variant-a {
+      --fhero-green: #0C1B33;
+      --fhero-green-deep: #0A1628;
+      --fhero-cream: #F8F4EC;
+      --fh-peach: #DCE4F3;
+      --fh-blue: #C7DCEC;
+      --fh-sage: #D8E6EE;
+      --fh-butter: #F0E7D3;
+      --fh-blush: #E3E1F0;
+      --fh-terra: #B08D57;
+      --fh-paper: #FFFDF8;
+
+      --color-navy: #0C1B33;
+      --color-navy-light: #1A2D4A;
+      --color-gold: #B08D57;
+      --color-gold-light: #C9A96E;
+      --color-gold-muted: #E7D9BF;
+      --color-text: #22293A;
+      --color-text-muted: #5C6474;
+      --color-text-light: #98A0AE;
+      --color-border: rgba(176, 141, 87, 0.18);
+      --color-sand: #F2ECDE;
+      --color-sage: #E2EAF0;
+      --color-blue-pale: #E5EEF5;
+      --color-peach: #EDE7F2;
+    }
+
     /* Marquee gets a pastel band */
-    body.variant-b .marquee {
+    body .marquee {
       background:
         radial-gradient(50% 90% at 20% 50%, rgba(249, 229, 213, 0.6) 0%, transparent 100%),
         radial-gradient(50% 90% at 80% 50%, rgba(228, 237, 223, 0.6) 0%, transparent 100%),
@@ -3730,11 +4771,13 @@
     }
   </style>
 </head>
-<body class="variant-b">
+<body class="variant-a" id="top">
   <!-- ═══════════════ PRELOADER ═══════════════ -->
-  <div class="preloader" id="preloader">
-    <div class="preloader__logo">Belvoir</div>
-    <div class="preloader__line"></div>
+  <div class="preloader" id="preloader" role="status" aria-label="Belvoir website loading">
+    <span class="preloader__spark preloader__spark--1" aria-hidden="true">&#10022;</span>
+    <span class="preloader__spark preloader__spark--2" aria-hidden="true">&#10022;</span>
+    <img src="images/logo.png" alt="Belvoir — Be Inspired. We Deliver." class="preloader__logo-img" width="610" height="400">
+    <div class="preloader__bar" aria-hidden="true"><span class="preloader__bar-fill"></span></div>
     <div class="preloader__tagline">Be Inspired… We Deliver</div>
   </div>
 
@@ -3743,7 +4786,7 @@
 
   <!-- ═══════════════ NAVIGATION ═══════════════ -->
   <nav class="nav" id="nav" role="navigation" aria-label="Main navigation">
-    <a href="#" class="nav__logo" aria-label="Belvoir Hotel Home">Belvoir<span>.</span></a>
+    <a href="#top" class="nav__logo" aria-label="Belvoir Hotel Home">Belvoir<span>.</span></a>
 
     <ul class="nav__links">
       <li><a href="#about" class="nav__link">About</a></li>
@@ -3834,7 +4877,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════ HERO — VARIANT A (classic) ═══════════════ -->
+  <!-- ═══════════════ HERO — VARIANT A (Golden Hour Editorial) ═══════════════ -->
   <section class="hero" id="hero-classic">
     <div class="hero__bg">
       <img src="images/hero-building.jpg" alt="Belvoir Hotel & Residence building exterior in Freetown" loading="eager">
@@ -3855,7 +4898,6 @@
       <p class="hero__subtitle">Luxury serviced apartments with breathtaking panoramic views of Lumley and Aberdeen beaches — your home away from home in the heart of Freetown.</p>
       <div class="hero__actions">
         <a href="#rooms" class="btn-primary"><span>Book Your Stay</span></a>
-        <a href="#rooms" class="btn-ghost">Explore Rooms <i data-lucide="arrow-right" style="width:14px;height:14px;"></i></a>
       </div>
     </div>
 
@@ -3868,8 +4910,8 @@
   <!-- ═══════════════ HERO VARIANT TOGGLE ═══════════════ -->
   <div class="variant-toggle" role="group" aria-label="Hero design variant switcher">
     <span class="variant-toggle__label">Design</span>
-    <button class="variant-toggle__btn" id="variantBtnA" onclick="setVariant('a')" aria-label="Show hero design A (classic)" aria-pressed="false">A</button>
-    <button class="variant-toggle__btn active" id="variantBtnB" onclick="setVariant('b')" aria-label="Show hero design B (framed)" aria-pressed="true">B</button>
+    <button class="variant-toggle__btn active" id="variantBtnA" onclick="setVariant('a')" aria-label="Show hero design A (classic)" aria-pressed="true">A</button>
+    <button class="variant-toggle__btn" id="variantBtnB" onclick="setVariant('b')" aria-label="Show hero design B (framed)" aria-pressed="false">B</button>
   </div>
 
   <!-- ═══════════════ MARQUEE ═══════════════ -->
@@ -3942,79 +4984,45 @@
         <a href="#rooms" class="btn-primary reveal"><span>View All Rooms</span></a>
       </div>
 
-      <!-- Accommodation Type Showcase -->
-      <div class="acc-types">
-        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('studio-rooms')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('studio-rooms');}">
-          <div class="acc-card__image">
-            <img src="images/deluxe-standard-room.jpg" alt="Studio room at Belvoir with king bed and modern furnishings" loading="lazy" width="800" height="500">
-            <span class="acc-card__tag"><i data-lucide="coffee"></i> Breakfast Included</span>
-            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+      <!-- Accommodation Category Cards -->
+      <div class="cat-cards">
+        <article class="cat-card cat-card--suites reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('suites')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('suites');}">
+          <img class="cat-card__img" src="images/studio-penthouse.jpg" alt="Penthouse suite at Belvoir with open-plan living and panoramic views" loading="lazy" width="800" height="920">
+          <div class="cat-card__wash" aria-hidden="true"></div>
+          <div class="cat-card__meta">
+            <span>Belvoir 01 / Residences</span>
+            <span>Penthouse &middot; One-Bed &middot; Two-Bed</span>
           </div>
-          <div class="acc-card__body">
-            <h3 class="acc-card__name">Studio Rooms</h3>
-            <p class="acc-card__desc">Elegant en-suite rooms with balconies and sea views — the perfect base for short stays, with breakfast served each morning.</p>
-            <div class="acc-card__chips">
-              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
-              <span class="acc-chip"><i data-lucide="bath"></i> Bathtub &amp; Shower</span>
-              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
-              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+          <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
+          <div class="cat-card__content">
+            <h3 class="cat-card__title">Suites &amp; <em>Residences</em><span class="cat-card__dot">.</span></h3>
+            <p class="cat-card__tagline">full apartments and the penthouse — a furnished home in the sky.</p>
+            <div class="cat-card__chips">
+              <span>Penthouse</span>
+              <span>1 &amp; 2 Bedroom</span>
+              <span>Full Kitchen</span>
             </div>
           </div>
-        </div>
+        </article>
 
-        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('apartments')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('apartments');}">
-          <div class="acc-card__image">
-            <img src="images/one-bed-apartment.jpg" alt="Serviced apartment at Belvoir with kitchen, dining and living area" loading="lazy" width="800" height="500">
-            <span class="acc-card__tag"><i data-lucide="chef-hat"></i> Full Kitchen</span>
-            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
+        <article class="cat-card cat-card--standard reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('standard')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('standard');}">
+          <img class="cat-card__img" src="images/deluxe-standard-room.jpg" alt="Deluxe standard room at Belvoir with king bed" loading="lazy" width="800" height="920">
+          <div class="cat-card__wash" aria-hidden="true"></div>
+          <div class="cat-card__meta">
+            <span>Belvoir 02 / Rooms</span>
+            <span>King &middot; Twin &middot; Ground Floor</span>
           </div>
-          <div class="acc-card__body">
-            <h3 class="acc-card__name">Serviced Apartments</h3>
-            <p class="acc-card__desc">One and two-bedroom apartments with living areas and full kitchens — a furnished home for families and longer stays. Breakfast included with one-bedroom apartments.</p>
-            <div class="acc-card__chips">
-              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
-              <span class="acc-chip"><i data-lucide="sun"></i> Balcony</span>
-              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
-              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
+          <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
+          <div class="cat-card__content">
+            <h3 class="cat-card__title">Standard <em>Rooms</em><span class="cat-card__dot">.</span></h3>
+            <p class="cat-card__tagline">elegant en-suite rooms with breakfast served each morning.</p>
+            <div class="cat-card__chips">
+              <span>King &amp; Twin</span>
+              <span>Breakfast Included</span>
+              <span>Ground Floor</span>
             </div>
           </div>
-        </div>
-
-        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('penthouse')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('penthouse');}">
-          <div class="acc-card__image">
-            <img src="images/studio-penthouse.jpg" alt="Penthouse apartment at Belvoir with open-plan living and panoramic views" loading="lazy" width="800" height="500">
-            <span class="acc-card__tag"><i data-lucide="coffee"></i> Breakfast Included</span>
-            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
-          </div>
-          <div class="acc-card__body">
-            <h3 class="acc-card__name">Penthouse Apartments</h3>
-            <p class="acc-card__desc">At the summit of Belvoir — open-plan penthouse living with panoramic sea views, premium furnishings, and breakfast each morning.</p>
-            <div class="acc-card__chips">
-              <span class="acc-chip"><i data-lucide="waves"></i> Sea View</span>
-              <span class="acc-chip"><i data-lucide="sun"></i> Balcony</span>
-              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
-              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="acc-card reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openDetailModal('ground-floor')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('ground-floor');}">
-          <div class="acc-card__image">
-            <img src="images/deluxe-bedroom-1.jpeg" alt="Ground floor room at Belvoir with step-free access" loading="lazy" width="800" height="500">
-            <span class="acc-card__tag"><i data-lucide="accessibility"></i> Step-Free Access</span>
-            <span class="acc-card__view">View Gallery <i data-lucide="arrow-right"></i></span>
-          </div>
-          <div class="acc-card__body">
-            <h3 class="acc-card__name">Ground Floor Rooms</h3>
-            <p class="acc-card__desc">All the comfort of our rooms with no stairs to climb — recommended for elderly guests and guests with limited mobility. Breakfast included.</p>
-            <div class="acc-card__chips">
-              <span class="acc-chip"><i data-lucide="accessibility"></i> No Stairs</span>
-              <span class="acc-chip"><i data-lucide="coffee"></i> Breakfast</span>
-              <span class="acc-chip"><i data-lucide="wind"></i> AC</span>
-              <span class="acc-chip"><i data-lucide="tv"></i> TV</span>
-            </div>
-          </div>
-        </div>
+        </article>
       </div>
 
       <!-- Direct Booking Ribbon -->
@@ -4023,196 +5031,6 @@
         <span><strong>Book directly on our website</strong> and enjoy an exclusive discount.</span>
       </div>
 
-      <!-- Booking Bar -->
-      <div class="booking-bar reveal" id="bookingBar">
-        <div class="booking-bar__group">
-          <label class="booking-bar__label" for="checkin">Check-in</label>
-          <input type="date" id="checkin" class="booking-bar__input" required>
-        </div>
-        <div class="booking-bar__group">
-          <label class="booking-bar__label" for="checkout">Check-out</label>
-          <input type="date" id="checkout" class="booking-bar__input" required>
-        </div>
-        <div class="booking-bar__group">
-          <label class="booking-bar__label" for="guests">Guests</label>
-          <select id="guests" class="booking-bar__input">
-            <option value="1">1 Guest</option>
-            <option value="2" selected>2 Guests</option>
-            <option value="3">3 Guests</option>
-            <option value="4">4 Guests</option>
-            <option value="5+">5+ Guests</option>
-          </select>
-        </div>
-        <div class="booking-bar__group">
-          <label class="booking-bar__label" for="roomSelect">Room Type</label>
-          <select id="roomSelect" class="booking-bar__input">
-            <option value="">Select a room below...</option>
-            <option value="standard">Deluxe Standard Room — $80/night</option>
-            <option value="superior-deluxe">Superior Deluxe Room — $90/night</option>
-            <option value="superior-twin">Superior Deluxe Twin — $100/night</option>
-            <option value="studio">Studio Penthouse — $130/night</option>
-            <option value="one-bed">One-Bedroom Apartment — $125/night</option>
-            <option value="two-bed">Two-Bedroom Apartment — $170/night</option>
-          </select>
-        </div>
-        <button type="button" class="booking-bar__submit disabled" id="bookingSubmit" onclick="openBookingModal()" disabled>
-          <span>Book Now</span>
-        </button>
-      </div>
-
-      <p style="font-size: 0.72rem; color: var(--color-text-light); text-align: center; margin-bottom: 2.5rem; font-style: italic;" class="reveal">Select a room, choose your dates, and Book Now will activate. Pay in full or reserve with a 20% deposit. &middot; Check-out is at 10:00 AM.</p>
-
-      <div class="rooms__grid">
-        <!-- Room 1: Deluxe Standard Room -->
-        <div class="room-card reveal" data-room="standard" onclick="selectRoom(this, 'standard')">
-          <div class="room-card__image">
-            <img src="images/deluxe-standard-room.jpg" alt="Deluxe Standard Room at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Value</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$80 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">Deluxe Standard Room</h3>
-            <p class="room-card__desc">Comfortable en-suite room with king bed, air conditioning, and modern furnishings — perfect for short stays.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
-              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
-              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
-              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-
-        <!-- Room 2: Superior Deluxe Room -->
-        <div class="room-card reveal" data-room="superior-deluxe" onclick="selectRoom(this, 'superior-deluxe')">
-          <div class="room-card__image">
-            <img src="images/standard-bedroom-king.jpeg" alt="Superior Deluxe Room at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Deluxe</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$90 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">Superior Deluxe Room</h3>
-            <p class="room-card__desc">Upgraded en-suite room with premium bedding, elegant decor, and all modern comforts for a restful stay.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> King Bed</span>
-              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
-              <span class="room-card__feature"><i data-lucide="tv"></i> LED TV</span>
-              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-
-        <!-- Room 3: Superior Deluxe Twin -->
-        <div class="room-card reveal" data-room="superior-twin" onclick="selectRoom(this, 'superior-twin')">
-          <div class="room-card__image">
-            <img src="images/standard-bedroom-twin.jpeg" alt="Superior Deluxe Twin Room at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Twin</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$100 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">Superior Deluxe Twin</h3>
-            <p class="room-card__desc">Spacious twin room with two single beds, ideal for colleagues, friends, or family sharing a room.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> Twin Beds</span>
-              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
-              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
-              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-
-        <!-- Room 4: Studio Penthouse -->
-        <div class="room-card reveal" data-room="studio" onclick="selectRoom(this, 'studio')">
-          <div class="room-card__image">
-            <img src="images/studio-penthouse.jpg" alt="Studio Penthouse at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Popular</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$130 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">Studio Penthouse</h3>
-            <p class="room-card__desc">Luxurious studio apartment at the summit with panoramic views, premium furnishings, and breakfast included.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> Studio</span>
-              <span class="room-card__feature"><i data-lucide="waves"></i> Sea View</span>
-              <span class="room-card__feature"><i data-lucide="wind"></i> AC</span>
-              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-
-        <!-- Room 5: One-Bedroom Apartment -->
-        <div class="room-card reveal" data-room="one-bed" onclick="selectRoom(this, 'one-bed')">
-          <div class="room-card__image">
-            <img src="images/one-bed-apartment.jpg" alt="One-Bedroom Apartment at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Apartment</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$125 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">One-Bedroom Apartment</h3>
-            <p class="room-card__desc">Fully furnished apartment with separate bedroom, living area, and equipped kitchen — ideal for extended stays.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> 1 Bed</span>
-              <span class="room-card__feature"><i data-lucide="chef-hat"></i> Kitchen</span>
-              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
-              <span class="room-card__feature"><i data-lucide="coffee"></i> Breakfast</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-
-        <!-- Room 6: Two-Bedroom Apartment -->
-        <div class="room-card reveal" data-room="two-bed" onclick="selectRoom(this, 'two-bed')">
-          <div class="room-card__image">
-            <img src="images/two-bed-apartment.jpg" alt="Two-Bedroom Apartment at Belvoir" loading="lazy">
-            <div class="room-card__image-overlay"></div>
-            <div class="room-card__badge">Suite</div>
-            <div class="room-card__select-badge"><i data-lucide="check"></i></div>
-            <div class="room-card__price">$170 <small>/night</small></div>
-          </div>
-          <div class="room-card__body">
-            <h3 class="room-card__name">Two-Bedroom Apartment</h3>
-            <p class="room-card__desc">Spacious apartment with two bedrooms, living area, and full kitchen — perfect for families and groups. Self-catering; breakfast not included.</p>
-            <div class="room-card__features">
-              <span class="room-card__feature"><i data-lucide="bed-double"></i> 2 Beds</span>
-              <span class="room-card__feature"><i data-lucide="chef-hat"></i> Kitchen</span>
-              <span class="room-card__feature"><i data-lucide="sun"></i> Balcony</span>
-              <span class="room-card__feature"><i data-lucide="tv"></i> TV</span>
-            </div>
-          </div>
-          <div class="room-card__select-hint">Click to select</div>
-          <div class="room-card__link" onclick="event.stopPropagation(); selectAndScroll(this);">
-            Select & Book <i data-lucide="arrow-right"></i>
-          </div>
-        </div>
-      </div>
 
       <!-- Long Stay Banner -->
       <div class="longstay-banner reveal">
@@ -4629,10 +5447,27 @@
     </div>
   </section>
 
+  <!-- ═══════════════ CATEGORY OVERLAY (room browser) ═══════════════ -->
+  <div class="cat-overlay" id="catOverlay" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="catOverlayTitle">
+    <div class="cat-overlay__inner">
+      <div class="cat-overlay__head">
+        <button class="cat-overlay__back" onclick="closeCategory()" aria-label="Back to accommodations">
+          <i data-lucide="arrow-left"></i>
+        </button>
+        <div>
+          <div class="cat-overlay__eyebrow">Belvoir Accommodation</div>
+          <h3 class="cat-overlay__title" id="catOverlayTitle"></h3>
+          <p class="cat-overlay__tagline" id="catOverlayTagline"></p>
+        </div>
+      </div>
+      <div class="cat-overlay__grid" id="catOverlayGrid"></div>
+    </div>
+  </div>
+
   <!-- ═══════════════ ROOM DETAIL MODAL ═══════════════ -->
   <div class="detail-modal" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
     <div class="detail-modal__backdrop" onclick="closeDetailModal()"></div>
-    <div class="detail-modal__container">
+    <div class="detail-modal__container" data-lenis-prevent>
       <button class="detail-modal__close" onclick="closeDetailModal()" aria-label="Close room details">
         <i data-lucide="x" style="width:18px;height:18px;color:var(--color-navy);"></i>
       </button>
@@ -4665,122 +5500,131 @@
     </div>
   </div>
 
-  <!-- ═══════════════ BOOKING MODAL ═══════════════ -->
-  <div class="booking-modal" id="bookingModal">
-    <div class="booking-modal__backdrop" onclick="closeBookingModal()"></div>
-    <div class="booking-modal__container">
-      <button class="booking-modal__close" onclick="closeBookingModal()" aria-label="Close booking modal">
-        <i data-lucide="x" style="width:18px;height:18px;color:var(--color-text-muted);"></i>
+  <!-- ═══════════════ BOOKING WIZARD ═══════════════ -->
+  <div class="bw" id="bookWizard" role="dialog" aria-modal="true" aria-labelledby="bwTitle">
+    <div class="bw__backdrop" onclick="closeBookWizard()"></div>
+    <div class="bw__panel" data-lenis-prevent>
+      <button class="bw__close" onclick="closeBookWizard()" aria-label="Close booking">
+        <i data-lucide="x"></i>
       </button>
 
-      <!-- Step Indicator -->
-      <div class="booking-modal__step-indicator">
-        <div class="booking-modal__step-dot active" id="stepDot1"></div>
-        <div class="booking-modal__step-dot" id="stepDot2"></div>
-        <span class="booking-modal__step-label" id="stepLabel">Step 1 of 2</span>
+      <ol class="bw__stepper" id="bwStepper" aria-label="Booking progress">
+        <li class="bw__step" data-idx="0"><span class="bw__dot"><i data-lucide="check" class="bw__dot-check"></i><span class="bw__dot-num">1</span></span><span class="bw__step-label">Room</span></li>
+        <li class="bw__step" data-idx="1"><span class="bw__dot"><i data-lucide="check" class="bw__dot-check"></i><span class="bw__dot-num">2</span></span><span class="bw__step-label">Dates</span></li>
+        <li class="bw__step" data-idx="2"><span class="bw__dot"><i data-lucide="check" class="bw__dot-check"></i><span class="bw__dot-num">3</span></span><span class="bw__step-label">Details</span></li>
+        <li class="bw__step" data-idx="3"><span class="bw__dot"><i data-lucide="check" class="bw__dot-check"></i><span class="bw__dot-num">4</span></span><span class="bw__step-label">Review</span></li>
+        <li class="bw__step" data-idx="4"><span class="bw__dot"><i data-lucide="check" class="bw__dot-check"></i><span class="bw__dot-num">5</span></span><span class="bw__step-label">Payment</span></li>
+      </ol>
+
+      <div class="bw__head">
+        <div class="bw__head-icon" id="bwHeadIcon"><i data-lucide="calendar-days"></i></div>
+        <h3 class="bw__title" id="bwTitle">Choose Your Dates</h3>
+        <p class="bw__subtitle" id="bwSubtitle"></p>
       </div>
 
-      <!-- STEP 1: Guest Details -->
-      <div id="bookingStep1">
-        <h3 class="booking-modal__title">Guest Details</h3>
-        <p class="booking-modal__desc">Tell us who's checking in</p>
-
-        <!-- Booking Summary -->
-        <div class="booking-modal__summary" id="modalSummary">
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Room</div>
-            <div class="booking-modal__summary-value" id="summaryRoom">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Check-in</div>
-            <div class="booking-modal__summary-value" id="summaryCheckin">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Check-out</div>
-            <div class="booking-modal__summary-value" id="summaryCheckout">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Nights</div>
-            <div class="booking-modal__summary-value" id="summaryNights">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Total</div>
-            <div class="booking-modal__summary-value" id="summaryTotal">—</div>
+      <!-- STEP 1: Dates -->
+      <section class="bw__body" id="bwStep1">
+        <div class="bw__room-chip">
+          <img id="bwRoomImg" src="" alt="" width="96" height="72">
+          <div class="bw__room-chip-text">
+            <strong id="bwRoomName"></strong>
+            <span id="bwRoomRate"></span>
           </div>
         </div>
-
-        <div class="booking-modal__row">
-          <div class="booking-modal__form-group">
-            <label class="booking-modal__label" for="guestName">Full Name *</label>
-            <input type="text" id="guestName" class="booking-modal__input" placeholder="John Doe" required autocomplete="name">
+        <div class="bw__grid">
+          <div class="bw__field">
+            <label for="bwCheckin">Check-in *</label>
+            <input type="date" id="bwCheckin" required>
           </div>
-          <div class="booking-modal__form-group">
-            <label class="booking-modal__label" for="guestPhone">Phone Number *</label>
-            <input type="tel" id="guestPhone" class="booking-modal__input" placeholder="+232 76 123 456" required autocomplete="tel">
+          <div class="bw__field">
+            <label for="bwCheckout">Check-out *</label>
+            <input type="date" id="bwCheckout" required>
           </div>
-        </div>
-        <div class="booking-modal__form-group">
-          <label class="booking-modal__label" for="guestEmail">Email Address *</label>
-          <input type="email" id="guestEmail" class="booking-modal__input" placeholder="you@example.com" required autocomplete="email">
-        </div>
-        <div class="booking-modal__form-group">
-          <label class="booking-modal__label" for="guestRequests">Special Requests <span style="text-transform:none;letter-spacing:0;font-weight:300;">(optional)</span></label>
-          <input type="text" id="guestRequests" class="booking-modal__input" placeholder="Early check-in, extra pillows, airport transfer…">
-        </div>
-        <div class="booking-modal__error" id="step1Error">Please fill in all required fields.</div>
-
-        <div class="booking-modal__actions">
-          <button class="booking-modal__btn booking-modal__btn--secondary" onclick="closeBookingModal()">Cancel</button>
-          <button class="booking-modal__btn booking-modal__btn--primary" onclick="goToStep2()">Continue to Payment</button>
-        </div>
-      </div>
-
-      <!-- STEP 2: Payment Choice -->
-      <div id="bookingStep2" style="display:none;">
-        <h3 class="booking-modal__title">Choose Payment</h3>
-        <p class="booking-modal__desc">How would you like to secure your reservation?</p>
-
-        <!-- Booking Summary (repeated for context) -->
-        <div class="booking-modal__summary" id="modalSummary2">
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Guest</div>
-            <div class="booking-modal__summary-value" id="summaryGuest2">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Room</div>
-            <div class="booking-modal__summary-value" id="summaryRoom2">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Dates</div>
-            <div class="booking-modal__summary-value" id="summaryDates2">—</div>
-          </div>
-          <div class="booking-modal__summary-item">
-            <div class="booking-modal__summary-label">Total</div>
-            <div class="booking-modal__summary-value" id="summaryTotal2">—</div>
+          <div class="bw__field bw__field--full">
+            <label for="bwGuests">Guests</label>
+            <select id="bwGuests">
+              <option value="1">1 Guest</option>
+              <option value="2" selected>2 Guests</option>
+              <option value="3">3 Guests</option>
+              <option value="4">4 Guests</option>
+              <option value="5+">5+ Guests</option>
+            </select>
           </div>
         </div>
+      </section>
 
-        <p style="font-size:0.78rem;color:var(--color-gold);display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;"><i data-lucide="badge-percent" style="width:15px;height:15px;flex-shrink:0;"></i> You're booking directly with us — an exclusive direct-booking discount is applied at checkout.</p>
-
-        <div class="booking-modal__payment-options">
-          <div class="booking-modal__payment-card" id="payFull" onclick="selectPayment('full')">
-            <div class="booking-modal__payment-name">Reserve & Pay Now</div>
-            <div class="booking-modal__payment-desc">Pay the full amount now and your room is confirmed instantly. No further payment needed on arrival.</div>
-            <div class="booking-modal__payment-amount" id="payFullAmount">$0</div>
+      <!-- STEP 2: Details -->
+      <section class="bw__body" id="bwStep2" hidden>
+        <div class="bw__grid">
+          <div class="bw__field">
+            <label for="bwName">Full Name *</label>
+            <input type="text" id="bwName" placeholder="John Doe" required autocomplete="name">
           </div>
-          <div class="booking-modal__payment-card" id="payDeposit" onclick="selectPayment('deposit')">
-            <div class="booking-modal__payment-name">Reserve & Pay Later</div>
-            <div class="booking-modal__payment-desc">Secure your booking with a 20% deposit now. Pay the remaining balance on check-in.</div>
-            <div class="booking-modal__payment-amount" id="payDepositAmount">$0 <small style="font-size:0.75rem;font-weight:300;color:var(--color-text-muted);">(20% deposit)</small></div>
+          <div class="bw__field">
+            <label for="bwPhone">Phone Number *</label>
+            <input type="tel" id="bwPhone" placeholder="+232 76 123 456" required autocomplete="tel">
+          </div>
+          <div class="bw__field bw__field--full">
+            <label for="bwEmail">Email Address *</label>
+            <input type="email" id="bwEmail" placeholder="you@example.com" required autocomplete="email">
+          </div>
+          <div class="bw__field bw__field--full">
+            <label for="bwRequests">Special Requests <em>(optional)</em></label>
+            <input type="text" id="bwRequests" placeholder="Early check-in, extra pillows, airport transfer…">
           </div>
         </div>
+      </section>
 
-        <div class="booking-modal__error" id="step2Error">Please select a payment option.</div>
+      <!-- STEP 3: Review -->
+      <section class="bw__body" id="bwStep3" hidden>
+        <div class="bw__review" id="bwReview"></div>
+      </section>
 
-        <div class="booking-modal__actions">
-          <button class="booking-modal__btn booking-modal__btn--secondary" onclick="goToStep1()">Back</button>
-          <button class="booking-modal__btn booking-modal__btn--primary" onclick="completeBooking()">Proceed to Checkout</button>
+      <!-- STEP 4: Payment -->
+      <section class="bw__body" id="bwStep4" hidden>
+        <div class="bw__pay" id="bwPayFull" role="radio" aria-checked="false" tabindex="0" onclick="bwSelectPay('full')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();bwSelectPay('full');}">
+          <span class="bw__pay-icon"><i data-lucide="credit-card"></i></span>
+          <div class="bw__pay-main">
+            <div class="bw__pay-top">
+              <strong>Reserve &amp; Pay Now</strong>
+              <span class="bw__pay-amt" id="bwPayFullAmt">$0</span>
+            </div>
+            <p>Pay the full amount now to secure your reservation. Free cancellation up to 48 hours before check-in.</p>
+            <span class="bw__pay-note bw__pay-note--good"><i data-lucide="shield-check"></i> Full refund if cancelled 48h+ before arrival</span>
+          </div>
+          <span class="bw__pay-check"><i data-lucide="check"></i></span>
         </div>
+
+        <div class="bw__pay" id="bwPayDeposit" role="radio" aria-checked="false" tabindex="0" onclick="bwSelectPay('deposit')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();bwSelectPay('deposit');}">
+          <span class="bw__pay-icon bw__pay-icon--terra"><i data-lucide="clock"></i></span>
+          <div class="bw__pay-main">
+            <div class="bw__pay-top">
+              <strong>Reserve &amp; Pay Later</strong>
+              <span class="bw__pay-amt" id="bwPayDepositAmt">$0 <small>deposit now</small></span>
+            </div>
+            <p id="bwPayDepositDesc"></p>
+            <span class="bw__pay-note bw__pay-note--warn" id="bwPayDepositNote"><i data-lucide="shield-alert"></i> </span>
+          </div>
+          <span class="bw__pay-check"><i data-lucide="check"></i></span>
+        </div>
+
+        <div class="bw__info">
+          <span class="bw__info-icon"><i data-lucide="info"></i></span>
+          <div>
+            <strong>Before you continue</strong>
+            <p id="bwCurrencyNote"></p>
+          </div>
+        </div>
+      </section>
+
+      <p class="bw__error" id="bwError" role="alert"></p>
+
+      <div class="bw__footer">
+        <button class="bw__ghost" id="bwBackBtn" onclick="bwBack()">Back</button>
+        <button class="bw__next" id="bwNextBtn" onclick="bwNext()">
+          <span id="bwNextLabel">Continue</span>
+          <span class="bw__next-orb"><i data-lucide="arrow-right"></i></span>
+        </button>
       </div>
     </div>
   </div>
@@ -4788,7 +5632,7 @@
   <!-- ═══════════════ PAYMENT POPUP ═══════════════ -->
   <div class="payment-popup" id="paymentPopup">
     <div class="payment-popup__backdrop" onclick="closePaymentPopup()"></div>
-    <div class="payment-popup__container">
+    <div class="payment-popup__container" data-lenis-prevent>
       <div class="payment-popup__header">
         <span class="payment-popup__title">Secure Checkout</span>
         <button class="payment-popup__close" onclick="closePaymentPopup()" aria-label="Close payment">
@@ -4898,21 +5742,30 @@
     const preloaderTl = gsap.timeline();
 
     preloaderTl
-      .to('.preloader__logo', { opacity: 1, duration: 0.8, ease: 'power2.out' })
-      .to('.preloader__line', { scaleX: 1, duration: 0.6, ease: 'power2.inOut' }, '-=0.3')
-      .to('.preloader__tagline', { opacity: 1, duration: 0.6, ease: 'power2.out' }, '-=0.2')
-      .to('.preloader__tagline', { opacity: 0, duration: 0.3 }, '+=0.8')
-      .to('.preloader__logo', { opacity: 0, duration: 0.3 }, '-=0.2')
-      .to('.preloader__line', { scaleX: 0, transformOrigin: 'right', duration: 0.3 }, '-=0.2')
+      .to('.preloader__logo-img', { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: 'back.out(1.4)' }, 0.15)
+      .to('.preloader__bar', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.65)
+      .to('.preloader__bar-fill', { scaleX: 1, duration: 2.85, ease: 'power1.inOut' }, 0.75)
+      .to('.preloader__tagline', { opacity: 1, duration: 0.7, ease: 'power2.out' }, 0.9)
+      .to('.preloader__spark', { opacity: 0.9, duration: 0.6, stagger: 0.25, ease: 'power2.out' }, 1.1)
+      .to(['.preloader__bar', '.preloader__tagline'], {
+        opacity: 0, y: -12, duration: 0.35, ease: 'power2.in', stagger: 0.04
+      }, 3.65)
+      .to('.preloader__spark', { opacity: 0, duration: 0.3 }, 3.65)
+      .to('.preloader__logo-img', {
+        scale: 18,
+        duration: 1.15,
+        ease: 'power4.in'
+      }, 4.0)
+      .to('.preloader__logo-img', { opacity: 0, duration: 0.3, ease: 'power1.out' }, 4.8)
       .to(preloader, {
-        yPercent: -100,
-        duration: 0.8,
-        ease: 'power3.inOut',
+        opacity: 0,
+        duration: 0.45,
+        ease: 'power1.out',
         onComplete: () => {
           preloader.style.display = 'none';
           animateHero();
         }
-      }, '-=0.1');
+      }, 4.75);
 
     /* ─── Hero Animations (variant-aware) ─── */
     function animateHero() {
@@ -4982,6 +5835,20 @@
       gsap.set('.hero__title .word-inner', { y: 0 });
     }
 
+    /* Hero parallax (variant A) */
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.to('.hero__bg img', {
+        yPercent: 20,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '.hero',
+          start: 'top top',
+          end: 'bottom top',
+          scrub: true
+        }
+      });
+    }
+
     function setHeroBFinal() {
       gsap.set('.fhero__nav, .fhero__actions', { opacity: 1 });
       gsap.set('.fhero__headline .fh-line > span', { y: 0 });
@@ -5007,29 +5874,18 @@
     }
 
     (function initVariant() {
-      let v = 'b';
-      try { v = localStorage.getItem('belvoirHeroVariant') || 'b'; } catch (e) {}
-      if (v === 'a') {
-        document.body.classList.remove('variant-b');
-        document.body.classList.add('variant-a');
-        document.getElementById('variantBtnA').classList.add('active');
-        document.getElementById('variantBtnA').setAttribute('aria-pressed', 'true');
-        document.getElementById('variantBtnB').classList.remove('active');
-        document.getElementById('variantBtnB').setAttribute('aria-pressed', 'false');
+      let v = 'a';
+      try { v = localStorage.getItem('belvoirHeroVariant') || 'a'; } catch (e) {}
+      if (v === 'b') {
+        document.body.classList.remove('variant-a');
+        document.body.classList.add('variant-b');
+        document.getElementById('variantBtnB').classList.add('active');
+        document.getElementById('variantBtnB').setAttribute('aria-pressed', 'true');
+        document.getElementById('variantBtnA').classList.remove('active');
+        document.getElementById('variantBtnA').setAttribute('aria-pressed', 'false');
       }
     })();
 
-    /* ─── Hero Parallax (variant A) ─── */
-    gsap.to('.hero__bg img', {
-      yPercent: 20,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: '.hero',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: true
-      }
-    });
 
     /* ─── Parallax Divider ─── */
     gsap.to('.parallax-divider img', {
@@ -5293,14 +6149,85 @@
     const ROOM_PRICES = { standard: 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
     const ROOM_NAMES = { standard: 'Deluxe Standard Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
-    function selectAndScroll(linkEl) {
-      const card = linkEl.closest('.room-card');
-      selectRoom(card, card.dataset.room);
-      const target = document.getElementById('bookingBar');
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+
+    /* ─────────── Accommodation Categories ─────────── */
+    const CATEGORIES = {
+      suites: {
+        title: 'Suites & Residences',
+        tagline: 'Full apartments and the penthouse — living space, kitchens, balconies, and sea views for stays of any length.',
+        rooms: [
+          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/studio-penthouse.jpg', gallery: 'penthouse', desc: 'Open-plan penthouse living at the summit of Belvoir — breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] },
+          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/one-bed-apartment.jpg', gallery: 'apartments', desc: 'Separate bedroom, living area and full kitchen — breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
+          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/two-bed-apartment.jpg', gallery: 'apartments', desc: 'Two bedrooms, living area and full kitchen — self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
+        ]
+      },
+      standard: {
+        title: 'Standard Rooms',
+        tagline: 'Elegant en-suite rooms with balconies, sea views, and breakfast served each morning of your stay.',
+        rooms: [
+          { key: 'standard', name: 'Deluxe Standard Room', price: 80, img: 'images/deluxe-standard-room.jpg', gallery: 'studio-rooms', desc: 'King bed, en-suite bathroom and modern furnishings — perfect for short stays.', chips: ['King Bed', 'Sea View', 'Breakfast'] },
+          { key: 'superior-deluxe', name: 'Superior Deluxe Room', price: 90, img: 'images/standard-bedroom-king.jpeg', gallery: 'studio-rooms', desc: 'Upgraded room with premium bedding, balcony and elegant decor.', chips: ['King Bed', 'Balcony', 'Breakfast'] },
+          { key: 'superior-twin', name: 'Superior Deluxe Twin', price: 100, img: 'images/standard-bedroom-twin.jpeg', gallery: 'studio-rooms', desc: 'Two single beds — ideal for friends or colleagues sharing.', chips: ['Twin Beds', 'Sea View', 'Breakfast'] },
+          { key: 'standard', name: 'Ground Floor Room', price: 80, img: 'images/deluxe-bedroom-1.jpeg', gallery: 'ground-floor', desc: 'Step-free comfort with no stairs to climb — recommended for elderly guests.', chips: ['No Stairs', 'En-suite', 'Breakfast'] }
+        ]
       }
+    };
+
+    let catLastFocus = null;
+
+    function openCategory(catKey) {
+      const cat = CATEGORIES[catKey];
+      if (!cat) return;
+      catLastFocus = document.activeElement;
+      document.getElementById('catOverlayTitle').textContent = cat.title;
+      document.getElementById('catOverlayTagline').textContent = cat.tagline;
+      document.getElementById('catOverlayGrid').innerHTML = cat.rooms.map(r =>
+        '<article class="cat-room">' +
+          '<div class="cat-room__img"><img src="' + r.img + '" alt="' + r.name + ' at Belvoir" loading="lazy"></div>' +
+          '<div class="cat-room__body">' +
+            '<div class="cat-room__row"><h4 class="cat-room__name">' + r.name + '</h4><div class="cat-room__price">$' + r.price + ' <small>/night</small></div></div>' +
+            '<p class="cat-room__desc">' + r.desc + '</p>' +
+            '<div class="cat-room__chips">' + r.chips.map(c => '<span>' + c + '</span>').join('') + '</div>' +
+            '<div class="cat-room__actions">' +
+              '<button class="cat-room__ghost" onclick="catGallery(\'' + r.gallery + '\')">View Gallery</button>' +
+              '<button class="cat-room__book" onclick="catBook(\'' + r.key + '\', \'' + r.name + '\')">Select &amp; Book</button>' +
+            '</div>' +
+          '</div>' +
+        '</article>'
+      ).join('');
+      const ov = document.getElementById('catOverlay');
+      ov.classList.add('active');
+      ov.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+      if (typeof lenis !== 'undefined') lenis.stop();
+      if (window.lucide) lucide.createIcons();
+      document.querySelector('.cat-overlay__back').focus();
     }
+
+    function closeCategory() {
+      document.getElementById('catOverlay').classList.remove('active');
+      document.body.style.overflow = '';
+      if (typeof lenis !== 'undefined') lenis.start();
+      if (catLastFocus && catLastFocus.focus) catLastFocus.focus();
+    }
+
+    function catBook(roomKey, displayName) {
+      closeCategory();
+      openBookingWizard(roomKey, displayName);
+    }
+
+    function catGallery(galleryKey) {
+      openDetailModal(galleryKey);
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      const detail = document.getElementById('detailModal');
+      const overlay = document.getElementById('catOverlay');
+      if (detail.classList.contains('active')) return; // detail modal handler closes itself
+      if (overlay.classList.contains('active')) closeCategory();
+    });
 
     /* ─────────── Accommodation Detail Modal ─────────── */
     const ACC_TYPES = {
@@ -5405,13 +6332,16 @@
       updateDetailStage();
       document.getElementById('detailModal').classList.add('active');
       document.body.style.overflow = 'hidden';
+      if (typeof lenis !== 'undefined') lenis.stop();
       if (window.lucide) lucide.createIcons();
       document.querySelector('#detailModal .detail-modal__close').focus();
     }
 
     function closeDetailModal() {
       document.getElementById('detailModal').classList.remove('active');
-      document.body.style.overflow = '';
+      const catOpen = document.getElementById('catOverlay').classList.contains('active');
+      document.body.style.overflow = catOpen ? 'hidden' : '';
+      if (!catOpen && typeof lenis !== 'undefined') lenis.start();
       if (detailLastFocus && detailLastFocus.focus) detailLastFocus.focus();
     }
 
@@ -5447,11 +6377,7 @@
       const data = ACC_TYPES[currentAccType];
       closeDetailModal();
       if (!data) return;
-      const select = document.getElementById('roomSelect');
-      select.value = data.bookValue;
-      select.dispatchEvent(new Event('change'));
-      const target = document.getElementById('bookingBar');
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      openBookingWizard(data.bookValue);
     }
 
     document.addEventListener('keydown', function(e) {
@@ -5462,63 +6388,7 @@
       else if (e.key === 'ArrowLeft') detailPrev();
     });
 
-    function selectRoom(cardEl, roomValue) {
-      document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
-      cardEl.classList.add('selected');
-      selectedRoom = roomValue;
-      document.getElementById('roomSelect').value = roomValue;
-      updateBookButton();
-    }
 
-    document.getElementById('roomSelect').addEventListener('change', function() {
-      const val = this.value;
-      selectedRoom = val;
-      document.querySelectorAll('.room-card').forEach(c => {
-        c.classList.toggle('selected', c.dataset.room === val);
-      });
-      updateBookButton();
-    });
-
-    (function initDates() {
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const fmt = d => d.toISOString().split('T')[0];
-
-      const ci = document.getElementById('checkin');
-      const co = document.getElementById('checkout');
-      ci.min = fmt(today);
-      ci.value = '';
-      co.min = fmt(tomorrow);
-      co.value = '';
-
-      ci.addEventListener('change', function() {
-        const d = new Date(this.value);
-        d.setDate(d.getDate() + 1);
-        co.min = fmt(d);
-        if (co.value && new Date(co.value) <= new Date(this.value)) {
-          co.value = fmt(d);
-        }
-        updateBookButton();
-      });
-
-      co.addEventListener('change', updateBookButton);
-    })();
-
-    function updateBookButton() {
-      const btn = document.getElementById('bookingSubmit');
-      const room = selectedRoom || document.getElementById('roomSelect').value;
-      const checkin = document.getElementById('checkin').value;
-      const checkout = document.getElementById('checkout').value;
-
-      if (room && checkin && checkout) {
-        btn.classList.remove('disabled');
-        btn.disabled = false;
-      } else {
-        btn.classList.add('disabled');
-        btn.disabled = true;
-      }
-    }
 
     function formatDate(dateStr) {
       const d = new Date(dateStr + 'T00:00:00');
@@ -5530,137 +6400,248 @@
       return Math.max(1, Math.round(ms / 86400000));
     }
 
-    function openBookingModal() {
-      const room = selectedRoom || document.getElementById('roomSelect').value;
-      const checkin = document.getElementById('checkin').value;
-      const checkout = document.getElementById('checkout').value;
-      const guests = document.getElementById('guests').value;
+    /* ─────────── Booking Wizard ─────────── */
+    const ROOM_IMGS = {
+      standard: 'images/deluxe-standard-room.jpg',
+      'superior-deluxe': 'images/standard-bedroom-king.jpeg',
+      'superior-twin': 'images/standard-bedroom-twin.jpeg',
+      studio: 'images/studio-penthouse.jpg',
+      'one-bed': 'images/one-bed-apartment.jpg',
+      'two-bed': 'images/two-bed-apartment.jpg'
+    };
 
-      if (!room || !checkin || !checkout) return;
+    const LE_RATE = 24;
+    const DEPOSIT_PCT = 0.3;
 
-      const nights = getNights(checkin, checkout);
-      const price = ROOM_PRICES[room] || 100;
+    const bwState = { room: '', label: '', step: 1, payment: '' };
+    let bwLastFocus = null;
+
+    const BW_HEADS = {
+      1: { icon: 'calendar-days', title: 'Choose Your Dates' },
+      2: { icon: 'user-round', title: 'Guest Details' },
+      3: { icon: 'clipboard-check', title: 'Review Your Booking' },
+      4: { icon: 'credit-card', title: 'How Would You Like to Pay?' }
+    };
+
+    function bwTotals() {
+      const ci = document.getElementById('bwCheckin').value;
+      const co = document.getElementById('bwCheckout').value;
+      const nights = ci && co ? getNights(ci, co) : 0;
+      const price = ROOM_PRICES[bwState.room] || 100;
       const total = nights * price;
-
-      document.getElementById('summaryRoom').textContent = ROOM_NAMES[room] || room;
-      document.getElementById('summaryCheckin').textContent = formatDate(checkin);
-      document.getElementById('summaryCheckout').textContent = formatDate(checkout);
-      document.getElementById('summaryNights').textContent = nights + (nights === 1 ? ' night' : ' nights');
-      document.getElementById('summaryTotal').textContent = '$' + total.toLocaleString();
-
-      selectedPayment = '';
-      document.getElementById('step1Error').classList.remove('visible');
-      document.getElementById('bookingStep1').style.display = '';
-      document.getElementById('bookingStep2').style.display = 'none';
-      document.getElementById('stepDot1').classList.add('active');
-      document.getElementById('stepDot2').classList.remove('active');
-      document.getElementById('stepLabel').textContent = 'Step 1 of 2';
-
-      document.getElementById('bookingModal').classList.add('active');
-      document.body.style.overflow = 'hidden';
-      lucide.createIcons({ nodes: document.querySelectorAll('#bookingModal [data-lucide]') });
+      const deposit = Math.ceil(total * DEPOSIT_PCT);
+      return { ci, co, nights, price, total, deposit, remaining: total - deposit };
     }
 
-    function closeBookingModal() {
-      document.getElementById('bookingModal').classList.remove('active');
+    function openBookingWizard(roomKey, displayName) {
+      bwState.room = roomKey;
+      bwState.label = displayName || ROOM_NAMES[roomKey] || roomKey;
+      bwState.step = 1;
+      bwState.payment = '';
+      bwLastFocus = document.activeElement;
+
+      const price = ROOM_PRICES[roomKey] || 100;
+      document.getElementById('bwRoomImg').src = ROOM_IMGS[roomKey] || 'images/deluxe-standard-room.jpg';
+      document.getElementById('bwRoomImg').alt = bwState.label + ' at Belvoir';
+      document.getElementById('bwRoomName').textContent = bwState.label;
+      document.getElementById('bwRoomRate').textContent = '$' + price + ' per night';
+
+      const today = new Date();
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const fmt = d => d.toISOString().split('T')[0];
+      const ci = document.getElementById('bwCheckin');
+      const co = document.getElementById('bwCheckout');
+      ci.min = fmt(today);
+      co.min = fmt(tomorrow);
+
+      bwRender();
+      document.getElementById('bookWizard').classList.add('active');
+      document.body.style.overflow = 'hidden';
+      if (typeof lenis !== 'undefined') lenis.stop();
+      if (window.lucide) lucide.createIcons();
+      document.querySelector('.bw__close').focus();
+    }
+
+    function closeBookWizard() {
+      document.getElementById('bookWizard').classList.remove('active');
       document.body.style.overflow = '';
+      if (typeof lenis !== 'undefined') lenis.start();
+      if (bwLastFocus && bwLastFocus.focus) bwLastFocus.focus();
+    }
+
+    function bwRender() {
+      const s = bwState.step;
+      document.querySelectorAll('.bw__step').forEach(li => {
+        const idx = parseInt(li.dataset.idx, 10);
+        li.classList.toggle('done', idx < s);
+        li.classList.toggle('current', idx === s);
+      });
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById('bwStep' + i).hidden = i !== s;
+      }
+      const head = BW_HEADS[s];
+      document.getElementById('bwHeadIcon').innerHTML = '<i data-lucide="' + head.icon + '"></i>';
+      document.getElementById('bwTitle').textContent = head.title;
+
+      const t = bwTotals();
+      const sub = document.getElementById('bwSubtitle');
+      if (s === 1) sub.textContent = bwState.label + ' \u00b7 $' + t.price + '/night';
+      else if (s === 2) sub.textContent = 'Tell us who\u2019s checking in';
+      else if (s === 3) sub.textContent = 'Make sure everything looks right before payment';
+      else sub.textContent = bwState.label + ' \u00b7 ' + t.nights + (t.nights === 1 ? ' night' : ' nights') + ' \u00b7 $' + t.total.toLocaleString() + ' total';
+
+      if (s === 3) bwBuildReview();
+      if (s === 4) bwBuildPayment();
+
+      document.getElementById('bwBackBtn').style.visibility = s === 1 ? 'hidden' : 'visible';
+      document.getElementById('bwNextLabel').textContent = s === 3 ? 'Confirm & Continue' : (s === 4 ? 'Proceed to Secure Checkout' : 'Continue');
+      bwHideError();
+      if (window.lucide) lucide.createIcons();
+      document.querySelector('.bw__panel').scrollTop = 0;
+    }
+
+    function bwBuildReview() {
+      const t = bwTotals();
+      document.getElementById('bwReview').innerHTML =
+        '<div class="bw__review-card">' +
+          '<dl>' +
+            '<div><dt>Room</dt><dd>' + bwState.label + '</dd></div>' +
+            '<div><dt>Check-in</dt><dd>' + formatDate(t.ci) + '</dd></div>' +
+            '<div><dt>Check-out</dt><dd>' + formatDate(t.co) + '</dd></div>' +
+            '<div><dt>Guests</dt><dd>' + document.getElementById('bwGuests').value + '</dd></div>' +
+          '</dl>' +
+          '<button class="bw__review-edit" onclick="bwGo(1)">Edit</button>' +
+        '</div>' +
+        '<div class="bw__review-card">' +
+          '<dl>' +
+            '<div><dt>Guest</dt><dd>' + bwEsc(document.getElementById('bwName').value) + '</dd></div>' +
+            '<div><dt>Phone</dt><dd>' + bwEsc(document.getElementById('bwPhone').value) + '</dd></div>' +
+            '<div><dt>Email</dt><dd>' + bwEsc(document.getElementById('bwEmail').value) + '</dd></div>' +
+          '</dl>' +
+          '<button class="bw__review-edit" onclick="bwGo(2)">Edit</button>' +
+        '</div>' +
+        '<div class="bw__review-total">' +
+          '<span>$' + t.price + ' \u00d7 ' + t.nights + (t.nights === 1 ? ' night' : ' nights') + '</span>' +
+          '<strong>$' + t.total.toLocaleString() + '</strong>' +
+        '</div>';
+    }
+
+    function bwEsc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function bwBuildPayment() {
+      const t = bwTotals();
+      document.getElementById('bwPayFullAmt').textContent = '$' + t.total.toLocaleString();
+      document.getElementById('bwPayDepositAmt').innerHTML = '$' + t.deposit.toLocaleString() + ' <small>deposit now</small>';
+      document.getElementById('bwPayDepositDesc').textContent = 'Pay a 30% non-refundable deposit ($' + t.deposit.toLocaleString() + ') now to hold your room. The remaining $' + t.remaining.toLocaleString() + ' is due at check-in.';
+      document.getElementById('bwPayDepositNote').innerHTML = '<i data-lucide="shield-alert"></i> Deposit of $' + t.deposit.toLocaleString() + ' is non-refundable';
+      document.getElementById('bwPayFull').classList.toggle('selected', bwState.payment === 'full');
+      document.getElementById('bwPayDeposit').classList.toggle('selected', bwState.payment === 'deposit');
+      bwUpdateCurrencyNote();
+    }
+
+    function bwUpdateCurrencyNote() {
+      const t = bwTotals();
+      const amt = bwState.payment === 'deposit' ? t.deposit : t.total;
+      document.getElementById('bwCurrencyNote').innerHTML =
+        'The secure checkout opens in Sierra Leonean Leones (SLE). To pay in US Dollars, select <b>Bank Card</b> and switch the currency from <b>SLE to USD</b>. Prefer to pay in Leones? Today\u2019s rate is <b>$1 = Le ' + LE_RATE + '</b> \u2014 your $' + amt.toLocaleString() + ' payment is about <b>Le ' + (amt * LE_RATE).toLocaleString() + '</b>.';
+    }
+
+    function bwSelectPay(type) {
+      bwState.payment = type;
+      document.getElementById('bwPayFull').classList.toggle('selected', type === 'full');
+      document.getElementById('bwPayDeposit').classList.toggle('selected', type === 'deposit');
+      document.getElementById('bwPayFull').setAttribute('aria-checked', type === 'full');
+      document.getElementById('bwPayDeposit').setAttribute('aria-checked', type === 'deposit');
+      bwHideError();
+      bwUpdateCurrencyNote();
+    }
+
+    function bwShowError(msg) {
+      const el = document.getElementById('bwError');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function bwHideError() {
+      document.getElementById('bwError').classList.remove('visible');
+    }
+
+    function bwGo(step) {
+      bwState.step = step;
+      bwRender();
+    }
+
+    function bwBack() {
+      if (bwState.step > 1) bwGo(bwState.step - 1);
+    }
+
+    function bwNext() {
+      const s = bwState.step;
+      if (s === 1) {
+        const t = bwTotals();
+        if (!t.ci || !t.co) return bwShowError('Please choose both a check-in and check-out date.');
+        if (new Date(t.co) <= new Date(t.ci)) return bwShowError('Check-out must be after check-in.');
+        return bwGo(2);
+      }
+      if (s === 2) {
+        const name = document.getElementById('bwName').value.trim();
+        const phone = document.getElementById('bwPhone').value.trim();
+        const email = document.getElementById('bwEmail').value.trim();
+        if (!name || !phone || !email) return bwShowError('Please fill in your name, phone number, and email.');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bwShowError('Please enter a valid email address.');
+        return bwGo(3);
+      }
+      if (s === 3) return bwGo(4);
+      if (s === 4) {
+        if (!bwState.payment) return bwShowError('Please choose how you would like to pay.');
+        return bwCheckout();
+      }
+    }
+
+    document.getElementById('bwCheckin').addEventListener('change', function() {
+      const d = new Date(this.value);
+      d.setDate(d.getDate() + 1);
+      const co = document.getElementById('bwCheckout');
+      co.min = this.value ? d.toISOString().split('T')[0] : co.min;
+      if (co.value && this.value && new Date(co.value) <= new Date(this.value)) {
+        co.value = d.toISOString().split('T')[0];
+      }
+    });
+
+    function bwCheckout() {
+      const t = bwTotals();
+      const params = new URLSearchParams({
+        room: bwState.room,
+        roomName: bwState.label,
+        checkin: t.ci,
+        checkout: t.co,
+        guests: document.getElementById('bwGuests').value,
+        nights: t.nights,
+        name: document.getElementById('bwName').value.trim(),
+        email: document.getElementById('bwEmail').value.trim(),
+        phone: document.getElementById('bwPhone').value.trim(),
+        requests: document.getElementById('bwRequests').value.trim(),
+        payment: bwState.payment,
+        amount: bwState.payment === 'full' ? t.total : t.deposit,
+        total: t.total
+      });
+      closeBookWizard();
+      openPaymentPopup('https://pay.flotme.ai/belvoirhotel?' + params.toString());
     }
 
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         if (document.getElementById('paymentPopup').classList.contains('active')) {
           closePaymentPopup();
-        } else if (document.getElementById('bookingModal').classList.contains('active')) {
-          closeBookingModal();
+        } else if (document.getElementById('bookWizard').classList.contains('active')) {
+          closeBookWizard();
         }
       }
     });
-
-    function goToStep2() {
-      const name = document.getElementById('guestName').value.trim();
-      const phone = document.getElementById('guestPhone').value.trim();
-      const email = document.getElementById('guestEmail').value.trim();
-
-      if (!name || !phone || !email) {
-        document.getElementById('step1Error').classList.add('visible');
-        return;
-      }
-      document.getElementById('step1Error').classList.remove('visible');
-
-      const room = selectedRoom || document.getElementById('roomSelect').value;
-      const checkin = document.getElementById('checkin').value;
-      const checkout = document.getElementById('checkout').value;
-      const nights = getNights(checkin, checkout);
-      const price = ROOM_PRICES[room] || 100;
-      const total = nights * price;
-      const deposit = Math.ceil(total * 0.2);
-
-      document.getElementById('summaryGuest2').textContent = name;
-      document.getElementById('summaryRoom2').textContent = ROOM_NAMES[room] || room;
-      document.getElementById('summaryDates2').textContent = formatDate(checkin) + ' — ' + formatDate(checkout);
-      document.getElementById('summaryTotal2').textContent = '$' + total.toLocaleString() + ' (' + nights + (nights === 1 ? ' night)' : ' nights)');
-
-      document.getElementById('payFullAmount').textContent = '$' + total.toLocaleString();
-      document.getElementById('payDepositAmount').innerHTML = '$' + deposit.toLocaleString() + ' <small style="font-size:0.75rem;font-weight:300;color:var(--color-text-muted);">(20% deposit · $' + (total - deposit).toLocaleString() + ' due at check-in)</small>';
-
-      selectedPayment = '';
-      document.querySelectorAll('.booking-modal__payment-card').forEach(c => c.classList.remove('selected'));
-      document.getElementById('step2Error').classList.remove('visible');
-
-      document.getElementById('bookingStep1').style.display = 'none';
-      document.getElementById('bookingStep2').style.display = '';
-      document.getElementById('stepDot1').classList.add('active');
-      document.getElementById('stepDot2').classList.add('active');
-      document.getElementById('stepLabel').textContent = 'Step 2 of 2';
-    }
-
-    function goToStep1() {
-      document.getElementById('bookingStep1').style.display = '';
-      document.getElementById('bookingStep2').style.display = 'none';
-      document.getElementById('stepDot2').classList.remove('active');
-      document.getElementById('stepLabel').textContent = 'Step 1 of 2';
-    }
-
-    function selectPayment(type) {
-      selectedPayment = type;
-      document.querySelectorAll('.booking-modal__payment-card').forEach(c => c.classList.remove('selected'));
-      document.getElementById(type === 'full' ? 'payFull' : 'payDeposit').classList.add('selected');
-      document.getElementById('step2Error').classList.remove('visible');
-    }
-
-    function completeBooking() {
-      if (!selectedPayment) {
-        document.getElementById('step2Error').classList.add('visible');
-        return;
-      }
-
-      const room = selectedRoom || document.getElementById('roomSelect').value;
-      const checkin = document.getElementById('checkin').value;
-      const checkout = document.getElementById('checkout').value;
-      const guests = document.getElementById('guests').value;
-      const nights = getNights(checkin, checkout);
-      const price = ROOM_PRICES[room] || 100;
-      const total = nights * price;
-      const deposit = Math.ceil(total * 0.2);
-
-      const params = new URLSearchParams({
-        room: room,
-        checkin: checkin,
-        checkout: checkout,
-        guests: guests,
-        nights: nights,
-        name: document.getElementById('guestName').value.trim(),
-        email: document.getElementById('guestEmail').value.trim(),
-        phone: document.getElementById('guestPhone').value.trim(),
-        requests: document.getElementById('guestRequests').value.trim(),
-        payment: selectedPayment,
-        amount: selectedPayment === 'full' ? total : deposit,
-        total: total
-      });
-
-      closeBookingModal();
-      openPaymentPopup('https://pay.flotme.ai/belvoirhotel?' + params.toString());
-    }
 
     function openPaymentPopup(url) {
       const popup = document.getElementById('paymentPopup');
