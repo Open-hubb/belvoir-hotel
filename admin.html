@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bookings Admin · Belvoir Hotel</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230C1B33'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' fill='%23B08D57'%3EB%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Josefin+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #0C1B33;
+      --navy-light: #1A2D4A;
+      --gold: #B08D57;
+      --gold-light: #C9A96E;
+      --cream: #F8F4EC;
+      --paper: #FFFDF8;
+      --peach: #F0E7D3;
+      --blue: #C7DCEC;
+      --sage: #D8E6EE;
+      --ink-soft: rgba(12, 27, 51, 0.65);
+      --green-ok: #2E7D57;
+      --red-warn: #C34A36;
+      --serif: 'Cormorant Garamond', serif;
+      --sans: 'Josefin Sans', sans-serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--sans);
+      font-weight: 300;
+      color: var(--navy);
+      background-color: var(--cream);
+      background-image:
+        radial-gradient(46% 40% at 8% 4%, rgba(240, 231, 211, 0.8) 0%, transparent 100%),
+        radial-gradient(42% 36% at 94% 8%, rgba(199, 220, 236, 0.6) 0%, transparent 100%),
+        radial-gradient(44% 40% at 6% 94%, rgba(216, 230, 238, 0.55) 0%, transparent 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem); }
+
+    /* ── Login ── */
+    .login {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .login__card {
+      background: var(--paper);
+      border-radius: 24px;
+      box-shadow: 0 2px 8px rgba(12,27,51,0.06), 0 24px 60px rgba(12,27,51,0.14);
+      padding: clamp(2rem, 5vw, 3rem);
+      width: min(420px, 100%);
+      text-align: center;
+    }
+    .login__logo { width: 140px; height: auto; margin: 0 auto 1.25rem; display: block; }
+    .login__title { font-family: var(--serif); font-size: 1.9rem; font-weight: 600; }
+    .login__sub { font-size: 0.82rem; color: var(--ink-soft); margin: 0.4rem 0 1.5rem; }
+    .login input {
+      width: 100%;
+      font-family: var(--sans);
+      font-size: 1rem;
+      padding: 0.9rem 1.1rem;
+      border: 1.5px solid rgba(12,27,51,0.18);
+      border-radius: 14px;
+      margin-bottom: 0.9rem;
+      background: #fff;
+    }
+    .login input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(176,141,87,0.18); }
+    .login__err { display: none; color: var(--red-warn); font-size: 0.8rem; margin-bottom: 0.9rem; }
+    .login__err.show { display: block; }
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: var(--navy);
+      color: var(--paper);
+      border: none;
+      border-radius: 999px;
+      padding: 0.95rem 2.2rem;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(12,27,51,0.25); }
+    .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+    .btn--ghost { background: transparent; color: var(--navy); border: 1.5px solid rgba(12,27,51,0.25); }
+    .btn--ghost:hover { box-shadow: none; border-color: var(--navy); }
+    .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.6rem; }
+
+    /* ── Dashboard ── */
+    .dash { display: none; }
+    .dash.active { display: block; }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: clamp(1.5rem, 3vh, 2.25rem);
+    }
+    .head__brand { display: flex; align-items: center; gap: 1rem; }
+    .head__brand img { width: 84px; height: auto; }
+    .head__title { font-family: var(--serif); font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 600; line-height: 1.1; }
+    .head__sub { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+    .head__actions { display: flex; gap: 0.6rem; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--paper);
+      border-radius: 18px;
+      padding: 1.1rem 1.3rem;
+      box-shadow: 0 2px 6px rgba(12,27,51,0.05), 0 14px 32px rgba(12,27,51,0.08);
+    }
+    .stat strong { display: block; font-family: var(--serif); font-size: 1.7rem; font-weight: 600; line-height: 1.2; }
+    .stat span { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
+    .stat--gold strong { color: var(--gold); }
+    .stat--green strong { color: var(--green-ok); }
+    .stat--red strong { color: var(--red-warn); }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.1rem;
+    }
+    .tabs { display: flex; background: var(--paper); border-radius: 999px; padding: 0.25rem; box-shadow: 0 2px 8px rgba(12,27,51,0.07); }
+    .tab {
+      font-family: var(--sans);
+      font-size: 0.66rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      border: none;
+      background: none;
+      color: var(--ink-soft);
+      border-radius: 999px;
+      padding: 0.55rem 1.15rem;
+      cursor: pointer;
+    }
+    .tab.active { background: var(--navy); color: var(--paper); }
+    .search {
+      flex: 1;
+      min-width: 180px;
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      padding: 0.7rem 1.1rem;
+      border: 1.5px solid rgba(12,27,51,0.14);
+      border-radius: 999px;
+      background: var(--paper);
+    }
+    .search:focus { outline: none; border-color: var(--gold); }
+
+    .list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .card {
+      background: var(--paper);
+      border-radius: 18px;
+      padding: 1.1rem 1.3rem;
+      box-shadow: 0 2px 6px rgba(12,27,51,0.05), 0 12px 28px rgba(12,27,51,0.07);
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 0.9fr auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .card__who strong { font-weight: 500; font-size: 0.95rem; display: block; }
+    .card__who a { color: var(--ink-soft); font-size: 0.76rem; text-decoration: none; display: block; word-break: break-all; }
+    .card__who a:hover { color: var(--gold); }
+    .card__meta { font-size: 0.78rem; color: var(--ink-soft); }
+    .card__meta strong { color: var(--navy); font-weight: 500; display: block; font-size: 0.88rem; }
+    .card__money { font-size: 0.76rem; color: var(--ink-soft); }
+    .card__money strong { display: block; font-family: var(--serif); font-size: 1.25rem; font-weight: 600; color: var(--navy); }
+    .card__side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+    .pill {
+      font-size: 0.6rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 500;
+      border-radius: 999px;
+      padding: 0.35rem 0.9rem;
+    }
+    .pill--paid { background: rgba(46,125,87,0.14); color: var(--green-ok); }
+    .pill--unpaid { background: rgba(195,74,54,0.12); color: var(--red-warn); }
+    .pill--dep { background: var(--peach); color: var(--navy); }
+    .card__requests {
+      grid-column: 1 / -1;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      background: var(--cream);
+      border-radius: 12px;
+      padding: 0.55rem 0.9rem;
+    }
+    .card__date { font-size: 0.66rem; color: rgba(12,27,51,0.45); }
+    .empty {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--ink-soft);
+      font-family: var(--serif);
+      font-size: 1.3rem;
+      font-style: italic;
+    }
+    .loading { text-align: center; padding: 3rem; color: var(--ink-soft); }
+
+    @media (max-width: 860px) {
+      .card { grid-template-columns: 1fr 1fr; }
+      .card__side { align-items: flex-start; flex-direction: row; flex-wrap: wrap; grid-column: 1 / -1; }
+    }
+    @media (max-width: 520px) {
+      .card { grid-template-columns: 1fr; }
+      .head__actions { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login -->
+  <div class="login" id="loginView">
+    <div class="login__card">
+      <img src="images/logo.png" alt="Belvoir" class="login__logo" width="610" height="400">
+      <h1 class="login__title">Bookings Admin</h1>
+      <p class="login__sub">Managers only · enter your access key</p>
+      <input type="password" id="keyInput" placeholder="Access key" autocomplete="current-password">
+      <p class="login__err" id="loginErr">That key wasn't accepted. Try again.</p>
+      <button class="btn" id="loginBtn" style="width:100%;">Sign In</button>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dash" id="dashView">
+    <div class="wrap">
+      <div class="head">
+        <div class="head__brand">
+          <img src="images/logo.png" alt="Belvoir" width="610" height="400">
+          <div>
+            <div class="head__sub">Belvoir Hotel</div>
+            <h1 class="head__title">Bookings</h1>
+          </div>
+        </div>
+        <div class="head__actions">
+          <button class="btn btn--ghost btn--sm" id="refreshBtn">Refresh</button>
+          <button class="btn btn--ghost btn--sm" id="logoutBtn">Log Out</button>
+        </div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="toolbar">
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-f="all">All</button>
+          <button class="tab" data-f="paid">Paid</button>
+          <button class="tab" data-f="unpaid">Unpaid</button>
+        </div>
+        <input class="search" id="search" type="search" placeholder="Search name, email, phone, room…">
+      </div>
+
+      <div class="list" id="list"><div class="loading">Loading bookings…</div></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let KEY = sessionStorage.getItem('belvoirAdminKey') || '';
+    let BOOKINGS = [];
+    let FILTER = 'all';
+
+    const fmtMoney = n => '$' + Number(n).toLocaleString();
+    const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const fmtWhen = s => new Date(s).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+
+    async function api(method, body) {
+      const res = await fetch('/api/bookings', {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (res.status === 401) throw new Error('unauthorized');
+      if (!res.ok) throw new Error('request failed');
+      return res.json();
+    }
+
+    async function load() {
+      $('list').innerHTML = '<div class="loading">Loading bookings…</div>';
+      try {
+        const data = await api('GET');
+        BOOKINGS = data.bookings;
+        render();
+        $('loginView').style.display = 'none';
+        $('dashView').classList.add('active');
+        sessionStorage.setItem('belvoirAdminKey', KEY);
+      } catch (e) {
+        if (e.message === 'unauthorized') {
+          sessionStorage.removeItem('belvoirAdminKey');
+          KEY = '';
+          $('dashView').classList.remove('active');
+          $('loginView').style.display = 'flex';
+          $('loginErr').classList.add('show');
+        } else {
+          $('list').innerHTML = '<div class="empty">Could not load bookings. Check your connection and refresh.</div>';
+        }
+      }
+    }
+
+    function stats() {
+      const paid = BOOKINGS.filter(b => b.payment_status === 'paid');
+      const unpaid = BOOKINGS.filter(b => b.payment_status !== 'paid');
+      const collected = paid.reduce((s, b) => s + Number(b.amount_due), 0);
+      const outstanding = unpaid.reduce((s, b) => s + Number(b.amount_due), 0);
+      $('stats').innerHTML =
+        '<div class="stat"><strong>' + BOOKINGS.length + '</strong><span>Total Bookings</span></div>' +
+        '<div class="stat stat--green"><strong>' + paid.length + '</strong><span>Paid</span></div>' +
+        '<div class="stat stat--red"><strong>' + unpaid.length + '</strong><span>Unpaid</span></div>' +
+        '<div class="stat stat--gold"><strong>' + fmtMoney(collected) + '</strong><span>Collected</span></div>' +
+        '<div class="stat"><strong>' + fmtMoney(outstanding) + '</strong><span>Awaiting Payment</span></div>';
+    }
+
+    function render() {
+      stats();
+      const q = $('search').value.trim().toLowerCase();
+      let rows = BOOKINGS;
+      if (FILTER !== 'all') rows = rows.filter(b => (FILTER === 'paid') === (b.payment_status === 'paid'));
+      if (q) rows = rows.filter(b =>
+        [b.guest_name, b.guest_email, b.guest_phone, b.room_name].join(' ').toLowerCase().includes(q));
+      if (!rows.length) {
+        $('list').innerHTML = '<div class="empty">No bookings here yet.</div>';
+        return;
+      }
+      $('list').innerHTML = rows.map(b => {
+        const paid = b.payment_status === 'paid';
+        return '<article class="card" data-id="' + b.id + '">' +
+          '<div class="card__who">' +
+            '<strong>' + esc(b.guest_name) + '</strong>' +
+            '<a href="tel:' + esc(b.guest_phone) + '">' + esc(b.guest_phone) + '</a>' +
+            '<a href="mailto:' + esc(b.guest_email) + '">' + esc(b.guest_email) + '</a>' +
+            '<span class="card__date">Booked ' + fmtWhen(b.created_at) + ' · #' + b.id + '</span>' +
+          '</div>' +
+          '<div class="card__meta">' +
+            '<strong>' + esc(b.room_name) + '</strong>' +
+            fmtDate(b.checkin) + ' → ' + fmtDate(b.checkout) +
+            '<br>' + b.nights + (b.nights == 1 ? ' night' : ' nights') + ' · ' + esc(b.guests) + ' guest(s)' +
+          '</div>' +
+          '<div class="card__money">' +
+            '<strong>' + fmtMoney(b.amount_due) + '</strong>' +
+            (b.payment_option === 'deposit'
+              ? '30% deposit · ' + fmtMoney(b.total) + ' total'
+              : 'paid in full') +
+          '</div>' +
+          '<div class="card__side">' +
+            '<span class="pill ' + (paid ? 'pill--paid' : 'pill--unpaid') + '">' + (paid ? 'Paid' : 'Unpaid') + '</span>' +
+            (b.payment_option === 'deposit' ? '<span class="pill pill--dep">Deposit</span>' : '') +
+            '<button class="btn btn--sm ' + (paid ? 'btn--ghost' : '') + '" onclick="toggle(' + b.id + ', \'' + (paid ? 'unpaid' : 'paid') + '\')">' +
+              (paid ? 'Mark Unpaid' : 'Mark Paid') + '</button>' +
+          '</div>' +
+          (b.requests ? '<div class="card__requests"><b>Requests:</b> ' + esc(b.requests) + '</div>' : '') +
+        '</article>';
+      }).join('');
+    }
+
+    async function toggle(id, status) {
+      const card = document.querySelector('.card[data-id="' + id + '"]');
+      if (card) card.style.opacity = '0.5';
+      try {
+        await api('PATCH', { id, payment_status: status });
+        const b = BOOKINGS.find(x => x.id === id);
+        if (b) b.payment_status = status;
+        render();
+      } catch (e) {
+        if (card) card.style.opacity = '1';
+        alert('Could not update. Please refresh and try again.');
+      }
+    }
+
+    $('loginBtn').addEventListener('click', () => { KEY = $('keyInput').value.trim(); if (KEY) load(); });
+    $('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+    $('refreshBtn').addEventListener('click', load);
+    $('logoutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('belvoirAdminKey');
+      location.reload();
+    });
+    $('tabs').addEventListener('click', e => {
+      if (!e.target.dataset.f) return;
+      FILTER = e.target.dataset.f;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === e.target));
+      render();
+    });
+    $('search').addEventListener('input', render);
+
+    if (KEY) load();
+  </script>
+</body>
+</html>
