@@ -287,6 +287,7 @@
         <div class="tabs" id="views">
           <button class="tab active" data-v="bookings">Bookings</button>
           <button class="tab" data-v="enquiries">Enquiries <span class="badge" id="enqBadge"></span></button>
+          <button class="tab" data-v="payments">Payments <span class="badge" id="payBadge"></span></button>
         </div>
         <div class="tabs" id="tabs">
           <button class="tab active" data-f="all">All</button>
@@ -306,6 +307,7 @@
     let KEY = sessionStorage.getItem('belvoirAdminKey') || '';
     let BOOKINGS = [];
     let ENQUIRIES = [];
+    let PAYMENTS = [];
     let FILTER = 'all';
     let VIEW = 'bookings';
 
@@ -328,12 +330,14 @@
     async function load() {
       $('list').innerHTML = '<div class="loading">Loading bookings…</div>';
       try {
-        const [bk, eq] = await Promise.all([
+        const [bk, eq, pay] = await Promise.all([
           api('GET'),
-          api('GET', null, '/api/enquiries').catch(() => ({ enquiries: [] }))
+          api('GET', null, '/api/enquiries').catch(() => ({ enquiries: [] })),
+          api('GET', null, '/api/payments').catch(() => ({ payments: [] }))
         ]);
         BOOKINGS = bk.bookings;
         ENQUIRIES = eq.enquiries || [];
+        PAYMENTS = pay.payments || [];
         render();
         $('loginView').style.display = 'none';
         $('dashView').classList.add('active');
@@ -375,11 +379,13 @@
     }
 
     function render() {
-      const isEnq = VIEW === 'enquiries';
-      document.getElementById('tabs').style.display = isEnq ? 'none' : '';
-      const unhandled = ENQUIRIES.filter(e => e.status !== 'handled').length;
-      document.getElementById('enqBadge').textContent = unhandled || '';
-      if (isEnq) return renderEnquiries();
+      document.getElementById('tabs').style.display = VIEW === 'bookings' ? '' : 'none';
+      document.getElementById('enqBadge').textContent =
+        ENQUIRIES.filter(e => e.status !== 'handled').length || '';
+      document.getElementById('payBadge').textContent =
+        PAYMENTS.filter(p => !p.matched).length || '';
+      if (VIEW === 'enquiries') return renderEnquiries();
+      if (VIEW === 'payments') return renderPayments();
       stats();
       const q = $('search').value.trim().toLowerCase();
       let rows = BOOKINGS;
@@ -474,6 +480,51 @@
       }).join('');
     }
 
+    function renderPayments() {
+      const q = $('search').value.trim().toLowerCase();
+      const matched = PAYMENTS.filter(p => p.matched);
+      const orphan = PAYMENTS.filter(p => !p.matched);
+      const taken = matched.reduce((s, p) => s + Number(p.amount || 0), 0);
+      $('stats').innerHTML =
+        '<div class="stat"><strong>' + PAYMENTS.length + '</strong><span>Payments Received</span></div>' +
+        '<div class="stat stat--green"><strong>' + matched.length + '</strong><span>Matched</span></div>' +
+        '<div class="stat stat--red"><strong>' + orphan.length + '</strong><span>Unmatched</span></div>' +
+        '<div class="stat stat--gold"><strong>' + fmtMoney(taken) + '</strong><span>Confirmed Total</span></div>';
+
+      let rows = PAYMENTS;
+      if (q) rows = rows.filter(p =>
+        [p.payer_name, p.payer_email, p.provider_ref, p.reference, p.guest_name].join(' ').toLowerCase().includes(q));
+
+      if (!rows.length) {
+        $('list').innerHTML = '<div class="empty">No payments recorded yet.<br>' +
+          '<span style="font-size:0.8rem;font-family:var(--sans);font-style:normal;">' +
+          'They appear here once flot starts sending the webhook.</span></div>';
+        return;
+      }
+
+      $('list').innerHTML = rows.map(p => {
+        const ok = p.matched;
+        return '<article class="card' + (ok ? '' : ' card--left') + '">' +
+          '<div class="card__who">' +
+            '<strong>' + esc(p.payer_name || p.guest_name || 'Unnamed payer') + '</strong>' +
+            (p.payer_email ? '<a href="mailto:' + esc(p.payer_email) + '">' + esc(p.payer_email) + '</a>' : '') +
+            '<span class="card__date">' + fmtWhen(p.received_at) + (p.provider_ref ? ' · ' + esc(p.provider_ref) : '') + '</span>' +
+          '</div>' +
+          '<div class="card__meta">' +
+            (ok
+              ? '<strong>' + esc(p.room_name || 'Booking #' + p.booking_id) + '</strong>Applied to booking #' + p.booking_id
+              : '<strong>No matching booking</strong>Needs to be matched by hand') +
+          '</div>' +
+          '<div class="card__money">' +
+            '<strong>' + fmtMoney(p.amount || 0) + '</strong>' + esc(p.currency || '') +
+          '</div>' +
+          '<div class="card__side">' +
+            '<span class="pill ' + (ok ? 'pill--paid' : 'pill--left') + '">' + esc(p.status || (ok ? 'Paid' : 'Unmatched')) + '</span>' +
+          '</div>' +
+        '</article>';
+      }).join('');
+    }
+
     async function markEnquiry(id, status) {
       const card = document.querySelector('.card[data-eid="' + id + '"]');
       if (card) card.style.opacity = '0.5';
@@ -513,9 +564,10 @@
       if (!e.target.dataset.v) return;
       VIEW = e.target.dataset.v;
       document.querySelectorAll('#views .tab').forEach(t => t.classList.toggle('active', t === e.target));
-      $('search').placeholder = VIEW === 'enquiries'
-        ? 'Search name, email, message…'
-        : 'Search name, email, phone, room…';
+      $('search').placeholder =
+        VIEW === 'enquiries' ? 'Search name, email, message…' :
+        VIEW === 'payments'  ? 'Search payer, reference, room…' :
+                               'Search name, email, phone, room…';
       render();
     });
     $('tabs').addEventListener('click', e => {

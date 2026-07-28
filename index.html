@@ -6776,7 +6776,8 @@
         id: bwState.bookingId,
         claim: bwState.claim
       });
-      await saveBooking(record);
+      const saved = await saveBooking(record);
+      if (saved && saved.id) bwState.bookingId = saved.id;
       nextBtn.disabled = false;
       nextBtn.style.opacity = '';
       const params = new URLSearchParams({
@@ -6792,7 +6793,8 @@
         requests: document.getElementById('bwRequests').value.trim(),
         payment: bwState.payment,
         amount: bwState.payment === 'full' ? t.total : t.deposit,
-        total: t.total
+        total: t.total,
+        ref: bwState.bookingId || ''
       });
       closeBookWizard();
       openPaymentPopup('https://pay.flotme.ai/belvoirhotel?' + params.toString());
