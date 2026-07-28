@@ -151,6 +151,32 @@
       cursor: pointer;
     }
     .tab.active { background: var(--navy); color: var(--paper); }
+    .badge {
+      display: inline-block;
+      min-width: 17px;
+      padding: 0 5px;
+      margin-left: 5px;
+      border-radius: 999px;
+      background: var(--gold);
+      color: var(--navy);
+      font-size: 0.58rem;
+      line-height: 17px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .badge:empty { display: none; }
+    .enq__msg {
+      grid-column: 1 / -1;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--navy);
+      background: var(--cream);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      white-space: pre-wrap;
+    }
+    .pill--new { background: rgba(176,141,87,0.18); color: #8A6A34; }
+    .pill--done { background: rgba(46,125,87,0.14); color: var(--green-ok); }
     .search {
       flex: 1;
       min-width: 180px;
@@ -256,6 +282,10 @@
       <div class="stats" id="stats"></div>
 
       <div class="toolbar">
+        <div class="tabs" id="views">
+          <button class="tab active" data-v="bookings">Bookings</button>
+          <button class="tab" data-v="enquiries">Enquiries <span class="badge" id="enqBadge"></span></button>
+        </div>
         <div class="tabs" id="tabs">
           <button class="tab active" data-f="all">All</button>
           <button class="tab" data-f="paid">Paid</button>
@@ -272,15 +302,17 @@
     const $ = id => document.getElementById(id);
     let KEY = sessionStorage.getItem('belvoirAdminKey') || '';
     let BOOKINGS = [];
+    let ENQUIRIES = [];
     let FILTER = 'all';
+    let VIEW = 'bookings';
 
     const fmtMoney = n => '$' + Number(n).toLocaleString();
     const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const fmtWhen = s => new Date(s).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 
-    async function api(method, body) {
-      const res = await fetch('/api/bookings', {
+    async function api(method, body, path) {
+      const res = await fetch(path || '/api/bookings', {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY },
         body: body ? JSON.stringify(body) : undefined
@@ -293,8 +325,12 @@
     async function load() {
       $('list').innerHTML = '<div class="loading">Loading bookings…</div>';
       try {
-        const data = await api('GET');
-        BOOKINGS = data.bookings;
+        const [bk, eq] = await Promise.all([
+          api('GET'),
+          api('GET', null, '/api/enquiries').catch(() => ({ enquiries: [] }))
+        ]);
+        BOOKINGS = bk.bookings;
+        ENQUIRIES = eq.enquiries || [];
         render();
         $('loginView').style.display = 'none';
         $('dashView').classList.add('active');
@@ -326,6 +362,11 @@
     }
 
     function render() {
+      const isEnq = VIEW === 'enquiries';
+      document.getElementById('tabs').style.display = isEnq ? 'none' : '';
+      const unhandled = ENQUIRIES.filter(e => e.status !== 'handled').length;
+      document.getElementById('enqBadge').textContent = unhandled || '';
+      if (isEnq) return renderEnquiries();
       stats();
       const q = $('search').value.trim().toLowerCase();
       let rows = BOOKINGS;
@@ -367,6 +408,65 @@
       }).join('');
     }
 
+    function renderEnquiries() {
+      const q = $('search').value.trim().toLowerCase();
+      const nw = ENQUIRIES.filter(e => e.status !== 'handled').length;
+      const longs = ENQUIRIES.filter(e => e.stay_type === 'long' || e.source === 'long-stay').length;
+      $('stats').innerHTML =
+        '<div class="stat"><strong>' + ENQUIRIES.length + '</strong><span>Total Enquiries</span></div>' +
+        '<div class="stat stat--gold"><strong>' + nw + '</strong><span>Awaiting Reply</span></div>' +
+        '<div class="stat stat--green"><strong>' + (ENQUIRIES.length - nw) + '</strong><span>Handled</span></div>' +
+        '<div class="stat"><strong>' + longs + '</strong><span>Long Stay</span></div>';
+
+      let rows = ENQUIRIES;
+      if (q) rows = rows.filter(e =>
+        [e.name, e.email, e.phone, e.message, e.stay_type].join(' ').toLowerCase().includes(q));
+
+      if (!rows.length) {
+        $('list').innerHTML = '<div class="empty">No enquiries yet.</div>';
+        return;
+      }
+
+      const STAY = { short: 'Short stay', extended: 'Extended stay', long: 'Long term', business: 'Business' };
+      $('list').innerHTML = rows.map(e => {
+        const done = e.status === 'handled';
+        const subject = encodeURIComponent('Re: your enquiry - Belvoir Hotel');
+        return '<article class="card" data-eid="' + e.id + '">' +
+          '<div class="card__who">' +
+            '<strong>' + esc(e.name) + '</strong>' +
+            '<a href="mailto:' + esc(e.email) + '?subject=' + subject + '">' + esc(e.email) + '</a>' +
+            (e.phone ? '<a href="tel:' + esc(e.phone) + '">' + esc(e.phone) + '</a>' : '') +
+            '<span class="card__date">' + fmtWhen(e.created_at) + ' &middot; #' + e.id + '</span>' +
+          '</div>' +
+          '<div class="card__meta">' +
+            '<strong>' + (STAY[e.stay_type] || 'General enquiry') + '</strong>' +
+            (e.source === 'long-stay' ? 'From the long stay banner' : 'From the contact form') +
+          '</div>' +
+          '<div class="card__side">' +
+            '<span class="pill ' + (done ? 'pill--done' : 'pill--new') + '">' + (done ? 'Handled' : 'New') + '</span>' +
+            '<a class="btn btn--sm" style="text-decoration:none;" href="mailto:' + esc(e.email) + '?subject=' + subject + '">Reply</a>' +
+            '<button class="btn btn--sm btn--ghost" onclick="markEnquiry(' + e.id + ', \'' + (done ? 'new' : 'handled') + '\')">' +
+              (done ? 'Mark New' : 'Mark Handled') + '</button>' +
+          '</div>' +
+          '<div class="enq__msg">' + esc(e.message) + '</div>' +
+        '</article>';
+      }).join('');
+    }
+
+    async function markEnquiry(id, status) {
+      const card = document.querySelector('.card[data-eid="' + id + '"]');
+      if (card) card.style.opacity = '0.5';
+      try {
+        await api('PATCH', { id, status }, '/api/enquiries');
+        const e = ENQUIRIES.find(x => x.id === id);
+        if (e) e.status = status;
+        render();
+      } catch (err) {
+        if (card) card.style.opacity = '1';
+        alert('Could not update. Please refresh and try again.');
+      }
+    }
+
     async function toggle(id, status) {
       const card = document.querySelector('.card[data-id="' + id + '"]');
       if (card) card.style.opacity = '0.5';
@@ -387,6 +487,15 @@
     $('logoutBtn').addEventListener('click', () => {
       sessionStorage.removeItem('belvoirAdminKey');
       location.reload();
+    });
+    $('views').addEventListener('click', e => {
+      if (!e.target.dataset.v) return;
+      VIEW = e.target.dataset.v;
+      document.querySelectorAll('#views .tab').forEach(t => t.classList.toggle('active', t === e.target));
+      $('search').placeholder = VIEW === 'enquiries'
+        ? 'Search name, email, message…'
+        : 'Search name, email, phone, room…';
+      render();
     });
     $('tabs').addEventListener('click', e => {
       if (!e.target.dataset.f) return;

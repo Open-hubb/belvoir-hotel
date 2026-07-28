@@ -2748,7 +2748,6 @@
         gap: 1.25rem;
         margin-bottom: 2rem;
       }
-      .rooms__header .btn-primary { align-self: stretch; text-align: center; justify-content: center; }
       .rooms__grid { grid-template-columns: 1fr; gap: 1.5rem; }
       .room-card__body { padding: 1.25rem; }
       .room-card__link { padding: 1rem 1.25rem; }
@@ -4393,6 +4392,28 @@
     .cat-room__book:active { transform: translateY(0); }
     .cat-room__book:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
 
+    .form-status {
+      display: none;
+      margin-top: 1rem;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      border-radius: 12px;
+      padding: 0.8rem 1.1rem;
+    }
+
+    .form-status.show { display: block; }
+
+    .form-status.ok {
+      color: #1F6B4A;
+      background: rgba(46, 125, 87, 0.12);
+    }
+
+    .form-status.err {
+      color: #A93A28;
+      background: rgba(195, 74, 54, 0.1);
+    }
+
     /* ═══════════════════════════════════════════════════════════════
        BOOKING WIZARD
     ═══════════════════════════════════════════════════════════════ */
@@ -5333,7 +5354,6 @@
           <h2 class="section__title reveal">Suites &<br>Residences</h2>
           <p class="section__subtitle reveal">Every apartment is equipped with fitted wardrobes, a full kitchen, air conditioning, and balconies overlooking the Atlantic.</p>
         </div>
-        <a href="#rooms" class="btn-primary reveal"><span>View All Rooms</span></a>
       </div>
 
       <!-- Accommodation Category Cards -->
@@ -5388,10 +5408,10 @@
       <div class="longstay-banner reveal">
         <div class="longstay-banner__text">
           <div class="longstay-banner__label">Extended Stays</div>
-          <div class="longstay-banner__heading">Monthly from <span>$1,000</span> &middot; Annually from <span>$15,000</span></div>
+          <div class="longstay-banner__heading">Monthly from <span>$1,200</span> &middot; Annually from <span>$14,000</span></div>
           <div class="longstay-banner__desc">Tailor-made packages for business travellers, relocating guests, and extended vacations, a fully furnished home for as long as you need.</div>
         </div>
-        <a href="#contact" class="btn-outline">Enquire Now</a>
+        <a href="#contact" class="btn-outline" onclick="startLongStayEnquiry(event)">Enquire Now</a>
       </div>
     </div>
   </section>
@@ -5401,24 +5421,25 @@
     <div class="container">
       <div style="text-align: center; margin-bottom: clamp(2rem, 4vh, 3rem);">
         <div class="section__marker reveal" style="justify-content: center;">02 · Take a Tour</div>
-        <h2 class="section__title reveal">See Belvoir<br>For Yourself</h2>
+        <h2 class="section__title reveal">A Film<br>of the Residence</h2>
       </div>
 
       <div class="tour__frame reveal" id="tourFrame">
-        <video id="tourVideo" poster="images/tour-poster.jpg" preload="none" playsinline
-               aria-label="Video tour of Belvoir Hotel and Residence">
-          <source src="videos/belvoir-tour.mp4" type="video/mp4">
+        <video id="tourVideo" poster="images/film-poster.jpg" preload="none" playsinline
+               aria-label="Film tour of Belvoir Hotel and Residence">
+          <source src="videos/belvoir-film.mp4" type="video/mp4">
           Your browser does not support the video tag.
         </video>
         <button class="tour__overlay" id="tourOverlay" aria-label="Play the Belvoir video tour">
           <span class="tour__play"><i data-lucide="play"></i></span>
-          <span class="tour__label">Watch the Tour &middot; 37 sec</span>
+          <span class="tour__label">Watch the Film &middot; 32 sec</span>
         </button>
       </div>
 
       <div class="tour__meta reveal">
         <span><i data-lucide="building-2"></i> The Property</span>
-        <span><i data-lucide="sofa"></i> Inside an Apartment</span>
+        <span><i data-lucide="bed-double"></i> Every Room Type</span>
+        <span><i data-lucide="sofa"></i> Suites &amp; Apartments</span>
         <span><i data-lucide="sun"></i> Golden Hour</span>
       </div>
     </div>
@@ -5829,7 +5850,7 @@
           <h3 style="font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; letter-spacing: 0.05em; margin-bottom: 0.5rem;" class="reveal">Send an Enquiry</h3>
           <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 1rem;" class="reveal">We'll respond within 24 hours.</p>
 
-          <form class="contact__form reveal" onsubmit="event.preventDefault(); this.querySelector('.btn-primary span').textContent = 'Message Sent!'; setTimeout(() => { this.querySelector('.btn-primary span').textContent = 'Send Message'; }, 3000);">
+          <form class="contact__form reveal" id="enquiryForm" novalidate>
             <div class="form-row">
               <div class="form-group">
                 <label for="name">Full Name</label>
@@ -5860,7 +5881,8 @@
               <label for="message">Your Message</label>
               <textarea id="message" name="message" rows="4" required></textarea>
             </div>
-            <button type="submit" class="btn-primary" style="align-self: flex-start;"><span>Send Message</span></button>
+            <button type="submit" class="btn-primary" id="enquirySubmit" style="align-self: flex-start;"><span>Send Message</span></button>
+            <p class="form-status" id="enquiryStatus" role="status" aria-live="polite"></p>
           </form>
         </div>
       </div>
@@ -6665,6 +6687,80 @@
     const ROOM_NAMES = { comfort: 'Superior Double / Comfort Room', standard: 'Deluxe Standard Room', 'ground-floor': 'Ground Floor Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
 
+
+    /* ─────────── Enquiry form ─────────── */
+    function startLongStayEnquiry(e) {
+      const stay = document.getElementById('stayType');
+      if (stay) stay.value = 'long';
+      const msg = document.getElementById('message');
+      if (msg && !msg.value.trim()) {
+        msg.value = "I'd like to enquire about an extended stay at Belvoir.\n\nApartment type:\nPreferred move-in date:\nLength of stay:\nNumber of guests:";
+      }
+      const target = document.getElementById('contact');
+      if (target) {
+        e.preventDefault();
+        if (typeof lenis !== 'undefined') lenis.scrollTo(target, { offset: -80 });
+        else target.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => { const n = document.getElementById('name'); if (n) n.focus(); }, 900);
+      }
+    }
+
+    (function initEnquiryForm() {
+      const form = document.getElementById('enquiryForm');
+      if (!form) return;
+      const btn = document.getElementById('enquirySubmit');
+      const label = btn.querySelector('span');
+      const status = document.getElementById('enquiryStatus');
+
+      const say = (msg, kind) => {
+        status.textContent = msg;
+        status.className = 'form-status show ' + kind;
+      };
+
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const payload = {
+          name: document.getElementById('name').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          stayType: document.getElementById('stayType').value,
+          message: document.getElementById('message').value.trim(),
+          source: document.getElementById('stayType').value === 'long' ? 'long-stay' : 'contact'
+        };
+
+        if (!payload.name || !payload.email || !payload.message) {
+          return say('Please fill in your name, email and message.', 'err');
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+          return say('Please enter a valid email address.', 'err');
+        }
+
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        label.textContent = 'Sending…';
+        status.className = 'form-status';
+
+        try {
+          const res = await fetch('/api/enquiries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Could not send your message.');
+          label.textContent = 'Message Sent';
+          say('Thank you. We have received your enquiry and will reply shortly. You can also reach us directly at info@belvoir-estates.com.', 'ok');
+          form.reset();
+          setTimeout(() => { label.textContent = 'Send Message'; }, 4000);
+        } catch (err) {
+          label.textContent = 'Send Message';
+          say((err.message || 'Something went wrong.') + ' Please email us at info@belvoir-estates.com.', 'err');
+        } finally {
+          btn.disabled = false;
+          btn.style.opacity = '';
+        }
+      });
+    })();
 
     /* ─────────── Video Tour ─────────── */
     (function initTour() {
