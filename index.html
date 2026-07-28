@@ -6779,29 +6779,6 @@
       const saved = await saveBooking(record);
       if (saved && saved.id) bwState.bookingId = saved.id;
 
-      // Prefer a Flot-generated payment link once the merchant account is live.
-      // Until then this returns 503 and we fall back to the hosted checkout.
-      if (bwState.bookingId && bwState.claim) {
-        try {
-          const res = await fetch('/api/payment-link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingId: bwState.bookingId, claim: bwState.claim })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.link) {
-              closeBookWizard();
-              openPaymentPopup(data.link);
-              return;
-            }
-          }
-        } catch (e) {
-          console.warn('Flot payment link unavailable, using hosted checkout:', e.message);
-        }
-      }
-      nextBtn.disabled = false;
-      nextBtn.style.opacity = '';
       const params = new URLSearchParams({
         room: bwState.room,
         roomName: bwState.label,
