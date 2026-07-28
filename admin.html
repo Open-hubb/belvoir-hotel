@@ -343,7 +343,12 @@
           $('loginView').style.display = 'flex';
           $('loginErr').classList.add('show');
         } else {
-          $('list').innerHTML = '<div class="empty">Could not load bookings. Check your connection and refresh.</div>';
+          $('list').innerHTML = '<div class="empty">Could not reach the server.<br>' +
+            '<span style="font-size:0.8rem;font-family:var(--sans);font-style:normal;">' +
+            (location.hostname === 'localhost'
+              ? 'Running locally? The API needs <code>node serve.mjs</code> (which now serves /api) or <code>vercel dev</code>.'
+              : 'Check your connection and press Refresh.') +
+            '</span></div>';
         }
       }
     }

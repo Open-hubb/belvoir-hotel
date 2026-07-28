@@ -6669,6 +6669,65 @@
       }
     });
 
+    /* Record the booking. Never blocks the guest from paying: if it cannot be
+       saved we queue it locally and flush on the next page load. */
+    async function postBooking(record, timeoutMs) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs || 8000);
+      try {
+        const res = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record),
+          signal: ctrl.signal
+        });
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          throw new Error('HTTP ' + res.status + (detail.error ? ' - ' + detail.error : ''));
+        }
+        return res.json();
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function queueBooking(record) {
+      try {
+        const q = JSON.parse(localStorage.getItem('belvoirPendingBookings') || '[]');
+        q.push({ record, at: Date.now() });
+        localStorage.setItem('belvoirPendingBookings', JSON.stringify(q.slice(-20)));
+      } catch (e) {}
+    }
+
+    async function saveBooking(record) {
+      try {
+        return await postBooking(record);
+      } catch (first) {
+        console.warn('Booking save failed, retrying:', first.message);
+        try {
+          return await postBooking(record, 10000);
+        } catch (second) {
+          console.error('Booking could not be saved, queued for retry:', second.message);
+          queueBooking(record);
+          return null;
+        }
+      }
+    }
+
+    /* Flush anything that failed to save on a previous visit */
+    (function flushQueuedBookings() {
+      let q;
+      try { q = JSON.parse(localStorage.getItem('belvoirPendingBookings') || '[]'); } catch (e) { return; }
+      if (!q.length) return;
+      const week = 7 * 24 * 60 * 60 * 1000;
+      const fresh = q.filter(item => Date.now() - item.at < week);
+      localStorage.removeItem('belvoirPendingBookings');
+      fresh.forEach(async item => {
+        try { await postBooking(item.record); }
+        catch (e) { queueBooking(item.record); }
+      });
+    })();
+
     async function bwCheckout() {
       const t = bwTotals();
       const nextBtn = document.getElementById('bwNextBtn');
@@ -6689,19 +6748,7 @@
         amount: bwState.payment === 'full' ? t.total : t.deposit,
         total: t.total
       };
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 6000);
-        await fetch('/api/bookings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record),
-          signal: ctrl.signal
-        });
-        clearTimeout(timer);
-      } catch (e) {
-        console.warn('Booking record failed (continuing to checkout):', e);
-      }
+      await saveBooking(record);
       nextBtn.disabled = false;
       nextBtn.style.opacity = '';
       const params = new URLSearchParams({
