@@ -3609,6 +3609,94 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
+       VIDEO TOUR
+    ═══════════════════════════════════════════════════════════════ */
+    .tour__frame {
+      position: relative;
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--fhero-green);
+      box-shadow:
+        0 2px 8px rgba(17, 71, 58, 0.08),
+        0 28px 60px rgba(17, 71, 58, 0.2);
+      aspect-ratio: 16 / 9;
+      max-height: 78vh;
+    }
+
+    .tour__frame video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #0b1a14;
+    }
+
+    .tour__overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      background: linear-gradient(to top, rgba(8, 18, 14, 0.6) 0%, rgba(8, 18, 14, 0.18) 55%, rgba(8, 18, 14, 0.35) 100%);
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      transition: opacity 0.5s var(--ease-out-expo);
+    }
+
+    .tour__frame.playing .tour__overlay { opacity: 0; pointer-events: none; }
+
+    .tour__play {
+      width: clamp(72px, 8vw, 96px);
+      height: clamp(72px, 8vw, 96px);
+      border-radius: 50%;
+      background: rgba(255, 253, 248, 0.94);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 14px 40px rgba(8, 18, 14, 0.4);
+      transition: transform 0.45s var(--ease-spring), background 0.35s;
+    }
+
+    .tour__overlay:hover .tour__play { transform: scale(1.08); background: #fff; }
+    .tour__overlay:focus-visible { outline: 3px solid var(--fh-terra); outline-offset: -6px; }
+    .tour__play i, .tour__play svg { width: 28px; height: 28px; color: var(--fhero-green); margin-left: 4px; }
+
+    .tour__label {
+      font-family: var(--font-body);
+      font-size: 0.66rem;
+      font-weight: 400;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(255, 253, 248, 0.95);
+      text-shadow: 0 2px 12px rgba(8, 18, 14, 0.6);
+    }
+
+    .tour__meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 1.25rem;
+      font-family: var(--font-body);
+      font-size: 0.68rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .tour__meta span { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .tour__meta i, .tour__meta svg { width: 14px; height: 14px; color: var(--fh-terra); }
+
+    @media (max-width: 640px) {
+      .tour__frame { aspect-ratio: 4 / 3; border-radius: 20px; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
        ACCOMMODATION CATEGORY CARDS (editorial duotone)
     ═══════════════════════════════════════════════════════════════ */
     .cat-cards {
@@ -4762,6 +4850,7 @@
 
     <ul class="nav__links">
       <li><a href="#about" class="nav__link">About</a></li>
+      <li><a href="#tour" class="nav__link">Tour</a></li>
       <li><a href="#rooms" class="nav__link">Rooms</a></li>
       <li><a href="#amenities" class="nav__link">Amenities</a></li>
       <li><a href="#dining" class="nav__link">Dining</a></li>
@@ -4944,12 +5033,40 @@
     </div>
   </section>
 
+  <!-- ═══════════════ VIDEO TOUR ═══════════════ -->
+  <section class="section section--sand" id="tour">
+    <div class="container">
+      <div style="text-align: center; margin-bottom: clamp(2rem, 4vh, 3rem);">
+        <div class="section__marker reveal" style="justify-content: center;">02 · Take a Tour</div>
+        <h2 class="section__title reveal">See Belvoir<br>For Yourself</h2>
+      </div>
+
+      <div class="tour__frame reveal" id="tourFrame">
+        <video id="tourVideo" poster="images/tour-poster.jpg" preload="none" playsinline
+               aria-label="Video tour of Belvoir Hotel and Residence">
+          <source src="videos/belvoir-tour.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <button class="tour__overlay" id="tourOverlay" aria-label="Play the Belvoir video tour">
+          <span class="tour__play"><i data-lucide="play"></i></span>
+          <span class="tour__label">Watch the Tour &middot; 37 sec</span>
+        </button>
+      </div>
+
+      <div class="tour__meta reveal">
+        <span><i data-lucide="building-2"></i> The Property</span>
+        <span><i data-lucide="sofa"></i> Inside an Apartment</span>
+        <span><i data-lucide="sun"></i> Golden Hour</span>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══════════════ ROOMS ═══════════════ -->
   <section class="section" id="rooms">
     <div class="container">
       <div class="rooms__header">
         <div>
-          <div class="section__marker reveal">02 · Accommodations</div>
+          <div class="section__marker reveal">03 · Accommodations</div>
           <h2 class="section__title reveal">Suites &<br>Residences</h2>
           <p class="section__subtitle reveal">Every apartment is equipped with fitted wardrobes, a full kitchen, air conditioning, and balconies overlooking the Atlantic.</p>
         </div>
@@ -4959,7 +5076,7 @@
       <!-- Accommodation Category Cards -->
       <div class="cat-cards">
         <article class="cat-card cat-card--suites reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('suites')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('suites');}">
-          <img class="cat-card__img" src="images/apt-living.jpg" alt="Serviced apartment at Belvoir with open-plan kitchen, dining and living area" loading="lazy" width="800" height="920">
+          <img class="cat-card__img" src="images/card-suites.jpg" alt="Serviced apartment at Belvoir with living room and marble floors" loading="lazy" width="800" height="920">
           <div class="cat-card__wash" aria-hidden="true"></div>
           <div class="cat-card__meta">
             <span>Belvoir 01 / Residences</span>
@@ -4978,18 +5095,18 @@
         </article>
 
         <article class="cat-card cat-card--standard reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('standard')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('standard');}">
-          <img class="cat-card__img" src="images/std-room-1.jpg" alt="Deluxe standard room at Belvoir with king bed and African art" loading="lazy" width="800" height="920">
+          <img class="cat-card__img" src="images/card-standard.jpg" alt="Superior deluxe room at Belvoir with king bed" loading="lazy" width="800" height="920">
           <div class="cat-card__wash" aria-hidden="true"></div>
           <div class="cat-card__meta">
             <span>Belvoir 02 / Rooms</span>
-            <span>King &middot; Twin &middot; Ground Floor</span>
+            <span>Comfort &middot; King &middot; Twin &middot; Ground Floor</span>
           </div>
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
             <h3 class="cat-card__title">Standard <em>Rooms</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">elegant en-suite rooms with breakfast served each morning.</p>
             <div class="cat-card__chips">
-              <span>King &amp; Twin</span>
+              <span>From $70</span>
               <span>Breakfast Included</span>
               <span>Ground Floor</span>
             </div>
@@ -5033,7 +5150,7 @@
     <div class="container">
       <div class="amenities__layout">
         <div>
-          <div class="section__marker reveal">03 · Experience</div>
+          <div class="section__marker reveal">04 · Experience</div>
           <h2 class="section__title reveal" style="color: var(--color-white);">Every Detail,<br>Thoughtfully Crafted</h2>
           <div class="hr-divider reveal" style="opacity: 0.3;"></div>
           <p class="section__subtitle reveal">From complimentary airport transfers to personalised concierge service, every touchpoint is designed to make your stay effortless and memorable.</p>
@@ -5168,7 +5285,7 @@
         </div>
 
         <div>
-          <div class="section__marker reveal">04 · Dining</div>
+          <div class="section__marker reveal">05 · Dining</div>
           <h2 class="section__title reveal">A World of<br>Flavour</h2>
           <div class="hr-divider reveal"></div>
           <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Our on-site restaurant celebrates two traditions: the vibrant, generous flavours of African cuisine, and refined Continental favourites, open for breakfast through dinner.</p>
@@ -5203,7 +5320,7 @@
   <section class="section section--deep" id="gallery">
     <div class="container">
       <div style="text-align: center; margin-bottom: clamp(3rem, 5vh, 5rem);">
-        <div class="section__marker reveal" style="justify-content: center;">05 · Gallery</div>
+        <div class="section__marker reveal" style="justify-content: center;">06 · Gallery</div>
         <h2 class="section__title reveal">Moments<br>at Belvoir</h2>
       </div>
 
@@ -5241,7 +5358,7 @@
     <div class="container">
       <div class="location__layout">
         <div>
-          <div class="section__marker reveal">06 · Location</div>
+          <div class="section__marker reveal">07 · Location</div>
           <h2 class="section__title reveal">In the Heart<br>of Freetown</h2>
           <div class="hr-divider reveal"></div>
           <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Belvoir Avenue, off Wilkinson Road, Freetown's most sought-after corridor. Minutes from beaches, restaurants, and the city centre.</p>
@@ -5281,7 +5398,7 @@
   <section class="section section--cream" id="reviews">
     <div class="container">
       <div style="text-align: center; margin-bottom: clamp(2rem, 4vh, 4rem);">
-        <div class="section__marker reveal" style="justify-content: center;">07 · Guest Voices</div>
+        <div class="section__marker reveal" style="justify-content: center;">08 · Guest Voices</div>
         <h2 class="section__title reveal">What Our<br>Guests Say</h2>
       </div>
 
@@ -5320,7 +5437,7 @@
   <section class="cta-section" id="booking">
     <div class="cta-section__bg-pattern"></div>
     <div class="container" style="position: relative; z-index: 1;">
-      <div class="section__marker reveal" style="justify-content: center;">08 · Reserve</div>
+      <div class="section__marker reveal" style="justify-content: center;">09 · Reserve</div>
       <h2 class="section__title reveal" style="text-align: center;">Begin Your<br>Freetown Story</h2>
       <div class="hr-divider hr-divider--center reveal"></div>
       <p class="section__subtitle reveal" style="text-align: center; margin: 0 auto 3rem;">From $80 per night. Whether it's a weekend escape, a month-long business trip, or your new home, Belvoir is ready for you.</p>
@@ -5337,7 +5454,7 @@
     <div class="container">
       <div class="contact__layout">
         <div>
-          <div class="section__marker reveal">09 · Get in Touch</div>
+          <div class="section__marker reveal">10 · Get in Touch</div>
           <h2 class="section__title reveal">We'd Love to<br>Hear From You</h2>
           <div class="hr-divider reveal"></div>
           <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Whether you have a question about availability, long-term rates, or anything else, our team is ready to help.</p>
@@ -6093,10 +6210,30 @@
     let selectedRoom = '';
     let selectedPayment = '';
 
-    const ROOM_PRICES = { standard: 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
-    const ROOM_NAMES = { standard: 'Deluxe Standard Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
+    const ROOM_PRICES = { comfort: 70, standard: 80, 'ground-floor': 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
+    const ROOM_NAMES = { comfort: 'Superior Double / Comfort Room', standard: 'Deluxe Standard Room', 'ground-floor': 'Ground Floor Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
 
+
+    /* ─────────── Video Tour ─────────── */
+    (function initTour() {
+      const frame = document.getElementById('tourFrame');
+      const video = document.getElementById('tourVideo');
+      const overlay = document.getElementById('tourOverlay');
+      if (!frame || !video || !overlay) return;
+      overlay.addEventListener('click', () => {
+        frame.classList.add('playing');
+        video.setAttribute('controls', '');
+        video.play();
+      });
+      video.addEventListener('pause', () => {
+        if (video.currentTime === 0 || video.ended) frame.classList.remove('playing');
+      });
+      video.addEventListener('ended', () => {
+        frame.classList.remove('playing');
+        video.removeAttribute('controls');
+      });
+    })();
 
     /* ─────────── Accommodation Categories ─────────── */
     const CATEGORIES = {
@@ -6104,19 +6241,20 @@
         title: 'Suites & Residences',
         tagline: 'Full apartments and the penthouse, living space, kitchens, balconies, and sea views for stays of any length.',
         rooms: [
-          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'penthouse', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] },
-          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/apt-parlor.jpg', gallery: 'apartments', desc: 'Separate bedroom, living area and full kitchen, breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
-          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/apt2-living.jpg', gallery: 'apartments', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
+          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] },
+          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen, breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
+          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/apt2-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
         ]
       },
       standard: {
         title: 'Standard Rooms',
-        tagline: 'Elegant en-suite rooms with balconies, sea views, and breakfast served each morning of your stay.',
+        tagline: 'Elegant en-suite rooms with air conditioning, flat-screen TVs, and breakfast served each morning of your stay.',
         rooms: [
-          { key: 'standard', name: 'Deluxe Standard Room', price: 80, img: 'images/std-room-1.jpg', gallery: 'studio-rooms', desc: 'King bed, en-suite bathroom and modern furnishings, perfect for short stays.', chips: ['King Bed', 'Sea View', 'Breakfast'] },
-          { key: 'superior-deluxe', name: 'Superior Deluxe Room', price: 90, img: 'images/std-room-2.jpg', gallery: 'studio-rooms', desc: 'Upgraded room with premium bedding, balcony and elegant decor.', chips: ['King Bed', 'Balcony', 'Breakfast'] },
-          { key: 'superior-twin', name: 'Superior Deluxe Twin', price: 100, img: 'images/standard-bedroom-twin.jpeg', gallery: 'studio-rooms', desc: 'Two single beds, ideal for friends or colleagues sharing.', chips: ['Twin Beds', 'Sea View', 'Breakfast'] },
-          { key: 'standard', name: 'Ground Floor Room', price: 80, img: 'images/std-room-2b.jpg', gallery: 'ground-floor', desc: 'Step-free comfort with no stairs to climb, recommended for elderly guests.', chips: ['No Stairs', 'En-suite', 'Breakfast'] }
+          { key: 'comfort', name: 'Superior Double / Comfort Room', price: 70, img: 'images/comfort-1.jpg', gallery: 'comfort', desc: 'Comfortable double room with a lounge chair and work desk, our best value.', chips: ['Double Bed', 'Work Desk', 'Breakfast'] },
+          { key: 'standard', name: 'Deluxe Standard Room', price: 80, img: 'images/std-room-1.jpg', gallery: 'standard', desc: 'King bed, en-suite bathroom and modern furnishings, perfect for short stays.', chips: ['King Bed', 'En-suite', 'Breakfast'] },
+          { key: 'ground-floor', name: 'Ground Floor Room', price: 80, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor unit with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Breakfast'] },
+          { key: 'superior-deluxe', name: 'Superior Deluxe Room', price: 90, img: 'images/sdlx-1.jpg', gallery: 'superior-deluxe', desc: 'Upgraded king room with premium bedding and a rain-shower en-suite.', chips: ['King Bed', 'Rain Shower', 'Breakfast'] },
+          { key: 'superior-twin', name: 'Superior Deluxe Twin', price: 100, img: 'images/twin-1.jpg', gallery: 'superior-twin', desc: 'Two single beds with a lounge area, ideal for friends or colleagues sharing.', chips: ['Twin Beds', 'Lounge Area', 'Breakfast'] }
         ]
       }
     };
@@ -6178,42 +6316,122 @@
 
     /* ─────────── Accommodation Detail Modal ─────────── */
     const ACC_TYPES = {
-      'studio-rooms': {
-        title: 'Studio Rooms',
-        desc: 'Elegant en-suite rooms finished with premium bedding and modern furnishings. Each studio room opens onto a private balcony with sea views, and breakfast is served each morning of your stay.',
+      comfort: {
+        title: 'Superior Double / Comfort Room',
+        desc: 'Our best-value room. A comfortable double bed, a private lounge chair and a work desk, finished with African art and warm lighting. Breakfast is served each morning of your stay.',
         images: [
-          { src: 'images/std-room-1.jpg', alt: 'Standard room with king bed and African art' },
-          { src: 'images/std-room-2.jpg', alt: 'Standard room with king bed and warm decor' },
-          { src: 'images/std-room-2b.jpg', alt: 'Standard room with king bed under the window' },
-          { src: 'images/std-room-1b.jpg', alt: 'Standard room with work desk and flat-screen TV' },
-          { src: 'images/std-bath.jpg', alt: 'En-suite bathroom with rain shower and navy tiles' },
+          { src: 'images/comfort-1.jpg', alt: 'Comfort room with double bed and African art' },
+          { src: 'images/comfort-2.jpg', alt: 'Comfort room double bed and wall art' },
+          { src: 'images/comfort-3.jpg', alt: 'Comfort room bed beneath the window' },
+          { src: 'images/comfort-4.jpg', alt: 'Comfort room lounge chair, desk and flat-screen TV' },
+          { src: 'images/comfort-5.jpg', alt: 'Comfort room seating area with wardrobe' }
+        ],
+        breakfast: true,
+        features: ['Double bed', 'Private lounge chair', 'Work desk', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping'],
+        note: '',
+        bookValue: 'comfort'
+      },
+      standard: {
+        title: 'Deluxe Standard Room',
+        desc: 'An elegant en-suite room with a king bed, premium bedding and modern furnishings. The perfect base for short stays, with breakfast served each morning.',
+        images: [
+          { src: 'images/std-room-1.jpg', alt: 'Deluxe standard room with king bed and African art' },
+          { src: 'images/std-room-2.jpg', alt: 'Deluxe standard room with king bed and warm decor' },
+          { src: 'images/std-room-1b.jpg', alt: 'Deluxe standard room work desk and flat-screen TV' },
+          { src: 'images/std-bath.jpg', alt: 'En-suite bathroom with rain shower' },
           { src: 'images/std-bathtub.jpg', alt: 'En-suite bathroom with walk-in shower' }
         ],
         breakfast: true,
-        features: ['Private balcony', 'Sea view', 'Bathtub', 'Walk-in shower', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
+        features: ['King bed', 'En-suite bathroom', 'Air conditioning', 'Flat-screen TV', 'Work desk', 'Fitted wardrobe', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'standard'
       },
-      'apartments': {
-        title: 'Serviced Apartments',
-        desc: 'Fully furnished one and two-bedroom apartments with separate living areas and equipped kitchens, everything you need to settle in, whether for a week or a year. Breakfast is included with one-bedroom apartments.',
+      'ground-floor': {
+        title: 'Ground Floor Room',
+        desc: 'A self-contained ground floor unit with its own living area, dining space and kitchen, plus a private bedroom and bathroom. No stairs to climb from the entrance.',
         images: [
+          { src: 'images/gf-1.jpg', alt: 'Ground floor living area with artwork and dining space' },
+          { src: 'images/gf-2.jpg', alt: 'Ground floor bedroom with patterned bedding' },
+          { src: 'images/gf-3.jpg', alt: 'Ground floor dining table with original artwork' },
+          { src: 'images/gf-6.jpg', alt: 'Ground floor lounge with sofa and armchair' },
+          { src: 'images/gf-5.jpg', alt: 'Ground floor wardrobe and dressing mirror' },
+          { src: 'images/gf-4.jpg', alt: 'Ground floor en-suite bathroom with shower' }
+        ],
+        breakfast: true,
+        features: ['Step-free entrance', 'Private living area', 'Kitchen & dining', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Fitted wardrobe', 'Free high-speed WiFi'],
+        note: 'Recommended for elderly guests and guests who prefer avoiding stairs. Let us know when booking and we will reserve it for you.',
+        bookValue: 'ground-floor'
+      },
+      'superior-deluxe': {
+        title: 'Superior Deluxe Room',
+        desc: 'An upgraded king room with premium bedding, a wooden feature headboard and a rain-shower en-suite finished in deep blue tiling. Breakfast is included each morning.',
+        images: [
+          { src: 'images/sdlx-1.jpg', alt: 'Superior deluxe room with king bed and blue artwork' },
+          { src: 'images/sdlx-2.jpg', alt: 'Superior deluxe king bed beside the window' },
+          { src: 'images/sdlx-3.jpg', alt: 'Superior deluxe room desk and flat-screen TV' },
+          { src: 'images/sdlx-6.jpg', alt: 'Superior deluxe room wardrobe, TV and work desk' },
+          { src: 'images/sdlx-4.jpg', alt: 'En-suite with rain shower and blue feature tiling' },
+          { src: 'images/sdlx-5.jpg', alt: 'En-suite basin, mirror and water heater' }
+        ],
+        breakfast: true,
+        features: ['King bed', 'Premium bedding', 'Rain shower en-suite', 'Air conditioning', 'Flat-screen TV', 'Work desk', 'Fitted wardrobe', 'Free high-speed WiFi'],
+        note: '',
+        bookValue: 'superior-deluxe'
+      },
+      'superior-twin': {
+        title: 'Superior Deluxe Twin',
+        desc: 'Two single beds with a separate lounge area, mini fridge and work desk. Ideal for friends, colleagues or family sharing a room, with breakfast each morning.',
+        images: [
+          { src: 'images/twin-1.jpg', alt: 'Twin room with two single beds and garden view' },
+          { src: 'images/twin-2.jpg', alt: 'Twin beds with blue artwork and mini fridge' },
+          { src: 'images/twin-3.jpg', alt: 'Twin room with work desk beside the window' },
+          { src: 'images/twin-6.jpg', alt: 'Twin room with wardrobe and hanging rail' },
+          { src: 'images/twin-4.jpg', alt: 'Twin room entrance with mini fridge and desk' },
+          { src: 'images/twin-5.jpg', alt: 'Twin room lounge sofa and flat-screen TV' }
+        ],
+        breakfast: true,
+        features: ['Two single beds', 'Separate lounge area', 'Mini fridge', 'Work desk', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
+        note: '',
+        bookValue: 'superior-twin'
+      },
+      'one-bed': {
+        title: 'One-Bedroom Apartment',
+        desc: 'A fully furnished apartment with a separate bedroom, private living room, dining area and full kitchen. Everything you need to settle in, whether for a week or a year. Breakfast is included.',
+        images: [
+          { src: 'images/ob-1.jpg', alt: 'Apartment living room with leather sofa and marble floors' },
+          { src: 'images/ob-2.jpg', alt: 'Apartment kitchen and dining area with pendant lighting' },
+          { src: 'images/ob-3.jpg', alt: 'Apartment bedroom with king bed and ceiling rose' },
+          { src: 'images/ob-4.jpg', alt: 'Apartment lounge with stone feature wall and television' },
+          { src: 'images/ob-5.jpg', alt: 'Apartment bedroom with wardrobe and patterned bedding' },
+          { src: 'images/ob-8.jpg', alt: 'Apartment dining area opening onto the living room' },
+          { src: 'images/ob-6.jpg', alt: 'Apartment bathroom with glass shower cabin' },
+          { src: 'images/ob-7.jpg', alt: 'Apartment en-suite with shower cabin and water heater' }
+        ],
+        breakfast: true,
+        features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
+        note: '',
+        bookValue: 'one-bed'
+      },
+      'two-bed': {
+        title: 'Two-Bedroom Apartment',
+        desc: 'A spacious apartment with two bedrooms, a living area, full kitchen and private balcony. Self-catering and perfect for families and groups.',
+        images: [
+          { src: 'images/apt2-living.jpg', alt: 'Two-bedroom apartment dining area and kitchen' },
+          { src: 'images/apt2-parlor.jpg', alt: 'Two-bedroom apartment living room' },
           { src: 'images/apt-living.jpg', alt: 'Open-plan apartment kitchen, dining and living area' },
           { src: 'images/apt-parlor.jpg', alt: 'Apartment parlour with leather sofa and balcony doors' },
           { src: 'images/apt-bedroom.jpg', alt: 'Apartment bedroom with king bed' },
-          { src: 'images/apt2-living.jpg', alt: 'Apartment dining area and equipped kitchen' },
-          { src: 'images/apt2-parlor.jpg', alt: 'Apartment living room with balcony doors' },
           { src: 'images/apt-bath.jpg', alt: 'Apartment bathroom with marble tiles and shower cabin' },
           { src: 'images/apt-balcony.jpg', alt: 'Private balcony with balustrade and city views' }
         ],
-        breakfast: 'partial',
-        features: ['Private balcony', 'Sea view', 'Air conditioning', 'Flat-screen TV', 'Full kitchen', 'Separate living area', 'Fitted wardrobes', 'Free high-speed WiFi'],
-        note: 'Breakfast is included with one-bedroom apartments. Two-bedroom apartments have full kitchens for self-catering.',
-        bookValue: 'one-bed'
+        breakfast: false,
+        features: ['Two bedrooms', 'Living area', 'Full kitchen', 'Private balcony', 'Air conditioning', 'Flat-screen TV', 'Two bathrooms', 'Free high-speed WiFi'],
+        note: 'Self-catering. Breakfast is not included with the two-bedroom apartment.',
+        bookValue: 'two-bed'
       },
-      'penthouse': {
-        title: 'Penthouse Apartments',
-        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches, premium furnishings, and breakfast served each morning.',
+      studio: {
+        title: 'Studio Penthouse',
+        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches, premium furnishings and breakfast served each morning.',
         images: [
           { src: 'images/ph-living.jpg', alt: 'Penthouse open-plan kitchen, dining and living area' },
           { src: 'images/ph-parlor.jpg', alt: 'Penthouse parlour with sectional sofa and balcony doors' },
@@ -6221,23 +6439,9 @@
           { src: 'images/ph-bedroom-2.jpg', alt: 'Penthouse bedroom with king bed' }
         ],
         breakfast: true,
-        features: ['Private balcony', 'Panoramic sea view', 'Air conditioning', 'Flat-screen TV', 'Open-plan living', 'Premium furnishings', 'Free high-speed WiFi', 'Daily housekeeping'],
+        features: ['Panoramic sea view', 'Open-plan living', 'Private balcony', 'Premium furnishings', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'studio'
-      },
-      'ground-floor': {
-        title: 'Ground Floor Rooms',
-        desc: 'All the comfort of our rooms with step-free access and no stairs to climb, recommended for elderly guests and guests with limited mobility. Breakfast is served each morning.',
-        images: [
-          { src: 'images/std-room-2.jpg', alt: 'Ground floor room with comfortable king bed' },
-          { src: 'images/std-room-2b.jpg', alt: 'Ground floor room with king bed and warm decor' },
-          { src: 'images/std-bath.jpg', alt: 'En-suite bathroom with rain shower' },
-          { src: 'images/std-bathtub.jpg', alt: 'En-suite bathroom with walk-in shower' }
-        ],
-        breakfast: true,
-        features: ['Step-free access', 'No stairs', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping', 'Close to reception'],
-        note: 'Ideal for elderly guests and guests who prefer avoiding stairs, let us know when booking and we will reserve a ground floor room for you.',
-        bookValue: 'standard'
       }
     };
 
@@ -6350,11 +6554,13 @@
 
     /* ─────────── Booking Wizard ─────────── */
     const ROOM_IMGS = {
+      comfort: 'images/comfort-1.jpg',
       standard: 'images/std-room-1.jpg',
-      'superior-deluxe': 'images/std-room-2.jpg',
-      'superior-twin': 'images/standard-bedroom-twin.jpeg',
+      'ground-floor': 'images/gf-1.jpg',
+      'superior-deluxe': 'images/sdlx-1.jpg',
+      'superior-twin': 'images/twin-1.jpg',
       studio: 'images/ph-living.jpg',
-      'one-bed': 'images/apt-parlor.jpg',
+      'one-bed': 'images/ob-1.jpg',
       'two-bed': 'images/apt2-living.jpg'
     };
 

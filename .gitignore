@@ -19,3 +19,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 .env*
+
+# Raw photo originals (kept locally, not deployed)
+images/sorted images/
+images/*.HEIC
+images/unsorted/
+images/PHOTO-*
+images/WhatsApp*
+images/c2c49f6e-*
+"WhatsApp Unknown*"
