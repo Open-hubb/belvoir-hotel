@@ -176,6 +176,8 @@
       white-space: pre-wrap;
     }
     .pill--new { background: rgba(176,141,87,0.18); color: #8A6A34; }
+    .pill--left { background: rgba(195,74,54,0.1); color: #A93A28; }
+    .card--left { border-left: 3px solid rgba(195,74,54,0.45); }
     .pill--done { background: rgba(46,125,87,0.14); color: var(--green-ok); }
     .search {
       flex: 1;
@@ -290,6 +292,7 @@
           <button class="tab active" data-f="all">All</button>
           <button class="tab" data-f="paid">Paid</button>
           <button class="tab" data-f="unpaid">Unpaid</button>
+          <button class="tab" data-f="abandoned">Abandoned</button>
         </div>
         <input class="search" id="search" type="search" placeholder="Search name, email, phone, room…">
       </div>
@@ -353,17 +356,22 @@
       }
     }
 
+    const isLeft = b => b.stage === 'started';
+
     function stats() {
-      const paid = BOOKINGS.filter(b => b.payment_status === 'paid');
-      const unpaid = BOOKINGS.filter(b => b.payment_status !== 'paid');
-      const collected = paid.reduce((s, b) => s + Number(b.amount_due), 0);
-      const outstanding = unpaid.reduce((s, b) => s + Number(b.amount_due), 0);
+      const done = BOOKINGS.filter(b => !isLeft(b));
+      const left = BOOKINGS.filter(isLeft);
+      const paid = done.filter(b => b.payment_status === 'paid');
+      const unpaid = done.filter(b => b.payment_status !== 'paid');
+      const collected = paid.reduce((s, b) => s + Number(b.amount_due || 0), 0);
+      const outstanding = unpaid.reduce((s, b) => s + Number(b.amount_due || 0), 0);
       $('stats').innerHTML =
-        '<div class="stat"><strong>' + BOOKINGS.length + '</strong><span>Total Bookings</span></div>' +
+        '<div class="stat"><strong>' + done.length + '</strong><span>Bookings</span></div>' +
         '<div class="stat stat--green"><strong>' + paid.length + '</strong><span>Paid</span></div>' +
         '<div class="stat stat--red"><strong>' + unpaid.length + '</strong><span>Unpaid</span></div>' +
         '<div class="stat stat--gold"><strong>' + fmtMoney(collected) + '</strong><span>Collected</span></div>' +
-        '<div class="stat"><strong>' + fmtMoney(outstanding) + '</strong><span>Awaiting Payment</span></div>';
+        '<div class="stat"><strong>' + fmtMoney(outstanding) + '</strong><span>Awaiting Payment</span></div>' +
+        '<div class="stat stat--red"><strong>' + left.length + '</strong><span>Left at Payment</span></div>';
     }
 
     function render() {
@@ -375,7 +383,8 @@
       stats();
       const q = $('search').value.trim().toLowerCase();
       let rows = BOOKINGS;
-      if (FILTER !== 'all') rows = rows.filter(b => (FILTER === 'paid') === (b.payment_status === 'paid'));
+      if (FILTER === 'abandoned') rows = rows.filter(isLeft);
+      else if (FILTER !== 'all') rows = rows.filter(b => !isLeft(b) && (FILTER === 'paid') === (b.payment_status === 'paid'));
       if (q) rows = rows.filter(b =>
         [b.guest_name, b.guest_email, b.guest_phone, b.room_name].join(' ').toLowerCase().includes(q));
       if (!rows.length) {
@@ -384,7 +393,8 @@
       }
       $('list').innerHTML = rows.map(b => {
         const paid = b.payment_status === 'paid';
-        return '<article class="card" data-id="' + b.id + '">' +
+        const left = isLeft(b);
+        return '<article class="card' + (left ? ' card--left' : '') + '" data-id="' + b.id + '">' +
           '<div class="card__who">' +
             '<strong>' + esc(b.guest_name) + '</strong>' +
             '<a href="tel:' + esc(b.guest_phone) + '">' + esc(b.guest_phone) + '</a>' +
@@ -397,16 +407,22 @@
             '<br>' + b.nights + (b.nights == 1 ? ' night' : ' nights') + ' · ' + esc(b.guests) + ' guest(s)' +
           '</div>' +
           '<div class="card__money">' +
-            '<strong>' + fmtMoney(b.amount_due) + '</strong>' +
-            (b.payment_option === 'deposit'
-              ? '30% deposit · ' + fmtMoney(b.total) + ' total'
-              : 'paid in full') +
+            (left
+              ? '<strong>' + fmtMoney(b.total) + '</strong>stay value · never chose payment'
+              : '<strong>' + fmtMoney(b.amount_due) + '</strong>' +
+                (b.payment_option === 'deposit'
+                  ? '30% deposit · ' + fmtMoney(b.total) + ' total'
+                  : 'paid in full')) +
           '</div>' +
           '<div class="card__side">' +
-            '<span class="pill ' + (paid ? 'pill--paid' : 'pill--unpaid') + '">' + (paid ? 'Paid' : 'Unpaid') + '</span>' +
-            (b.payment_option === 'deposit' ? '<span class="pill pill--dep">Deposit</span>' : '') +
-            '<button class="btn btn--sm ' + (paid ? 'btn--ghost' : '') + '" onclick="toggle(' + b.id + ', \'' + (paid ? 'unpaid' : 'paid') + '\')">' +
-              (paid ? 'Mark Unpaid' : 'Mark Paid') + '</button>' +
+            (left
+              ? '<span class="pill pill--left">Left at payment</span>' +
+                '<a class="btn btn--sm" style="text-decoration:none;" href="mailto:' + esc(b.guest_email) +
+                  '?subject=' + encodeURIComponent('Your Belvoir booking - can we help?') + '">Follow Up</a>'
+              : '<span class="pill ' + (paid ? 'pill--paid' : 'pill--unpaid') + '">' + (paid ? 'Paid' : 'Unpaid') + '</span>' +
+                (b.payment_option === 'deposit' ? '<span class="pill pill--dep">Deposit</span>' : '') +
+                '<button class="btn btn--sm ' + (paid ? 'btn--ghost' : '') + '" onclick="toggle(' + b.id + ', \'' + (paid ? 'unpaid' : 'paid') + '\')">' +
+                  (paid ? 'Mark Unpaid' : 'Mark Paid') + '</button>') +
           '</div>' +
           (b.requests ? '<div class="card__requests"><b>Requests:</b> ' + esc(b.requests) + '</div>' : '') +
         '</article>';

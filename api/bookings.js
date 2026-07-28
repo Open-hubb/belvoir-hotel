@@ -33,51 +33,105 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const b = req.body || {};
-      const required = ['room', 'checkin', 'checkout', 'nights', 'guests', 'name', 'email', 'phone', 'payment', 'amount', 'total'];
-      for (const f of required) {
+      const stage = b.stage === 'started' ? 'started' : 'checkout';
+      const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
+
+      // Always required: who is booking, which room, and when
+      for (const f of ['room', 'checkin', 'checkout', 'nights', 'guests', 'name', 'email', 'phone', 'total']) {
         if (b[f] === undefined || b[f] === null || b[f] === '') {
           return res.status(400).json({ error: 'Missing field: ' + f });
         }
       }
       if (!ROOMS[b.room]) return res.status(400).json({ error: 'Unknown room' });
-      if (!['full', 'deposit'].includes(b.payment)) return res.status(400).json({ error: 'Invalid payment option' });
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email))) return res.status(400).json({ error: 'Invalid email' });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email))) {
+        return res.status(400).json({ error: 'Invalid email' });
+      }
+
       const nights = parseInt(b.nights, 10);
-      const amount = parseInt(b.amount, 10);
       const total = parseInt(b.total, 10);
-      if (!(nights > 0 && nights < 400) || !(amount > 0) || !(total > 0) || amount > total) {
+      if (!(nights > 0 && nights < 400) || !(total > 0)) {
         return res.status(400).json({ error: 'Invalid amounts' });
       }
-      const clip = (v, n) => String(v).slice(0, n);
-      const rows = await sql`
-        INSERT INTO bookings
-          (room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email, guest_phone, requests, payment_option, amount_due, total)
-        VALUES
-          (${b.room}, ${clip(b.roomName || ROOMS[b.room], 80)}, ${b.checkin}, ${b.checkout}, ${nights},
-           ${clip(b.guests, 10)}, ${clip(b.name, 120)}, ${clip(b.email, 160)}, ${clip(b.phone, 40)},
-           ${clip(b.requests || '', 500)}, ${b.payment}, ${amount}, ${total})
-        RETURNING id`;
 
-      try {
-        await notifyBooking({
-          guest_name: clip(b.name, 120),
-          guest_email: clip(b.email, 160),
-          guest_phone: clip(b.phone, 40),
-          room_name: clip(b.roomName || ROOMS[b.room], 80),
-          checkin: b.checkin, checkout: b.checkout, nights, guests: clip(b.guests, 10),
-          payment_option: b.payment, amount_due: amount, total,
-          requests: clip(b.requests || '', 500)
-        });
-      } catch (err) {
-        console.error('booking notification failed:', err.message);
+      // Payment details only exist once they reach checkout
+      let payment = null;
+      let amount = null;
+      if (stage === 'checkout') {
+        if (!['full', 'deposit'].includes(b.payment)) {
+          return res.status(400).json({ error: 'Invalid payment option' });
+        }
+        amount = parseInt(b.amount, 10);
+        if (!(amount > 0) || amount > total) {
+          return res.status(400).json({ error: 'Invalid amounts' });
+        }
+        payment = b.payment;
       }
 
-      return res.status(201).json({ ok: true, id: rows[0].id });
+      const fields = {
+        room_key: b.room,
+        room_name: clip(b.roomName || ROOMS[b.room], 80),
+        checkin: b.checkin,
+        checkout: b.checkout,
+        nights,
+        guests: clip(b.guests, 10),
+        guest_name: clip(b.name, 120),
+        guest_email: clip(b.email, 160),
+        guest_phone: clip(b.phone, 40),
+        requests: clip(b.requests || '', 500),
+      };
+
+      // Completing a booking that was already captured at the details step
+      const claimId = parseInt(b.id, 10);
+      if (stage === 'checkout' && claimId && b.claim) {
+        const updated = await sql`
+          UPDATE bookings SET
+            room_key = ${fields.room_key}, room_name = ${fields.room_name},
+            checkin = ${fields.checkin}, checkout = ${fields.checkout},
+            nights = ${fields.nights}, guests = ${fields.guests},
+            guest_name = ${fields.guest_name}, guest_email = ${fields.guest_email},
+            guest_phone = ${fields.guest_phone}, requests = ${fields.requests},
+            payment_option = ${payment}, amount_due = ${amount}, total = ${total},
+            stage = 'checkout'
+          WHERE id = ${claimId} AND claim_token = ${String(b.claim)} AND stage = 'started'
+          RETURNING id`;
+        if (updated.length) {
+          try {
+            await notifyBooking({ ...fields, payment_option: payment, amount_due: amount, total });
+          } catch (err) {
+            console.error('booking notification failed:', err.message);
+          }
+          return res.status(200).json({ ok: true, id: updated[0].id });
+        }
+        // Token did not match (expired or tampered) — fall through and insert fresh
+      }
+
+      const claim = stage === 'started' ? crypto.randomUUID() : null;
+      const rows = await sql`
+        INSERT INTO bookings
+          (room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email,
+           guest_phone, requests, payment_option, amount_due, total, stage, claim_token)
+        VALUES
+          (${fields.room_key}, ${fields.room_name}, ${fields.checkin}, ${fields.checkout},
+           ${fields.nights}, ${fields.guests}, ${fields.guest_name}, ${fields.guest_email},
+           ${fields.guest_phone}, ${fields.requests}, ${payment}, ${amount}, ${total},
+           ${stage}, ${claim})
+        RETURNING id`;
+
+      // Only tell the team once the guest actually reaches checkout
+      if (stage === 'checkout') {
+        try {
+          await notifyBooking({ ...fields, payment_option: payment, amount_due: amount, total });
+        } catch (err) {
+          console.error('booking notification failed:', err.message);
+        }
+      }
+
+      return res.status(201).json({ ok: true, id: rows[0].id, claim });
     }
 
     if (req.method === 'GET') {
       if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
-      const rows = await sql`SELECT * FROM bookings ORDER BY created_at DESC LIMIT 500`;
+      const rows = await sql`SELECT id, created_at, room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email, guest_phone, requests, payment_option, amount_due, total, payment_status, notes, stage FROM bookings ORDER BY created_at DESC LIMIT 500`;
       return res.status(200).json({ bookings: rows });
     }
 

@@ -6462,7 +6462,7 @@
     const LE_RATE = 24;
     const DEPOSIT_PCT = 0.3;
 
-    const bwState = { room: '', label: '', step: 1, payment: '' };
+    const bwState = { room: '', label: '', step: 1, payment: '', bookingId: null, claim: null };
     let bwLastFocus = null;
 
     const BW_HEADS = {
@@ -6487,6 +6487,8 @@
       bwState.label = displayName || ROOM_NAMES[roomKey] || roomKey;
       bwState.step = 1;
       bwState.payment = '';
+      bwState.bookingId = null;
+      bwState.claim = null;
       bwLastFocus = document.activeElement;
 
       const price = ROOM_PRICES[roomKey] || 100;
@@ -6650,6 +6652,7 @@
         const email = document.getElementById('bwEmail').value.trim();
         if (!name || !phone || !email) return bwShowError('Please fill in your name, phone number, and email.');
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bwShowError('Please enter a valid email address.');
+        captureBooking();   // record the lead now, in case they drop off at payment
         return bwGo(3);
       }
       if (s === 3) return bwGo(4);
@@ -6668,6 +6671,39 @@
         co.value = d.toISOString().split('T')[0];
       }
     });
+
+    /* Build the payload from the wizard's current state. */
+    function bwRecord(extra) {
+      const t = bwTotals();
+      return Object.assign({
+        room: bwState.room,
+        roomName: bwState.label,
+        checkin: t.ci,
+        checkout: t.co,
+        guests: document.getElementById('bwGuests').value,
+        nights: t.nights,
+        name: document.getElementById('bwName').value.trim(),
+        email: document.getElementById('bwEmail').value.trim(),
+        phone: document.getElementById('bwPhone').value.trim(),
+        requests: document.getElementById('bwRequests').value.trim(),
+        total: t.total
+      }, extra || {});
+    }
+
+    /* Save the enquiry-grade record once we know who they are and what they want,
+       so a guest who abandons at the payment step is still a usable lead. */
+    async function captureBooking() {
+      if (bwState.bookingId) return;               // already captured this session
+      try {
+        const data = await postBooking(bwRecord({ stage: 'started' }), 6000);
+        if (data && data.id) {
+          bwState.bookingId = data.id;
+          bwState.claim = data.claim;
+        }
+      } catch (e) {
+        console.warn('Could not capture booking at details step:', e.message);
+      }
+    }
 
     /* Record the booking. Never blocks the guest from paying: if it cannot be
        saved we queue it locally and flush on the next page load. */
@@ -6733,21 +6769,13 @@
       const nextBtn = document.getElementById('bwNextBtn');
       nextBtn.disabled = true;
       nextBtn.style.opacity = '0.6';
-      const record = {
-        room: bwState.room,
-        roomName: bwState.label,
-        checkin: t.ci,
-        checkout: t.co,
-        guests: document.getElementById('bwGuests').value,
-        nights: t.nights,
-        name: document.getElementById('bwName').value.trim(),
-        email: document.getElementById('bwEmail').value.trim(),
-        phone: document.getElementById('bwPhone').value.trim(),
-        requests: document.getElementById('bwRequests').value.trim(),
+      const record = bwRecord({
+        stage: 'checkout',
         payment: bwState.payment,
         amount: bwState.payment === 'full' ? t.total : t.deposit,
-        total: t.total
-      };
+        id: bwState.bookingId,
+        claim: bwState.claim
+      });
       await saveBooking(record);
       nextBtn.disabled = false;
       nextBtn.style.opacity = '';
