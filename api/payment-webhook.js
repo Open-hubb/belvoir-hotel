@@ -1,12 +1,19 @@
 /**
- * Payment webhook receiver (flotme).
+ * Flot outgoing webhook receiver.
+ * Implements the Flot Merchant Integration Guide v2.0, section 04.
  *
- * Give flot this URL, including the secret:
- *   https://belvoir-hotel.vercel.app/api/payment-webhook?key=<FLOT_WEBHOOK_SECRET>
+ * Give Flot Staff this URL plus the Basic auth credentials:
+ *   https://belvoir-hotel.vercel.app/api/payment-webhook
  *
- * The secret may instead be sent as an `x-webhook-secret` header if flot
- * prefers that. Every call is logged to the `payments` table with its raw body,
- * whether or not it matches a booking, so nothing is ever silently dropped.
+ * Payload:
+ *   { "orderId": "order-123", "flotRequestId": "123456", "status": "completed" }
+ *
+ * Notes from the spec that shape this handler:
+ *  - Flot sends each notification ONCE and never retries, so we acknowledge
+ *    with 2xx as early as possible and keep the work small.
+ *  - Repeated orderId + flotRequestId pairs must be handled idempotently.
+ *  - status "failed" means the guest hit a card error and may retry, so the
+ *    booking stays pending rather than being marked failed.
  */
 
 const { neon } = require('@neondatabase/serverless');
@@ -18,127 +25,118 @@ function db() {
   return _sql;
 }
 
-function secretOk(req) {
-  const expected = process.env.FLOT_WEBHOOK_SECRET || '';
-  if (!expected) return false;
-  const url = new URL(req.url, 'http://localhost');
-  const given =
-    url.searchParams.get('key') ||
-    req.headers['x-webhook-secret'] ||
-    (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-  if (!given) return false;
-  const a = Buffer.from(String(given));
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+function timingEqual(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-/** Providers all name things differently, so look under every plausible key. */
-function pick(obj, names) {
-  for (const n of names) {
-    for (const key of Object.keys(obj || {})) {
-      if (key.toLowerCase().replace(/[_-]/g, '') === n.toLowerCase().replace(/[_-]/g, '')) {
-        const v = obj[key];
-        if (v !== undefined && v !== null && v !== '') return v;
-      }
-    }
+/** Basic authorization, as required by the guide. */
+function authOk(req) {
+  const user = process.env.FLOT_WEBHOOK_USER || '';
+  const pass = process.env.FLOT_WEBHOOK_PASS || '';
+  if (!user || !pass) return false;
+
+  const header = req.headers['authorization'] || '';
+  if (!/^Basic\s+/i.test(header)) return false;
+
+  let decoded;
+  try {
+    decoded = Buffer.from(header.replace(/^Basic\s+/i, ''), 'base64').toString('utf8');
+  } catch {
+    return false;
   }
-  return undefined;
+  const idx = decoded.indexOf(':');
+  if (idx === -1) return false;
+
+  return timingEqual(decoded.slice(0, idx), user) && timingEqual(decoded.slice(idx + 1), pass);
 }
 
-function flatten(obj, depth = 0) {
-  if (!obj || typeof obj !== 'object' || depth > 3) return {};
-  let out = { ...obj };
-  for (const v of Object.values(obj)) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      out = { ...flatten(v, depth + 1), ...out };
-    }
-  }
-  return out;
+/** Our orderId is "belvoir-<bookingId>"; tolerate a bare id too. */
+function bookingIdFromOrderId(orderId) {
+  const m = String(orderId || '').match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : null;
 }
-
-const SUCCESS = ['success', 'successful', 'paid', 'completed', 'complete', 'settled', 'approved', 'confirmed'];
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  if (!secretOk(req)) {
-    console.warn('payment webhook rejected: bad or missing secret');
+
+  if (!authOk(req)) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="belvoir-webhook"');
+    console.warn('flot webhook rejected: bad or missing Basic auth');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const sql = db();
   const body = req.body || {};
-  const flat = flatten(body);
+  const orderId = String(body.orderId ?? '');
+  const flotRequestId = String(body.flotRequestId ?? '');
+  const status = String(body.status ?? '').toLowerCase();
 
-  const reference = String(pick(flat, ['ref', 'reference', 'merchantRef', 'orderId', 'metadata']) ?? '');
-  const providerRef = String(pick(flat, ['id', 'transactionId', 'txRef', 'paymentId', 'chargeId']) ?? '');
-  const payerEmail = String(pick(flat, ['email', 'customerEmail', 'payerEmail']) ?? '').toLowerCase();
-  const payerName = String(pick(flat, ['name', 'customerName', 'payerName', 'fullName']) ?? '');
-  const currency = String(pick(flat, ['currency', 'ccy']) ?? '');
-  const rawStatus = String(pick(flat, ['status', 'paymentStatus', 'state', 'event', 'type']) ?? '');
-  const amountRaw = pick(flat, ['amount', 'amountPaid', 'value', 'total']);
-  const amount = amountRaw === undefined ? null : Number(String(amountRaw).replace(/[^0-9.]/g, '')) || null;
-
-  const isSuccess = SUCCESS.some((s) => rawStatus.toLowerCase().includes(s));
+  if (!orderId || !flotRequestId || !status) {
+    return res.status(400).json({ error: 'Expected orderId, flotRequestId and status' });
+  }
 
   try {
-    // Ignore a repeat of a transaction we have already settled
-    if (providerRef) {
-      const seen = await sql`
-        SELECT id FROM payments WHERE provider_ref = ${providerRef} AND matched = true LIMIT 1`;
-      if (seen.length) {
-        return res.status(200).json({ ok: true, duplicate: true });
-      }
+    const sql = db();
+
+    // Idempotency: the same orderId + flotRequestId must not be applied twice
+    const seen = await sql`
+      SELECT id FROM payments
+      WHERE reference = ${orderId} AND provider_ref = ${flotRequestId}
+      LIMIT 1`;
+    if (seen.length) {
+      return res.status(200).json({ ok: true, duplicate: true });
     }
 
-    // Find the booking: our own reference first, then the payer's email
+    const bookingId = bookingIdFromOrderId(orderId);
     let booking = null;
-    const refId = parseInt(String(reference).replace(/\D/g, ''), 10);
-    if (refId) {
-      const r = await sql`SELECT * FROM bookings WHERE id = ${refId} LIMIT 1`;
-      if (r.length) booking = r[0];
-    }
-    if (!booking && payerEmail) {
-      const r = await sql`
-        SELECT * FROM bookings
-        WHERE lower(guest_email) = ${payerEmail} AND payment_status <> 'paid'
-        ORDER BY created_at DESC LIMIT 1`;
-      if (r.length) booking = r[0];
+    if (bookingId) {
+      const rows = await sql`SELECT * FROM bookings WHERE id = ${bookingId} LIMIT 1`;
+      if (rows.length) booking = rows[0];
     }
 
-    if (booking && isSuccess) {
+    const completed = status === 'completed';
+
+    // "failed" means the guest can still retry, so leave the booking pending
+    if (booking && completed) {
       await sql`
         UPDATE bookings
         SET payment_status = 'paid',
             stage = 'checkout',
-            notes = CASE WHEN COALESCE(notes, '') = '' THEN ${'Paid via flot' + (providerRef ? ' · ' + providerRef : '')}
-                         ELSE notes END
+            notes = CASE WHEN COALESCE(notes, '') = ''
+                         THEN ${'Paid via Flot · ' + flotRequestId}
+                         ELSE notes || ${' · Paid via Flot · ' + flotRequestId} END
         WHERE id = ${booking.id}`;
     }
 
     await sql`
       INSERT INTO payments
-        (booking_id, reference, payer_name, payer_email, amount, currency, status, provider_ref, matched, raw)
+        (booking_id, reference, payer_name, payer_email, amount, currency,
+         status, provider_ref, matched, raw)
       VALUES
-        (${booking ? booking.id : null}, ${reference}, ${payerName}, ${payerEmail},
-         ${amount}, ${currency}, ${rawStatus}, ${providerRef},
-         ${Boolean(booking && isSuccess)}, ${JSON.stringify(body)})`;
+        (${booking ? booking.id : null}, ${orderId},
+         ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
+         ${booking ? booking.amount_due : null}, ${'SLE'},
+         ${status}, ${flotRequestId},
+         ${Boolean(booking && completed)}, ${JSON.stringify(body)})`;
 
     if (!booking) {
-      console.warn('payment webhook: no matching booking', { reference, payerEmail, amount });
+      console.warn('flot webhook: no booking matched orderId', orderId);
+    } else if (!completed) {
+      console.warn('flot webhook: payment failed for booking', booking.id, '- left pending');
     }
 
-    // Always 200 so the provider does not retry forever on our account
     return res.status(200).json({
       ok: true,
       matched: Boolean(booking),
       bookingId: booking ? booking.id : null,
-      markedPaid: Boolean(booking && isSuccess),
+      markedPaid: Boolean(booking && completed),
     });
   } catch (e) {
-    console.error('payment webhook error:', e);
+    console.error('flot webhook error:', e);
     return res.status(500).json({ error: 'Server error' });
   }
 };
