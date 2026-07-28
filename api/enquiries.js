@@ -1,5 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
+const { notifyEnquiry } = require('./_notify');
 
 let _sql = null;
 function db() {
@@ -48,6 +49,14 @@ module.exports = async (req, res) => {
         INSERT INTO enquiries (name, email, phone, stay_type, message, source)
         VALUES (${name}, ${email}, ${phone}, ${stayType}, ${message}, ${source})
         RETURNING id`;
+
+      // Notify the team, but never fail the enquiry because email fell over
+      try {
+        await notifyEnquiry({ name, email, phone, stay_type: stayType, message, source });
+      } catch (err) {
+        console.error('enquiry notification failed:', err.message);
+      }
+
       return res.status(201).json({ ok: true, id: rows[0].id });
     }
 

@@ -1,5 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
+const { notifyBooking } = require('./_notify');
 
 let _sql = null;
 function db() {
@@ -56,6 +57,21 @@ module.exports = async (req, res) => {
            ${clip(b.guests, 10)}, ${clip(b.name, 120)}, ${clip(b.email, 160)}, ${clip(b.phone, 40)},
            ${clip(b.requests || '', 500)}, ${b.payment}, ${amount}, ${total})
         RETURNING id`;
+
+      try {
+        await notifyBooking({
+          guest_name: clip(b.name, 120),
+          guest_email: clip(b.email, 160),
+          guest_phone: clip(b.phone, 40),
+          room_name: clip(b.roomName || ROOMS[b.room], 80),
+          checkin: b.checkin, checkout: b.checkout, nights, guests: clip(b.guests, 10),
+          payment_option: b.payment, amount_due: amount, total,
+          requests: clip(b.requests || '', 500)
+        });
+      } catch (err) {
+        console.error('booking notification failed:', err.message);
+      }
+
       return res.status(201).json({ ok: true, id: rows[0].id });
     }
 
