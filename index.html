@@ -1902,6 +1902,22 @@
       color: var(--color-white);
     }
 
+    .fc__cur-opt[disabled] {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-style: dashed;
+    }
+    .fc__cur-opt[disabled]:hover { border-color: var(--color-border); }
+
+    .fc__cur-note {
+      font-family: var(--font-body);
+      font-size: 0.68rem;
+      color: var(--color-text-muted);
+      text-align: center;
+      margin-top: -0.5rem;
+    }
+    .fc__cur-note[hidden] { display: none; }
+
     .fc__methods {
       display: flex;
       flex-direction: column;
@@ -6045,6 +6061,7 @@
             Leones <span>SLE</span>
           </button>
         </div>
+        <p class="fc__cur-note" id="fcCurNote" hidden>Mobile Money is settled in Leones.</p>
 
         <div class="fc__methods" role="radiogroup" aria-label="Payment method">
           <button type="button" class="fc__method" role="radio" aria-checked="false" data-type="momo" onclick="fcPick('momo')">
@@ -7088,6 +7105,10 @@
         if (cfg.defaultCurrency === 'SLE' || cfg.defaultCurrency === 'USD') {
           FC_DEFAULT_CURRENCY = cfg.defaultCurrency;
         }
+        if (cfg.methodCurrencies) {
+          FC_METHOD_CURRENCIES = Object.assign({ __any: cfg.currencies || ['SLE', 'USD'] },
+                                               cfg.methodCurrencies);
+        }
         if (Number(cfg.leRate) > 0 && Number(cfg.leRate) !== LE_RATE) {
           LE_RATE = Number(cfg.leRate);
           refreshLePrices();
@@ -7468,6 +7489,15 @@
 
     let FC_DEFAULT_CURRENCY = 'USD';
 
+    // Replaced by /api/config, which is authoritative. Mobile money is Leones
+    // only until Flot confirms a Leones wallet can settle a dollar charge.
+    let FC_METHOD_CURRENCIES = {
+      momo: ['SLE'],
+      card: ['SLE', 'USD'],
+      'in-app': ['SLE', 'USD'],
+      __any: ['SLE', 'USD']
+    };
+
     let fcState = { bookingId: null, claim: null, usd: 0, type: null, currency: 'USD',
                     orderId: null, attemptId: null, timer: null, startedAt: 0 };
 
@@ -7506,13 +7536,36 @@
       document.getElementById('fcClose').focus();
     }
 
+    /** Currencies a method may settle in. Mirrors the server, which has the final say. */
+    function fcAllowed(type) {
+      if (!type) return FC_METHOD_CURRENCIES.__any || ['SLE', 'USD'];
+      return FC_METHOD_CURRENCIES[type] || ['SLE'];
+    }
+
     /** Guest picks the wallet the money lands in. The amount follows immediately. */
     function fcSetCurrency(cur) {
-      fcState.currency = (cur === 'SLE' || cur === 'USD') ? cur : 'USD';
+      const allowed = fcAllowed(fcState.type);
+      let next = (cur === 'SLE' || cur === 'USD') ? cur : FC_DEFAULT_CURRENCY;
+      if (!allowed.includes(next)) next = allowed[0];
+      fcState.currency = next;
+
       document.querySelectorAll('#fcPick .fc__cur-opt').forEach(o => {
-        o.setAttribute('aria-checked', String(o.dataset.cur === fcState.currency));
+        const usable = allowed.includes(o.dataset.cur);
+        o.disabled = !usable;
+        o.setAttribute('aria-checked', String(usable && o.dataset.cur === next));
       });
-      document.getElementById('fcAmount').textContent = fcState.currency === 'SLE'
+
+      // Explain the restriction rather than just greying an option out
+      const note = document.getElementById('fcCurNote');
+      note.hidden = allowed.length > 1 || !fcState.type;
+      if (!note.hidden) {
+        const label = fcState.type === 'momo' ? 'Mobile Money' :
+                      fcState.type === 'card' ? 'Bank Card' : 'The Flot App';
+        note.textContent = label + ' is settled in ' +
+          (allowed[0] === 'SLE' ? 'Leones' : 'US Dollars') + '.';
+      }
+
+      document.getElementById('fcAmount').textContent = next === 'SLE'
         ? leFor(fcState.usd)
         : '$' + Number(fcState.usd).toLocaleString();
     }
@@ -7522,6 +7575,8 @@
       document.querySelectorAll('#fcPick .fc__method').forEach(m => {
         m.setAttribute('aria-checked', String(m.dataset.type === type));
       });
+      // Re-resolve, so choosing a Leones-only method moves the currency with it
+      fcSetCurrency(fcState.currency);
       document.getElementById('fcPay').disabled = !fcState.bookingId;
     }
 

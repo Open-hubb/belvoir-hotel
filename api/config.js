@@ -15,6 +15,9 @@ module.exports = async (req, res) => {
     leRate: F.LE_RATE,
     currencies: F.CURRENCIES,
     defaultCurrency: F.DEFAULT_CURRENCY,
+    // Which currencies each method may settle in, so the picker offers only
+    // combinations the server will honour
+    methodCurrencies: F.METHOD_CURRENCIES,
     currency: { card: F.CURRENCY.card, momo: F.CURRENCY.momo, 'in-app': F.CURRENCY['in-app'] },
   });
 };

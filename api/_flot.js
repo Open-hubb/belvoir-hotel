@@ -32,6 +32,41 @@ const LE_RATE = Number(process.env.FLOT_LE_RATE || 24);
 const TYPES = ['card', 'momo', 'in-app'];
 const CURRENCIES = ['SLE', 'USD'];
 
+/**
+ * Which currencies each method may settle in. Flot will create a momo link in
+ * USD, but a mobile money wallet holds Leones, so that pairing is not offered
+ * until Flot confirms it settles. Widen it with FLOT_CURRENCIES_MOMO rather
+ * than a code change.
+ */
+function currencyList(envValue, fallback) {
+  const list = String(envValue || fallback)
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(c => CURRENCIES.includes(c));
+  return list.length ? list : [fallback];
+}
+
+const METHOD_CURRENCIES = {
+  momo: currencyList(process.env.FLOT_CURRENCIES_MOMO, 'SLE'),
+  card: currencyList(process.env.FLOT_CURRENCIES_CARD, 'SLE,USD'),
+  'in-app': currencyList(process.env.FLOT_CURRENCIES_INAPP, 'SLE,USD'),
+};
+
+/** Currencies a given method accepts, defaulting to Leones for anything unknown. */
+function allowedCurrencies(type) {
+  return METHOD_CURRENCIES[type] || ['SLE'];
+}
+
+/** Resolve a requested currency to one the method actually accepts. */
+function resolveCurrency(type, requested) {
+  const allowed = allowedCurrencies(type);
+  const want = String(requested || '').toUpperCase();
+  if (allowed.includes(want)) return want;
+  // Prefer the method's configured default when the request is not usable
+  const preferred = CURRENCY[type];
+  return allowed.includes(preferred) ? preferred : allowed[0];
+}
+
 /** The currency the checkout opens on. Quoted rates are USD, so USD is least surprising. */
 const DEFAULT_CURRENCY = CURRENCIES.includes(process.env.FLOT_DEFAULT_CURRENCY)
   ? process.env.FLOT_DEFAULT_CURRENCY
@@ -175,6 +210,9 @@ module.exports = {
   TEST_MODE,
   CURRENCY,
   CURRENCIES,
+  METHOD_CURRENCIES,
+  allowedCurrencies,
+  resolveCurrency,
   DEFAULT_CURRENCY,
   LE_RATE,
   TYPES,

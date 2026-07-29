@@ -28,10 +28,10 @@ module.exports = async (req, res) => {
   const claim = body.claim ? String(body.claim) : '';
 
   // The guest picks the currency, so the payment lands in the matching merchant
-  // wallet. An unrecognised value falls back to the method default rather than
-  // being passed through to Flot.
-  const wanted = String(body.currency || '').toUpperCase();
-  const currencyChoice = F.CURRENCIES.includes(wanted) ? wanted : (F.CURRENCY[type] || 'SLE');
+  // wallet. Resolved against what the method actually accepts, because the
+  // browser can send anything: mobile money is Leones only, so a USD request
+  // there is corrected here rather than reaching Flot.
+  const currencyChoice = F.resolveCurrency(type, body.currency);
 
   if (!bookingId || !F.TYPES.includes(type)) {
     return res.status(400).json({ error: 'A booking id and a valid payment type are required.' });
