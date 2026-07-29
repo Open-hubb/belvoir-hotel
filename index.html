@@ -5,7 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Belvoir Hotel & Residence · Freetown, Sierra Leone</title>
   <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night. Be Inspired… We Deliver.">
+  <link rel="canonical" href="https://belvoir-hotel.vercel.app/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230C1B33'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' fill='%23B08D57'%3EB%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+
+  <!-- Social sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Belvoir Hotel &amp; Residence">
+  <meta property="og:locale" content="en_GB">
+  <meta property="og:url" content="https://belvoir-hotel.vercel.app/">
+  <meta property="og:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
+  <meta property="og:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night. Be Inspired… We Deliver.">
+  <meta property="og:image" content="https://belvoir-hotel.vercel.app/images/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Belvoir Hotel &amp; Residence building at dusk, Freetown">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
+  <meta name="twitter:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night.">
+  <meta name="twitter:image" content="https://belvoir-hotel.vercel.app/images/og-image.jpg">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -195,6 +213,39 @@
        CUSTOM CURSOR
     ═══════════════════════════════════════════════════════════════ */
     /* ═══════════════════════════════════════════════════════════════
+       SKIP LINK
+    ═══════════════════════════════════════════════════════════════ */
+    .skip-link {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translate(-50%, -120%);
+      z-index: 10000;
+      padding: 0.85rem 1.75rem;
+      border-radius: 0 0 8px 8px;
+      background: var(--color-navy);
+      color: var(--color-gold-light);
+      font-family: var(--font-body);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-decoration: none;
+      box-shadow: 0 8px 24px -8px rgba(12, 27, 51, 0.55);
+      transition: transform 0.3s var(--ease-spring);
+    }
+
+    .skip-link:focus-visible {
+      transform: translate(-50%, 0);
+      outline: 2px solid var(--color-gold);
+      outline-offset: -4px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skip-link { transition: none; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
        NAVIGATION
     ═══════════════════════════════════════════════════════════════ */
     .nav {
@@ -207,7 +258,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      transition: all 0.5s var(--ease-out-expo);
+      transition: background-color 0.5s var(--ease-out-expo),
+                  backdrop-filter 0.5s var(--ease-out-expo),
+                  -webkit-backdrop-filter 0.5s var(--ease-out-expo),
+                  padding 0.5s var(--ease-out-expo),
+                  box-shadow 0.5s var(--ease-out-expo);
     }
 
     .nav.scrolled {
@@ -275,6 +330,15 @@
       transform-origin: left;
     }
 
+    /* the UA default ring is 1px blue, unreadable on both the video and the
+       cream scrolled state, so match the gold used on .nav__cta */
+    .nav__link:focus-visible,
+    .nav__logo:focus-visible {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 4px;
+      border-radius: 2px;
+    }
+
     .nav__cta {
       font-family: var(--font-body);
       font-size: 0.7rem;
@@ -312,7 +376,21 @@
       gap: 6px;
       width: 28px;
       cursor: pointer;
+      position: relative;
       z-index: 1001;
+    }
+
+    /* the bars are only 28x17, so extend the tap target to 44x44 without
+       moving anything: the pseudo-element belongs to the button, and
+       ::after is not a child, so the span :nth-child rules are unaffected */
+    .nav__toggle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
     }
 
     .nav__toggle span {
@@ -320,7 +398,9 @@
       width: 100%;
       height: 1.5px;
       background: var(--color-white);
-      transition: all 0.4s var(--ease-out-expo);
+      transition: transform 0.4s var(--ease-out-expo),
+                  opacity 0.4s var(--ease-out-expo),
+                  background-color 0.4s var(--ease-out-expo);
     }
 
     .nav.scrolled .nav__toggle span { background: var(--color-navy); }
@@ -627,7 +707,13 @@
       color-scheme: dark;
     }
 
+    /* the input outline is suppressed so it does not draw a rectangle inside
+       the pill, so the field itself carries the focus ring instead */
     .hbook__input:focus { outline: none; }
+    .hbook__field:focus-within {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 2px;
+    }
     .hbook__input::placeholder { color: rgba(255, 255, 255, 0.55); }
     .hbook__input::-webkit-calendar-picker-indicator {
       filter: invert(1);
@@ -2147,7 +2233,8 @@
       padding: 0.5rem 1.25rem;
       border: 1px solid var(--color-border);
       color: var(--color-text-muted);
-      transition: all 0.3s var(--ease-out-expo);
+      transition: border-color 0.3s var(--ease-out-expo),
+                  color 0.3s var(--ease-out-expo);
     }
 
     .dining__cuisine-tag:hover {
@@ -2278,7 +2365,7 @@
       margin-bottom: 1rem;
     }
 
-    .review-card__stars i {
+    .review-card__stars i, .review-card__stars svg {
       width: 14px;
       height: 14px;
       color: var(--color-gold);
@@ -2336,7 +2423,8 @@
       color: var(--color-white);
       opacity: 0;
       transform: translateY(10px);
-      transition: all 0.4s var(--ease-out-expo);
+      transition: opacity 0.4s var(--ease-out-expo),
+                  transform 0.4s var(--ease-out-expo);
     }
 
     .gallery__item:hover .gallery__item-label {
@@ -2400,7 +2488,9 @@
       display: inline-flex;
       align-items: center;
       gap: 0.75rem;
-      transition: all 0.4s var(--ease-out-expo);
+      transition: background-color 0.4s var(--ease-out-expo),
+                  color 0.4s var(--ease-out-expo),
+                  transform 0.4s var(--ease-out-expo);
     }
 
     .btn-outline:hover {
@@ -2569,7 +2659,9 @@
       align-items: center;
       justify-content: center;
       color: var(--color-gold-muted);
-      transition: all 0.3s var(--ease-out-expo);
+      transition: border-color 0.3s var(--ease-out-expo),
+                  color 0.3s var(--ease-out-expo),
+                  transform 0.3s var(--ease-out-expo);
     }
 
     .footer__social-link:hover {
@@ -2583,7 +2675,7 @@
       outline-offset: 2px;
     }
 
-    .footer__social-link i { width: 16px; height: 16px; }
+    .footer__social-link i, .footer__social-link svg { width: 16px; height: 16px; }
 
     .footer__col-title {
       font-family: var(--font-body);
@@ -3122,7 +3214,7 @@
       flex-wrap: wrap;
     }
 
-    .direct-ribbon i { width: 16px; height: 16px; color: var(--color-gold-light); flex-shrink: 0; }
+    .direct-ribbon i, .direct-ribbon svg { width: 16px; height: 16px; color: var(--color-gold-light); flex-shrink: 0; }
     .direct-ribbon strong { color: var(--color-white); font-weight: 400; }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -3230,7 +3322,7 @@
     .detail-modal__nav:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
     .detail-modal__nav--prev { left: 0.9rem; }
     .detail-modal__nav--next { right: 0.9rem; }
-    .detail-modal__nav i { width: 18px; height: 18px; color: var(--color-navy); }
+    .detail-modal__nav i, .detail-modal__nav svg { width: 18px; height: 18px; color: var(--color-navy); }
 
     .detail-modal__thumbs {
       display: flex;
@@ -3383,7 +3475,7 @@
       color: var(--color-gold-muted);
     }
 
-    .services-strip__item i {
+    .services-strip__item i, .services-strip__item svg {
       width: 15px;
       height: 15px;
       color: var(--color-gold-light);
@@ -3580,6 +3672,8 @@
       position: absolute;
       top: 1.4rem;
       left: 1.5rem;
+      /* stop clear of the arrow button (1.25rem offset + 46px wide) */
+      right: calc(1.25rem + 46px + 0.9rem);
       z-index: 2;
       display: flex;
       flex-direction: column;
@@ -3667,6 +3761,8 @@
     @media (max-width: 860px) {
       .cat-cards { grid-template-columns: 1fr; }
       .cat-card { aspect-ratio: 4 / 4.2; }
+      /* the room list is the longest line here, so ease the tracking to keep it on one row */
+      .cat-card__meta { letter-spacing: 0.18em; }
     }
 
     /* ─── Category overlay (room browser) ─── */
@@ -4679,6 +4775,8 @@
   <!-- ═══════════════ CUSTOM CURSOR ═══════════════ -->
 
   <!-- ═══════════════ NAVIGATION ═══════════════ -->
+  <a href="#main" class="skip-link">Skip to content</a>
+
   <nav class="nav" id="nav" role="navigation" aria-label="Main navigation">
     <a href="#top" class="nav__logo" aria-label="Belvoir Hotel Home">Belvoir<span>.</span></a>
 
@@ -4709,6 +4807,7 @@
     <a href="#rooms" onclick="closeMobileMenu()" style="color: var(--color-gold);">Book Your Stay</a>
   </div>
 
+  <main id="main">
   <!-- ═══════════════ HERO ═══════════════ -->
   <section class="hero" id="hero">
     <div class="hero__media">
@@ -4888,7 +4987,7 @@
     <div class="container">
       <div class="about">
         <div class="about__image-wrap reveal">
-          <img src="images/reception.jpg" alt="Belvoir reception and lounge with warm orange walls and stone accent desk" loading="lazy">
+          <img src="images/reception.jpg" alt="Belvoir reception and lounge with warm orange walls and stone accent desk" loading="lazy" width="1600" height="1200">
           <div class="about__image-overlay"></div>
           <div class="about__image-frame"></div>
         </div>
@@ -4925,7 +5024,7 @@
 
   <!-- ═══════════════ PARALLAX DIVIDER ═══════════════ -->
   <div class="parallax-divider" id="parallaxDivider">
-    <img src="images/lounge-stone-wall.jpeg" alt="Belvoir lounge area with stone accent wall" loading="lazy">
+    <img src="images/lounge-stone-wall.jpeg" alt="Belvoir lounge area with stone accent wall" loading="lazy" width="1080" height="810">
     <div class="parallax-divider__overlay"></div>
     <div class="parallax-divider__content">
       <blockquote class="reveal">
@@ -5061,15 +5160,15 @@
       <div class="dining__layout">
         <div class="dining__image-grid">
           <div class="img-wrap reveal">
-            <img src="images/dining-kitchen-2.jpeg" alt="Belvoir dining area with kitchen" loading="lazy">
+            <img src="images/dining-kitchen-2.jpeg" alt="Belvoir dining area with kitchen" loading="lazy" width="810" height="1080">
             <div class="img-overlay"></div>
           </div>
           <div class="img-wrap reveal">
-            <img src="images/kitchen-dining.jpeg" alt="Fully equipped kitchen and dining setup" loading="lazy">
+            <img src="images/kitchen-dining.jpeg" alt="Fully equipped kitchen and dining setup" loading="lazy" width="810" height="1080">
             <div class="img-overlay"></div>
           </div>
           <div class="img-wrap reveal">
-            <img src="images/apartment-open-plan.jpeg" alt="Open plan apartment dining and living area" loading="lazy">
+            <img src="images/apartment-open-plan.jpeg" alt="Open plan apartment dining and living area" loading="lazy" width="810" height="1080">
             <div class="img-overlay"></div>
           </div>
         </div>
@@ -5095,7 +5194,7 @@
 
   <!-- ═══════════════ MINI MART BANNER ═══════════════ -->
   <section class="reveal" style="position: relative; overflow: hidden; height: clamp(320px, 45vw, 480px);">
-    <img src="images/mini-mart.jpeg" alt="Belvoir Mini Mart" loading="lazy" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+    <img src="images/mini-mart.jpeg" alt="Belvoir Mini Mart" loading="lazy" width="934" height="810" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
     <div class="minimart-overlay" style="position: absolute; inset: 0; background: linear-gradient(135deg, rgba(10,25,47,0.85) 0%, rgba(10,25,47,0.4) 60%, transparent 100%);"></div>
     <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: clamp(2rem, 5vw, 5rem);">
       <div class="section__marker reveal" style="color: var(--gold);">
@@ -5116,27 +5215,27 @@
 
       <div class="gallery__grid">
         <div class="gallery__item reveal">
-          <img src="images/mini-mart.jpeg" alt="On-site mini mart at Belvoir" loading="lazy">
+          <img src="images/mini-mart.jpeg" alt="On-site mini mart at Belvoir" loading="lazy" width="934" height="810">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/std-room-2.jpg" alt="Standard king bedroom at Belvoir" loading="lazy">
+          <img src="images/std-room-2.jpg" alt="Standard king bedroom at Belvoir" loading="lazy" width="1600" height="1200">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/ph-parlor.jpg" alt="Penthouse parlour at Belvoir" loading="lazy">
+          <img src="images/ph-parlor.jpg" alt="Penthouse parlour at Belvoir" loading="lazy" width="1200" height="1600">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/apt-balcony.jpg" alt="Private balcony with balustrade at Belvoir" loading="lazy">
+          <img src="images/apt-balcony.jpg" alt="Private balcony with balustrade at Belvoir" loading="lazy" width="1200" height="1600">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/apt2-parlor.jpg" alt="Serviced apartment living room at Belvoir" loading="lazy">
+          <img src="images/apt2-parlor.jpg" alt="Serviced apartment living room at Belvoir" loading="lazy" width="1600" height="1200">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/standard-bedroom-twin.jpeg" alt="Twin bedroom at Belvoir with wooden headboard" loading="lazy">
+          <img src="images/standard-bedroom-twin.jpeg" alt="Twin bedroom at Belvoir with wooden headboard" loading="lazy" width="1080" height="810">
           <div class="gallery__item-overlay"></div>
         </div>
       </div>
@@ -5326,6 +5425,7 @@
       </div>
     </div>
   </section>
+  </main>
 
   <!-- ═══════════════ CATEGORY OVERLAY (room browser) ═══════════════ -->
   <div class="cat-overlay" id="catOverlay" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="catOverlayTitle">

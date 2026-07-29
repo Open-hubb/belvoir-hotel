@@ -61,6 +61,16 @@
     .login__logo { width: 140px; height: auto; margin: 0 auto 1.25rem; display: block; }
     .login__title { font-family: var(--serif); font-size: 1.9rem; font-weight: 600; }
     .login__sub { font-size: 0.82rem; color: var(--ink-soft); margin: 0.4rem 0 1.5rem; }
+    .login__label {
+      display: block;
+      text-align: left;
+      font-size: 0.62rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 0.4rem;
+    }
     .login input {
       width: 100%;
       font-family: var(--sans);
@@ -94,6 +104,16 @@
     .btn--ghost { background: transparent; color: var(--navy); border: 1.5px solid rgba(12,27,51,0.25); }
     .btn--ghost:hover { box-shadow: none; border-color: var(--navy); }
     .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.6rem; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
     /* ── Dashboard ── */
     .dash { display: none; }
@@ -258,7 +278,8 @@
       <img src="images/logo.png" alt="Belvoir" class="login__logo" width="610" height="400">
       <h1 class="login__title">Bookings Admin</h1>
       <p class="login__sub">Managers only · enter your access key</p>
-      <input type="password" id="keyInput" placeholder="Access key" autocomplete="current-password">
+      <label class="login__label" for="keyInput">Access key</label>
+      <input type="password" id="keyInput" autocomplete="current-password">
       <p class="login__err" id="loginErr">That key wasn't accepted. Try again.</p>
       <button class="btn" id="loginBtn" style="width:100%;">Sign In</button>
     </div>
@@ -267,7 +288,7 @@
   <!-- Dashboard -->
   <div class="dash" id="dashView">
     <div class="wrap">
-      <div class="head">
+      <header class="head">
         <div class="head__brand">
           <img src="images/logo.png" alt="Belvoir" width="610" height="400">
           <div>
@@ -279,8 +300,9 @@
           <button class="btn btn--ghost btn--sm" id="refreshBtn">Refresh</button>
           <button class="btn btn--ghost btn--sm" id="logoutBtn">Log Out</button>
         </div>
-      </div>
+      </header>
 
+      <main>
       <div class="stats" id="stats"></div>
 
       <div class="toolbar">
@@ -295,10 +317,12 @@
           <button class="tab" data-f="unpaid">Unpaid</button>
           <button class="tab" data-f="abandoned">Abandoned</button>
         </div>
+        <label class="sr-only" for="search">Search bookings</label>
         <input class="search" id="search" type="search" placeholder="Search name, email, phone, room…">
       </div>
 
       <div class="list" id="list"><div class="loading">Loading bookings…</div></div>
+      </main>
     </div>
   </div>
 
