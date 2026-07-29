@@ -18,8 +18,13 @@ function isAdmin(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// Must stay in step with ROOM_PRICES / ROOM_NAMES in index.html. A key missing
+// here is rejected as "Unknown room", and because the wizard queues failed
+// saves and lets the guest pay anyway, that loses the booking silently.
 const ROOMS = {
+  'comfort': 'Superior Double / Comfort Room',
   'standard': 'Deluxe Standard Room',
+  'ground-floor': 'Ground Floor One-Bedroom',
   'superior-deluxe': 'Superior Deluxe Room',
   'superior-twin': 'Superior Deluxe Twin',
   'studio': 'Studio Penthouse',

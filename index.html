@@ -1739,11 +1739,12 @@
     .payment-popup__container {
       position: relative;
       width: 94%;
-      max-width: 520px;
-      height: 85vh;
-      max-height: 750px;
+      max-width: 460px;
+      max-height: 90vh;
       background: var(--color-white);
       border: 1px solid var(--color-border);
+      border-radius: 20px;
+      overflow: hidden;
       transform: translateY(30px);
       transition: transform 0.5s var(--ease-out-expo);
       display: flex;
@@ -1793,12 +1794,6 @@
       outline-offset: 2px;
     }
 
-    .payment-popup__iframe {
-      flex: 1;
-      width: 100%;
-      border: none;
-    }
-
     .payment-popup__loading {
       position: absolute;
       inset: 0;
@@ -1828,6 +1823,323 @@
       font-family: var(--font-body);
       font-size: 0.8rem;
       color: var(--color-text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       FLOT CHECKOUT (in-site payment modal)
+    ═══════════════════════════════════════════════════════════════ */
+    .fc__body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    /* display:flex above would otherwise beat the UA rule for [hidden] and
+       leave every panel on screen at once */
+    .fc__body[hidden], .fc__test[hidden], #fcReceipt[hidden] { display: none; }
+
+    .fc__amount {
+      text-align: center;
+      padding-bottom: 0.25rem;
+    }
+
+    .fc__amount-value {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--color-navy);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+
+    .fc__amount-sub {
+      font-family: var(--font-body);
+      font-size: 0.68rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-top: 0.35rem;
+    }
+
+    .fc__methods {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .fc__method {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.9rem 1rem;
+      border: 1.5px solid var(--color-border);
+      border-radius: 14px;
+      cursor: pointer;
+      background: none;
+      text-align: left;
+      width: 100%;
+      font-family: var(--font-body);
+      transition: border-color 0.3s var(--ease-out-expo),
+                  background-color 0.3s var(--ease-out-expo);
+    }
+
+    .fc__method:hover { border-color: var(--color-gold); }
+    .fc__method:focus-visible {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 2px;
+    }
+
+    .fc__method[aria-checked="true"] {
+      border-color: var(--color-gold);
+      background: rgba(176, 141, 87, 0.07);
+    }
+
+    .fc__method-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--color-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--color-gold);
+    }
+
+    .fc__method-icon i, .fc__method-icon svg { width: 17px; height: 17px; }
+
+    .fc__method-main { flex: 1; min-width: 0; }
+    .fc__method-name {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-text);
+    }
+    .fc__method-desc {
+      display: block;
+      font-size: 0.7rem;
+      line-height: 1.45;
+      color: var(--color-text-muted);
+      margin-top: 0.15rem;
+    }
+
+    .fc__method-tick {
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      border: 1.5px solid var(--color-border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: transparent;
+    }
+
+    .fc__method[aria-checked="true"] .fc__method-tick {
+      background: var(--color-gold);
+      border-color: var(--color-gold);
+      color: #fff;
+    }
+    .fc__method-tick i, .fc__method-tick svg { width: 11px; height: 11px; }
+
+    .fc__btn {
+      width: 100%;
+      font-family: var(--font-body);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: var(--color-navy);
+      color: var(--color-white);
+      border: none;
+      border-radius: 999px;
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      transition: transform 0.3s var(--ease-out-expo),
+                  box-shadow 0.3s var(--ease-out-expo),
+                  opacity 0.3s var(--ease-out-expo);
+    }
+
+    .fc__btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(12, 27, 51, 0.25);
+    }
+    .fc__btn:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 3px; }
+    .fc__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .fc__btn--ghost {
+      background: transparent;
+      color: var(--color-navy);
+      border: 1.5px solid var(--color-border);
+    }
+    .fc__btn--ghost:hover:not(:disabled) { border-color: var(--color-navy); box-shadow: none; }
+
+    .fc__qr {
+      display: block;
+      width: 210px;
+      height: 210px;
+      margin: 0 auto;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+    }
+
+    .fc__hint {
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .fc__link {
+      display: block;
+      font-family: var(--font-body);
+      font-size: 0.72rem;
+      color: var(--color-gold);
+      text-align: center;
+      word-break: break-all;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .fc__link:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+
+    .fc__ussd {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      justify-content: center;
+      background: var(--color-bg);
+      border: 1px dashed var(--color-gold);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .fc__ussd-code {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--color-navy);
+      letter-spacing: 0.02em;
+    }
+
+    .fc__copy {
+      background: var(--color-navy);
+      color: var(--color-white);
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      flex-shrink: 0;
+      min-height: 34px;
+      transition: background-color 0.3s var(--ease-out-expo);
+    }
+    .fc__copy:hover { background: var(--color-navy-light); }
+    .fc__copy:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+
+    .fc__waiting {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      font-family: var(--font-body);
+      font-size: 0.73rem;
+      color: var(--color-text-muted);
+    }
+
+    .fc__pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-gold);
+      animation: fcPulse 1.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes fcPulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.85); }
+      50%      { opacity: 1;   transform: scale(1); }
+    }
+
+    .fc__result {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .fc__result-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fc__result-mark i, .fc__result-mark svg { width: 26px; height: 26px; }
+    .fc__result-mark--ok   { background: rgba(46, 125, 87, 0.12); color: #2E7D57; }
+    .fc__result-mark--warn { background: rgba(195, 74, 54, 0.12); color: #C34A36; }
+
+    .fc__result-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--color-navy);
+    }
+
+    .fc__receipt {
+      width: 100%;
+      border-top: 1px solid var(--color-border);
+      margin-top: 0.4rem;
+      padding-top: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .fc__receipt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-family: var(--font-body);
+      font-size: 0.76rem;
+    }
+    .fc__receipt-row span:first-child { color: var(--color-text-muted); }
+    .fc__receipt-row span:last-child {
+      color: var(--color-text);
+      text-align: right;
+      word-break: break-all;
+    }
+
+    .fc__test {
+      font-family: var(--font-body);
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #C34A36;
+      background: rgba(195, 74, 54, 0.1);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      text-align: center;
+      align-self: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fc__pulse { animation: none; opacity: 0.8; }
+      .fc__btn:hover:not(:disabled) { transform: none; }
+    }
+
+    @media (max-width: 480px) {
+      .fc__body { padding: 1.15rem; }
+      .fc__qr { width: 170px; height: 170px; }
+      .fc__ussd { flex-direction: column; gap: 0.75rem; }
+      .fc__copy { width: 100%; }
     }
 
     /* Room cards, selected state */
@@ -5649,20 +5961,99 @@
   </div>
 
   <!-- ═══════════════ PAYMENT POPUP ═══════════════ -->
-  <div class="payment-popup" id="paymentPopup">
-    <div class="payment-popup__backdrop" onclick="closePaymentPopup()"></div>
+  <div class="payment-popup" id="paymentPopup" role="dialog" aria-modal="true" aria-labelledby="fcTitle">
+    <div class="payment-popup__backdrop" onclick="fcDismiss()"></div>
     <div class="payment-popup__container" data-lenis-prevent>
       <div class="payment-popup__header">
-        <span class="payment-popup__title">Secure Checkout</span>
-        <button class="payment-popup__close" onclick="closePaymentPopup()" aria-label="Close payment">
+        <span class="payment-popup__title" id="fcTitle">Secure Checkout</span>
+        <button class="payment-popup__close" id="fcClose" onclick="fcDismiss()" aria-label="Close payment">
           <i data-lucide="x" style="width:16px;height:16px;color:var(--color-text-muted);"></i>
         </button>
       </div>
-      <div class="payment-popup__loading" id="paymentLoading">
-        <div class="payment-popup__spinner"></div>
-        <div class="payment-popup__loading-text">Loading secure checkout…</div>
+
+      <!-- Method picker -->
+      <div class="fc__body" id="fcPick">
+        <div class="fc__amount">
+          <div class="fc__amount-value" id="fcAmount">$0</div>
+          <div class="fc__amount-sub" id="fcAmountSub">Amount due</div>
+        </div>
+        <div class="fc__methods" role="radiogroup" aria-label="Payment method">
+          <button type="button" class="fc__method" role="radio" aria-checked="false" data-type="momo" onclick="fcPick('momo')">
+            <span class="fc__method-icon"><i data-lucide="smartphone"></i></span>
+            <span class="fc__method-main">
+              <span class="fc__method-name">Mobile Money</span>
+              <span class="fc__method-desc">Orange Money or Africell, pay by USSD</span>
+            </span>
+            <span class="fc__method-tick"><i data-lucide="check"></i></span>
+          </button>
+          <button type="button" class="fc__method" role="radio" aria-checked="false" data-type="card" onclick="fcPick('card')">
+            <span class="fc__method-icon"><i data-lucide="credit-card"></i></span>
+            <span class="fc__method-main">
+              <span class="fc__method-name">Bank Card</span>
+              <span class="fc__method-desc">Visa or Mastercard, charged in US Dollars</span>
+            </span>
+            <span class="fc__method-tick"><i data-lucide="check"></i></span>
+          </button>
+          <button type="button" class="fc__method" role="radio" aria-checked="false" data-type="in-app" onclick="fcPick('in-app')">
+            <span class="fc__method-icon"><i data-lucide="qr-code"></i></span>
+            <span class="fc__method-main">
+              <span class="fc__method-name">Flot App</span>
+              <span class="fc__method-desc">Scan with the Flot app to pay</span>
+            </span>
+            <span class="fc__method-tick"><i data-lucide="check"></i></span>
+          </button>
+        </div>
+        <button type="button" class="fc__btn" id="fcPay" disabled onclick="fcStart()">Continue to Pay</button>
+        <p class="fc__hint" id="fcPickErr" role="alert" style="color:#C34A36;"></p>
       </div>
-      <iframe class="payment-popup__iframe" id="paymentIframe" title="Payment checkout"></iframe>
+
+      <!-- Loading -->
+      <div class="fc__body" id="fcLoading" hidden>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;padding:2rem 0;">
+          <div class="payment-popup__spinner"></div>
+          <div class="payment-popup__loading-text">Generating your payment…</div>
+        </div>
+      </div>
+
+      <!-- QR (card / in-app) -->
+      <div class="fc__body" id="fcQr" hidden>
+        <p class="fc__hint" id="fcQrLead">Scan to pay</p>
+        <img class="fc__qr" id="fcQrImg" alt="QR code to open the payment page" width="210" height="210">
+        <p class="fc__hint">Or open the payment page directly:</p>
+        <a class="fc__link" id="fcQrLink" target="_blank" rel="noopener noreferrer">Open payment page</a>
+        <div class="fc__waiting"><span class="fc__pulse"></span><span id="fcQrWait">Waiting for payment…</span></div>
+        <button type="button" class="fc__btn fc__btn--ghost" onclick="fcBackToPick()">Choose another method</button>
+      </div>
+
+      <!-- USSD (momo) -->
+      <div class="fc__body" id="fcUssd" hidden>
+        <p class="fc__hint">Dial this code on the phone you are paying from:</p>
+        <div class="fc__ussd">
+          <span class="fc__ussd-code" id="fcUssdCode">*000#</span>
+          <button type="button" class="fc__copy" id="fcCopy" onclick="fcCopyCode()">Copy</button>
+        </div>
+        <p class="fc__hint">Amount to pay: <b id="fcUssdAmt"></b></p>
+        <div class="fc__waiting"><span class="fc__pulse"></span><span id="fcUssdWait">Waiting for payment…</span></div>
+        <button type="button" class="fc__btn fc__btn--ghost" onclick="fcBackToPick()">Choose another method</button>
+      </div>
+
+      <!-- Result: completed / failed / timed out -->
+      <div class="fc__body" id="fcResult" hidden>
+        <div class="fc__result">
+          <span class="fc__result-mark" id="fcResultMark"><i data-lucide="check"></i></span>
+          <div class="fc__result-title" id="fcResultTitle">Payment received</div>
+          <p class="fc__hint" id="fcResultText"></p>
+          <div class="fc__receipt" id="fcReceipt" hidden>
+            <div class="fc__receipt-row"><span>Amount</span><span id="fcRcAmt"></span></div>
+            <div class="fc__receipt-row"><span>Booking</span><span id="fcRcOrder"></span></div>
+            <div class="fc__receipt-row"><span>Reference</span><span id="fcRcRef"></span></div>
+            <div class="fc__receipt-row"><span>Date</span><span id="fcRcDate"></span></div>
+          </div>
+        </div>
+        <button type="button" class="fc__btn" id="fcResultBtn" onclick="fcDismiss()">Done</button>
+      </div>
+
+      <div class="fc__test" id="fcTestBadge" hidden>Test mode &middot; no real money moves</div>
     </div>
   </div>
 
@@ -6928,24 +7319,17 @@
       const saved = await saveBooking(record);
       if (saved && saved.id) bwState.bookingId = saved.id;
 
-      const params = new URLSearchParams({
-        room: bwState.room,
-        roomName: bwState.label,
-        checkin: t.ci,
-        checkout: t.co,
-        guests: document.getElementById('bwGuests').value,
-        nights: t.nights,
-        name: document.getElementById('bwName').value.trim(),
-        email: document.getElementById('bwEmail').value.trim(),
-        phone: document.getElementById('bwPhone').value.trim(),
-        requests: document.getElementById('bwRequests').value.trim(),
-        payment: bwState.payment,
-        amount: bwState.payment === 'full' ? t.total : t.deposit,
-        total: t.total,
-        ref: bwState.bookingId ? 'belvoir-' + bwState.bookingId : ''
-      });
       closeBookWizard();
-      openPaymentPopup('https://pay.flotme.ai/belvoirhotel?' + params.toString());
+
+      // The amount is not passed to the checkout: the server reads it from the
+      // booking row, so it cannot be altered from the browser.
+      if (saved && saved.id) {
+        openFlotCheckout(saved.id, bwState.claim, bwState.payment === 'full' ? t.total : t.deposit);
+      } else {
+        // The booking could not be saved, so it is queued locally and the guest
+        // is told rather than being sent to a checkout nothing can reconcile.
+        openFlotCheckout(null, null, bwState.payment === 'full' ? t.total : t.deposit);
+      }
     }
 
     document.addEventListener('keydown', function(e) {
@@ -6958,31 +7342,225 @@
       }
     });
 
-    function openPaymentPopup(url) {
-      const popup = document.getElementById('paymentPopup');
-      const iframe = document.getElementById('paymentIframe');
-      const loading = document.getElementById('paymentLoading');
+    /* ─── Flot checkout ───────────────────────────────────────────────
+       The booking id is the order id, so a completed payment reconciles
+       straight back to the booking. Status is polled rather than relying
+       on the webhook, which keeps this working whatever Flot posts where. */
 
-      loading.style.display = 'flex';
-      iframe.src = '';
-      popup.classList.add('active');
+    const FC_POLL_MS = 3000;
+    const FC_TIMEOUT_MS = 10 * 60 * 1000;
+
+    let fcState = { bookingId: null, claim: null, usd: 0, type: null,
+                    orderId: null, attemptId: null, timer: null, startedAt: 0 };
+
+    const fcPanels = ['fcPick', 'fcLoading', 'fcQr', 'fcUssd', 'fcResult'];
+
+    function fcShow(id) {
+      fcPanels.forEach(p => { document.getElementById(p).hidden = (p !== id); });
+    }
+
+    function fcStopPolling() {
+      if (fcState.timer) { clearInterval(fcState.timer); fcState.timer = null; }
+    }
+
+    function openFlotCheckout(bookingId, claim, usd) {
+      fcStopPolling();
+      fcState = { bookingId: bookingId, claim: claim, usd: usd, type: null,
+                  orderId: null, attemptId: null, timer: null, startedAt: 0 };
+
+      document.getElementById('fcAmount').textContent = '$' + Number(usd).toLocaleString();
+      document.getElementById('fcAmountSub').textContent =
+        bwState.payment === 'deposit' ? 'Deposit due now' : 'Amount due';
+      document.getElementById('fcPickErr').textContent = bookingId
+        ? ''
+        : 'We could not confirm your booking just now. It is saved on this device and we will pick it up, but please contact us before paying.';
+
+      document.querySelectorAll('#fcPick .fc__method').forEach(m => m.setAttribute('aria-checked', 'false'));
+      document.getElementById('fcPay').disabled = true;
+      document.getElementById('fcTestBadge').hidden = true;
+
+      fcShow('fcPick');
+      document.getElementById('paymentPopup').classList.add('active');
       document.body.style.overflow = 'hidden';
-
-      iframe.src = url;
-      iframe.onload = function() {
-        loading.style.display = 'none';
-      };
-
+      if (typeof lenis !== 'undefined') lenis.stop();
       lucide.createIcons({ nodes: document.querySelectorAll('#paymentPopup [data-lucide]') });
+      document.getElementById('fcClose').focus();
     }
 
-    function closePaymentPopup() {
-      const popup = document.getElementById('paymentPopup');
-      const iframe = document.getElementById('paymentIframe');
-      iframe.src = '';
-      popup.classList.remove('active');
-      document.body.style.overflow = '';
+    function fcPick(type) {
+      fcState.type = type;
+      document.querySelectorAll('#fcPick .fc__method').forEach(m => {
+        m.setAttribute('aria-checked', String(m.dataset.type === type));
+      });
+      document.getElementById('fcPay').disabled = !fcState.bookingId;
     }
+
+    async function fcStart() {
+      if (!fcState.type || !fcState.bookingId) return;
+      fcShow('fcLoading');
+      try {
+        const res = await fetch('/api/flot-payment-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: fcState.bookingId,
+            claim: fcState.claim,
+            type: fcState.type
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start the payment.');
+
+        fcState.orderId = data.orderId;
+        fcState.attemptId = data.attemptId;
+        // Remember what was actually charged: the receipt shows this rather
+        // than whatever the status response echoes back
+        fcState.charged = data.amount;
+        fcState.currency = data.currency;
+        document.getElementById('fcTestBadge').hidden = !data.testMode;
+
+        const money = (data.currency === 'SLE' ? 'Le ' : '$') +
+                      Number(data.amount).toLocaleString();
+
+        if (data.code) {
+          document.getElementById('fcUssdCode').textContent = data.code;
+          document.getElementById('fcUssdAmt').textContent = money;
+          fcShow('fcUssd');
+        } else if (data.link) {
+          document.getElementById('fcQrLead').textContent =
+            fcState.type === 'card' ? 'Scan to pay by card' : 'Scan with the Flot app';
+          const img = document.getElementById('fcQrImg');
+          if (data.qrDataUrl) { img.src = data.qrDataUrl; img.hidden = false; }
+          else { img.hidden = true; }
+          const link = document.getElementById('fcQrLink');
+          link.href = data.link;
+          fcShow('fcQr');
+        } else {
+          throw new Error('The payment provider returned nothing to pay with.');
+        }
+        fcBeginPolling();
+      } catch (err) {
+        fcResult('failed', err.message);
+      }
+    }
+
+    function fcBeginPolling() {
+      fcStopPolling();
+      fcState.startedAt = Date.now();
+      const tick = async () => {
+        const elapsed = Date.now() - fcState.startedAt;
+        if (elapsed > FC_TIMEOUT_MS) {
+          fcStopPolling();
+          return fcResult('timeout');
+        }
+        const mins = Math.floor(elapsed / 60000);
+        const secs = Math.floor((elapsed % 60000) / 1000);
+        const label = 'Waiting for payment… ' + mins + 'm ' + String(secs).padStart(2, '0') + 's';
+        const w1 = document.getElementById('fcQrWait');
+        const w2 = document.getElementById('fcUssdWait');
+        if (w1) w1.textContent = label;
+        if (w2) w2.textContent = label;
+
+        try {
+          const url = '/api/flot-status?orderId=' + encodeURIComponent(fcState.orderId) +
+                      '&attemptId=' + encodeURIComponent(fcState.attemptId);
+          const res = await fetch(url);
+          if (!res.ok) return; // transient, keep polling
+          const data = await res.json();
+          if (data.status === 'completed') {
+            fcStopPolling();
+            fcResult('completed', null, data);
+          } else if (data.status === 'failed') {
+            // A card error only. The booking stays open so the guest can retry.
+            fcStopPolling();
+            fcResult('failed');
+          }
+        } catch (e) { /* offline or transient, keep polling */ }
+      };
+      fcState.timer = setInterval(tick, FC_POLL_MS);
+      tick();
+    }
+
+    function fcResult(kind, message, data) {
+      const mark = document.getElementById('fcResultMark');
+      const title = document.getElementById('fcResultTitle');
+      const text = document.getElementById('fcResultText');
+      const receipt = document.getElementById('fcReceipt');
+      const btn = document.getElementById('fcResultBtn');
+
+      receipt.hidden = true;
+
+      if (kind === 'completed') {
+        mark.className = 'fc__result-mark fc__result-mark--ok';
+        mark.innerHTML = '<i data-lucide="check"></i>';
+        title.textContent = 'Payment received';
+        text.textContent = 'Thank you. Your reservation is confirmed. Please keep the reference below, our team will be in touch shortly.';
+        const cur = fcState.currency || (data && data.currency) || 'USD';
+        const paid = Number(fcState.charged || (data && data.amount) || fcState.usd);
+        document.getElementById('fcRcAmt').textContent =
+          (cur === 'SLE' ? 'Le ' : '$') + paid.toLocaleString();
+        document.getElementById('fcRcOrder').textContent = fcState.orderId || '—';
+        document.getElementById('fcRcRef').textContent = fcState.attemptId || '—';
+        document.getElementById('fcRcDate').textContent = new Date().toLocaleString('en-GB');
+        receipt.hidden = false;
+        btn.textContent = 'Done';
+        btn.onclick = fcDismiss;
+      } else if (kind === 'timeout') {
+        mark.className = 'fc__result-mark fc__result-mark--warn';
+        mark.innerHTML = '<i data-lucide="clock"></i>';
+        title.textContent = 'Payment timed out';
+        text.textContent = 'We waited ten minutes without a confirmation. Your booking is still open, so you can try again.';
+        btn.textContent = 'Try again';
+        btn.onclick = fcBackToPick;
+      } else {
+        mark.className = 'fc__result-mark fc__result-mark--warn';
+        mark.innerHTML = '<i data-lucide="alert-triangle"></i>';
+        title.textContent = 'Payment not completed';
+        text.textContent = message ||
+          'That payment did not go through. Your booking is still open, so you can try another method.';
+        btn.textContent = 'Try another method';
+        btn.onclick = fcBackToPick;
+      }
+
+      fcShow('fcResult');
+      lucide.createIcons({ nodes: document.querySelectorAll('#fcResult [data-lucide]') });
+      btn.focus();
+    }
+
+    function fcBackToPick() {
+      // Reuse the same orderId so Flot opens a new attempt on the same order
+      fcStopPolling();
+      fcState.attemptId = null;
+      document.getElementById('fcPickErr').textContent = '';
+      fcShow('fcPick');
+    }
+
+    function fcCopyCode() {
+      const code = document.getElementById('fcUssdCode').textContent;
+      const btn = document.getElementById('fcCopy');
+      const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1600); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done).catch(() => {});
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    }
+
+    /** Closing is blocked while a payment is genuinely in flight. */
+    function fcDismiss() {
+      const polling = !!fcState.timer;
+      if (polling && !confirm('Your payment is still being confirmed. Close anyway?')) return;
+      fcStopPolling();
+      document.getElementById('paymentPopup').classList.remove('active');
+      document.body.style.overflow = '';
+      if (typeof lenis !== 'undefined') lenis.start();
+    }
+
+    // Kept so any older call site still resolves to the new checkout
+    function closePaymentPopup() { fcDismiss(); }
 
     /* ─── Smooth Scroll for Anchor Links ─── */
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {

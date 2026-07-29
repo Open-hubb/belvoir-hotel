@@ -35,3 +35,7 @@ remotion/out/
 
 # Handoff notes (contains live secrets)
 HANDOFF.md
+
+# Flot private key (never commit)
+*.pem
+private_key*.pem

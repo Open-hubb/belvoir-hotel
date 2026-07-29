@@ -12,7 +12,8 @@
   "type": "commonjs",
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
-    "puppeteer": "^24.40.0"
+    "puppeteer": "^24.40.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "vercel": "^51.4.0"
