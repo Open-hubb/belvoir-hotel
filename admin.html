@@ -27,9 +27,15 @@
       --sans: 'Josefin Sans', sans-serif;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* The dashboard is read at arm's length all day, so the whole rem scale is
+       lifted rather than resizing each rule. Type, padding and gaps grow
+       together and the layout keeps its proportions. */
+    html { font-size: 115%; }
+
     body {
       font-family: var(--sans);
-      font-weight: 300;
+      font-weight: 400;
       color: var(--navy);
       background-color: var(--cream);
       background-image:
@@ -60,11 +66,11 @@
     }
     .login__logo { width: 140px; height: auto; margin: 0 auto 1.25rem; display: block; }
     .login__title { font-family: var(--serif); font-size: 1.9rem; font-weight: 600; }
-    .login__sub { font-size: 0.82rem; color: var(--ink-soft); margin: 0.4rem 0 1.5rem; }
+    .login__sub { font-size: 0.88rem; color: var(--ink-soft); margin: 0.4rem 0 1.5rem; }
     .login__label {
       display: block;
       text-align: left;
-      font-size: 0.62rem;
+      font-size: 0.7rem;
       font-weight: 500;
       letter-spacing: 0.18em;
       text-transform: uppercase;
@@ -82,12 +88,12 @@
       background: #fff;
     }
     .login input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(176,141,87,0.18); }
-    .login__err { display: none; color: var(--red-warn); font-size: 0.8rem; margin-bottom: 0.9rem; }
+    .login__err { display: none; color: var(--red-warn); font-size: 0.86rem; margin-bottom: 0.9rem; }
     .login__err.show { display: block; }
 
     .btn {
       font-family: var(--sans);
-      font-size: 0.7rem;
+      font-size: 0.78rem;
       font-weight: 500;
       letter-spacing: 0.18em;
       text-transform: uppercase;
@@ -103,7 +109,7 @@
     .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
     .btn--ghost { background: transparent; color: var(--navy); border: 1.5px solid rgba(12,27,51,0.25); }
     .btn--ghost:hover { box-shadow: none; border-color: var(--navy); }
-    .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.6rem; }
+    .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.68rem; }
 
     .sr-only {
       position: absolute;
@@ -129,7 +135,7 @@
     .head__brand { display: flex; align-items: center; gap: 1rem; }
     .head__brand img { width: 84px; height: auto; }
     .head__title { font-family: var(--serif); font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 600; line-height: 1.1; }
-    .head__sub { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+    .head__sub { font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
     .head__actions { display: flex; gap: 0.6rem; }
 
     .stats {
@@ -144,8 +150,14 @@
       padding: 1.1rem 1.3rem;
       box-shadow: 0 2px 6px rgba(12,27,51,0.05), 0 14px 32px rgba(12,27,51,0.08);
     }
+    /* Cormorant defaults to oldstyle figures, where 1 reads as I and 0 as o.
+       Fine in prose, wrong for a number someone has to scan. */
+    .stat strong, .card__money strong, .card__date, .badge {
+      font-variant-numeric: lining-nums tabular-nums;
+      font-feature-settings: 'lnum' 1, 'tnum' 1;
+    }
     .stat strong { display: block; font-family: var(--serif); font-size: 1.7rem; font-weight: 600; line-height: 1.2; }
-    .stat span { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
+    .stat span { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
     .stat--gold strong { color: var(--gold); }
     .stat--green strong { color: var(--green-ok); }
     .stat--red strong { color: var(--red-warn); }
@@ -160,7 +172,7 @@
     .tabs { display: flex; background: var(--paper); border-radius: 999px; padding: 0.25rem; box-shadow: 0 2px 8px rgba(12,27,51,0.07); }
     .tab {
       font-family: var(--sans);
-      font-size: 0.66rem;
+      font-size: 0.74rem;
       letter-spacing: 0.14em;
       text-transform: uppercase;
       border: none;
@@ -179,7 +191,7 @@
       border-radius: 999px;
       background: var(--gold);
       color: var(--navy);
-      font-size: 0.58rem;
+      font-size: 0.66rem;
       line-height: 17px;
       text-align: center;
       vertical-align: middle;
@@ -187,7 +199,7 @@
     .badge:empty { display: none; }
     .enq__msg {
       grid-column: 1 / -1;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       line-height: 1.6;
       color: var(--navy);
       background: var(--cream);
@@ -203,7 +215,7 @@
       flex: 1;
       min-width: 180px;
       font-family: var(--sans);
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       padding: 0.7rem 1.1rem;
       border: 1.5px solid rgba(12,27,51,0.14);
       border-radius: 999px;
@@ -222,16 +234,16 @@
       gap: 1rem;
       align-items: center;
     }
-    .card__who strong { font-weight: 500; font-size: 0.95rem; display: block; }
-    .card__who a { color: var(--ink-soft); font-size: 0.76rem; text-decoration: none; display: block; word-break: break-all; }
+    .card__who strong { font-weight: 500; font-size: 1rem; display: block; }
+    .card__who a { color: var(--ink-soft); font-size: 0.82rem; text-decoration: none; display: block; word-break: break-all; }
     .card__who a:hover { color: var(--gold); }
-    .card__meta { font-size: 0.78rem; color: var(--ink-soft); }
-    .card__meta strong { color: var(--navy); font-weight: 500; display: block; font-size: 0.88rem; }
-    .card__money { font-size: 0.76rem; color: var(--ink-soft); }
+    .card__meta { font-size: 0.84rem; color: var(--ink-soft); }
+    .card__meta strong { color: var(--navy); font-weight: 500; display: block; font-size: 0.92rem; }
+    .card__money { font-size: 0.82rem; color: var(--ink-soft); }
     .card__money strong { display: block; font-family: var(--serif); font-size: 1.25rem; font-weight: 600; color: var(--navy); }
     .card__side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
     .pill {
-      font-size: 0.6rem;
+      font-size: 0.68rem;
       letter-spacing: 0.14em;
       text-transform: uppercase;
       font-weight: 500;
@@ -243,13 +255,13 @@
     .pill--dep { background: var(--peach); color: var(--navy); }
     .card__requests {
       grid-column: 1 / -1;
-      font-size: 0.78rem;
+      font-size: 0.84rem;
       color: var(--ink-soft);
       background: var(--cream);
       border-radius: 12px;
       padding: 0.55rem 0.9rem;
     }
-    .card__date { font-size: 0.66rem; color: rgba(12,27,51,0.45); }
+    .card__date { font-size: 0.74rem; color: rgba(12,27,51,0.45); }
     .empty {
       text-align: center;
       padding: 4rem 1rem;
@@ -339,6 +351,44 @@
     const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const fmtWhen = s => new Date(s).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+
+    // The address replies should be sent from. mailto cannot set the sender, so
+    // this is used to pick the right account in webmail and to warn if the mail
+    // app is signed in as somebody else.
+    const REPLY_FROM = 'info@belvoir-estates.com';
+
+    /**
+     * Opens the admin's mail client with a reply already drafted: greeting,
+     * a space to type, signature, and the guest's original enquiry quoted
+     * underneath so there is context without switching back to the dashboard.
+     */
+    function replyLink(e, STAY) {
+      const first = String(e.name || '').trim().split(/\s+/)[0] || 'there';
+      const quoted = String(e.message || '')
+        .split('\n')
+        .map(l => '> ' + l)
+        .join('\n');
+      const body =
+        'Dear ' + first + ',\n\n' +
+        'Thank you for getting in touch with Belvoir Hotel & Residence.\n\n' +
+        '\n\n' +
+        'Kind regards,\n' +
+        'Belvoir Hotel & Residence\n' +
+        'Belvoir Avenue, off Wilkinson Road, Freetown\n' +
+        '+232 77 777 063 · ' + REPLY_FROM + '\n\n' +
+        '--------------------------------------------\n' +
+        'On ' + fmtWhen(e.created_at) + ' ' + (e.name || 'a guest') + ' wrote:\n' +
+        '(' + ((STAY && STAY[e.stay_type]) || 'General enquiry') + ')\n\n' +
+        quoted;
+
+      // Encode everything, then put the @ back: some mail clients read a
+      // percent-encoded address as empty, and encoding first means a stray
+      // quote in the address cannot break out of the href attribute.
+      const to = encodeURIComponent(e.email || '').replace(/%40/g, '@');
+      return 'mailto:' + to +
+             '?subject=' + encodeURIComponent('Re: your enquiry - Belvoir Hotel') +
+             '&body=' + encodeURIComponent(body);
+    }
 
     async function api(method, body, path) {
       const res = await fetch(path || '/api/bookings', {
@@ -482,6 +532,7 @@
       $('list').innerHTML = rows.map(e => {
         const done = e.status === 'handled';
         const subject = encodeURIComponent('Re: your enquiry - Belvoir Hotel');
+        const reply = replyLink(e, STAY);
         return '<article class="card" data-eid="' + e.id + '">' +
           '<div class="card__who">' +
             '<strong>' + esc(e.name) + '</strong>' +
@@ -495,7 +546,7 @@
           '</div>' +
           '<div class="card__side">' +
             '<span class="pill ' + (done ? 'pill--done' : 'pill--new') + '">' + (done ? 'Handled' : 'New') + '</span>' +
-            '<a class="btn btn--sm" style="text-decoration:none;" href="mailto:' + esc(e.email) + '?subject=' + subject + '">Reply</a>' +
+            '<a class="btn btn--sm" style="text-decoration:none;" href="' + reply + '">Reply</a>' +
             '<button class="btn btn--sm btn--ghost" onclick="markEnquiry(' + e.id + ', \'' + (done ? 'new' : 'handled') + '\')">' +
               (done ? 'Mark New' : 'Mark Handled') + '</button>' +
           '</div>' +
