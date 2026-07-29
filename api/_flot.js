@@ -40,12 +40,26 @@ function hasKey() {
   }
 }
 
+/**
+ * PEM text survives a round trip through Vercel in several shapes: real
+ * newlines, escaped "\n", and, when the source file had Windows line endings,
+ * a literal "\r" left sitting inside the base64. Any of those break the
+ * decoder, so every form is normalised back to plain LF here.
+ */
+function normalisePem(text) {
+  return String(text || '')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/\r/g, '')
+    .trim();
+}
+
 function privateKey() {
   if (process.env.FLOT_PRIVATE_KEY) {
-    // Vercel env vars collapse newlines, so accept the escaped form too
-    return process.env.FLOT_PRIVATE_KEY.replace(/\\n/g, '\n');
+    return normalisePem(process.env.FLOT_PRIVATE_KEY);
   }
-  return fs.readFileSync(process.env.FLOT_PRIVATE_KEY_PATH, 'utf8');
+  return normalisePem(fs.readFileSync(process.env.FLOT_PRIVATE_KEY_PATH, 'utf8'));
 }
 
 function sign(input) {
