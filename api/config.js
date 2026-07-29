@@ -13,6 +13,8 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=300');
   return res.status(200).json({
     leRate: F.LE_RATE,
+    currencies: F.CURRENCIES,
+    defaultCurrency: F.DEFAULT_CURRENCY,
     currency: { card: F.CURRENCY.card, momo: F.CURRENCY.momo, 'in-app': F.CURRENCY['in-app'] },
   });
 };

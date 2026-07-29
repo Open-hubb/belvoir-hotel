@@ -27,6 +27,12 @@ module.exports = async (req, res) => {
   const type = String(body.type || '');
   const claim = body.claim ? String(body.claim) : '';
 
+  // The guest picks the currency, so the payment lands in the matching merchant
+  // wallet. An unrecognised value falls back to the method default rather than
+  // being passed through to Flot.
+  const wanted = String(body.currency || '').toUpperCase();
+  const currencyChoice = F.CURRENCIES.includes(wanted) ? wanted : (F.CURRENCY[type] || 'SLE');
+
   if (!bookingId || !F.TYPES.includes(type)) {
     return res.status(400).json({ error: 'A booking id and a valid payment type are required.' });
   }
@@ -52,7 +58,7 @@ module.exports = async (req, res) => {
     const usd = Number(booking.amount_due || booking.total || 0);
     if (!(usd > 0)) return res.status(400).json({ error: 'This booking has no amount due.' });
 
-    const { amount, currency } = F.amountFor(usd, type);
+    const { amount, currency } = F.amountFor(usd, currencyChoice);
     const orderId = F.orderIdFor(bookingId);
 
     F.log('PAYMENT_LINK_REQUEST', { orderId, bookingId, type, amount, currency });

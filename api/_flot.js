@@ -18,8 +18,9 @@ const TEST_MODE =
   !MERCHANT_ID ||
   !hasKey();
 
-// Card settles in USD so the room rate is charged as quoted. Mobile Money and
-// the Flot app settle in SLE, converted at FLOT_LE_RATE.
+// The guest chooses the currency at checkout and the payment settles into the
+// matching merchant wallet. These stay as the fallback when a request does not
+// name one, and as the default the picker opens on.
 const CURRENCY = {
   card: process.env.FLOT_CURRENCY_CARD || 'USD',
   momo: process.env.FLOT_CURRENCY_MOMO || 'SLE',
@@ -29,6 +30,12 @@ const CURRENCY = {
 const LE_RATE = Number(process.env.FLOT_LE_RATE || 24);
 
 const TYPES = ['card', 'momo', 'in-app'];
+const CURRENCIES = ['SLE', 'USD'];
+
+/** The currency the checkout opens on. Quoted rates are USD, so USD is least surprising. */
+const DEFAULT_CURRENCY = CURRENCIES.includes(process.env.FLOT_DEFAULT_CURRENCY)
+  ? process.env.FLOT_DEFAULT_CURRENCY
+  : 'USD';
 
 function hasKey() {
   if (process.env.FLOT_PRIVATE_KEY) return true;
@@ -113,11 +120,16 @@ function log(event, data) {
   console.log(JSON.stringify(entry));
 }
 
-/** Amount to charge for a booking in the currency the chosen method settles in. */
-function amountFor(usd, type) {
-  const currency = CURRENCY[type] || 'SLE';
-  const value = currency === 'SLE' ? Number(usd) * LE_RATE : Number(usd);
-  return { amount: value.toFixed(2), currency };
+/**
+ * Amount to charge, in the currency the guest picked. Prices are held in USD,
+ * so SLE is converted at LE_RATE and USD is charged as quoted. The currency is
+ * validated against CURRENCIES by the caller; anything else falls back to the
+ * method's default rather than charging an unknown currency.
+ */
+function amountFor(usd, currency) {
+  const cur = CURRENCIES.includes(currency) ? currency : 'SLE';
+  const value = cur === 'SLE' ? Number(usd) * LE_RATE : Number(usd);
+  return { amount: value.toFixed(2), currency: cur };
 }
 
 /** Order id the webhook and the dashboard both reconcile against. */
@@ -162,6 +174,8 @@ module.exports = {
   MERCHANT_ID,
   TEST_MODE,
   CURRENCY,
+  CURRENCIES,
+  DEFAULT_CURRENCY,
   LE_RATE,
   TYPES,
   signBody,
