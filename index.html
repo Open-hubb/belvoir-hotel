@@ -3605,7 +3605,7 @@
     ═══════════════════════════════════════════════════════════════ */
     .cat-cards {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: clamp(1.5rem, 3vw, 2.5rem);
       margin-bottom: clamp(4rem, 8vh, 6rem);
     }
@@ -3652,12 +3652,16 @@
       opacity: 0.75;
     }
 
-    .cat-card--suites .cat-card__wash {
-      background: linear-gradient(165deg, var(--fh-blush) 0%, var(--fh-terra) 100%);
+    .cat-card--rooms .cat-card__wash {
+      background: linear-gradient(165deg, var(--fh-blue) 0%, var(--fhero-green) 100%);
     }
 
-    .cat-card--standard .cat-card__wash {
-      background: linear-gradient(165deg, var(--fh-blue) 0%, var(--fhero-green) 100%);
+    .cat-card--studio .cat-card__wash {
+      background: linear-gradient(165deg, var(--fh-butter) 0%, var(--fh-terra) 100%);
+    }
+
+    .cat-card--apartments .cat-card__wash {
+      background: linear-gradient(165deg, var(--fh-blush) 0%, var(--fh-terra) 100%);
     }
 
     .cat-card::after {
@@ -3700,8 +3704,9 @@
       transition: transform 0.5s var(--ease-spring);
     }
 
-    .cat-card--suites .cat-card__arrow { background: var(--fh-butter); }
-    .cat-card--standard .cat-card__arrow { background: var(--fh-paper); }
+    .cat-card--rooms .cat-card__arrow { background: var(--fh-paper); }
+    .cat-card--studio .cat-card__arrow { background: var(--fh-blue); }
+    .cat-card--apartments .cat-card__arrow { background: var(--fh-butter); }
     .cat-card__arrow i, .cat-card__arrow svg { width: 18px; height: 18px; color: #11332A; }
     .cat-card:hover .cat-card__arrow { transform: rotate(-45deg); }
 
@@ -3756,6 +3761,17 @@
       border: 1px solid rgba(255, 253, 248, 0.45);
       border-radius: 999px;
       padding: 0.5rem 1rem;
+    }
+
+    /* three across needs a middle step, so between 861 and 1080 the first two
+       sit side by side and the third runs full width rather than squeezing
+       all three into ~300px columns */
+    @media (max-width: 1080px) and (min-width: 861px) {
+      .cat-cards { grid-template-columns: repeat(2, 1fr); }
+      .cat-cards > .cat-card:last-child {
+        grid-column: 1 / -1;
+        aspect-ratio: 16 / 7;
+      }
     }
 
     @media (max-width: 860px) {
@@ -3843,6 +3859,10 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: clamp(1.25rem, 2.5vw, 2rem);
+    }
+
+    .cat-overlay__grid--single {
+      grid-template-columns: minmax(0, 560px);
     }
 
     .cat-room {
@@ -4888,47 +4908,66 @@
       <div class="rooms__header">
         <div>
           <div class="section__marker reveal">01 · Accommodations</div>
-          <h2 class="section__title reveal">Suites &<br>Residences</h2>
-          <p class="section__subtitle reveal">Every apartment is equipped with fitted wardrobes, a full kitchen, air conditioning, and balconies overlooking the Atlantic.</p>
+          <h2 class="section__title reveal">Rooms &<br>Residences</h2>
+          <p class="section__subtitle reveal">Air-conditioned en-suite rooms, a studio penthouse, and serviced apartments with full kitchens and balconies overlooking the Atlantic.</p>
         </div>
       </div>
 
       <!-- Accommodation Category Cards -->
       <div class="cat-cards">
-        <article class="cat-card cat-card--suites reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('suites')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('suites');}">
-          <img class="cat-card__img" src="images/card-suites.jpg" alt="Serviced apartment at Belvoir with living room and marble floors" loading="lazy" width="800" height="920">
+        <article class="cat-card cat-card--rooms reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('rooms')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('rooms');}">
+          <img class="cat-card__img" src="images/card-rooms.jpg" alt="Superior deluxe room at Belvoir with king bed" loading="lazy" width="1080" height="810">
           <div class="cat-card__wash" aria-hidden="true"></div>
           <div class="cat-card__meta">
-            <span>Belvoir 01 / Residences</span>
-            <span>Penthouse &middot; One-Bed &middot; Two-Bed</span>
+            <span>Belvoir 01 / Rooms</span>
+            <span>Comfort &middot; Standard &middot; Deluxe &middot; Twin</span>
           </div>
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
-            <h3 class="cat-card__title">Suites &amp; <em>Residences</em><span class="cat-card__dot">.</span></h3>
-            <p class="cat-card__tagline">full apartments and the penthouse, a furnished home in the sky.</p>
-            <div class="cat-card__chips">
-              <span>Penthouse</span>
-              <span>1 &amp; 2 Bedroom</span>
-              <span>Full Kitchen</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="cat-card cat-card--standard reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('standard')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('standard');}">
-          <img class="cat-card__img" src="images/card-standard.jpg" alt="Superior deluxe room at Belvoir with king bed" loading="lazy" width="800" height="920">
-          <div class="cat-card__wash" aria-hidden="true"></div>
-          <div class="cat-card__meta">
-            <span>Belvoir 02 / Rooms</span>
-            <span>Comfort &middot; King &middot; Twin &middot; Ground Floor</span>
-          </div>
-          <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
-          <div class="cat-card__content">
-            <h3 class="cat-card__title">Standard <em>Rooms</em><span class="cat-card__dot">.</span></h3>
+            <h3 class="cat-card__title"><em>Rooms</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">elegant en-suite rooms with breakfast served each morning.</p>
             <div class="cat-card__chips">
               <span>From $70</span>
               <span>Breakfast Included</span>
-              <span>Ground Floor</span>
+              <span>En-suite</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="cat-card cat-card--studio reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('studio')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('studio');}">
+          <img class="cat-card__img" src="images/card-studio.jpg" alt="Studio penthouse at Belvoir with lounge, dining table and balcony doors" loading="lazy" width="810" height="1080">
+          <div class="cat-card__wash" aria-hidden="true"></div>
+          <div class="cat-card__meta">
+            <span>Belvoir 02 / Studio</span>
+            <span>Penthouse</span>
+          </div>
+          <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
+          <div class="cat-card__content">
+            <h3 class="cat-card__title">Studio <em>Penthouse</em><span class="cat-card__dot">.</span></h3>
+            <p class="cat-card__tagline">open-plan living at the summit, a furnished home in the sky.</p>
+            <div class="cat-card__chips">
+              <span>$130</span>
+              <span>Balcony</span>
+              <span>Breakfast</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="cat-card cat-card--apartments reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('apartments')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('apartments');}">
+          <img class="cat-card__img" src="images/card-apartments.jpg" alt="Serviced apartment at Belvoir with living room and marble floors" loading="lazy" width="810" height="1080">
+          <div class="cat-card__wash" aria-hidden="true"></div>
+          <div class="cat-card__meta">
+            <span>Belvoir 03 / Apartments</span>
+            <span>Ground Floor &middot; One&#8209;Bed &middot; Two&#8209;Bed</span>
+          </div>
+          <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
+          <div class="cat-card__content">
+            <h3 class="cat-card__title">Serviced <em>Apartments</em><span class="cat-card__dot">.</span></h3>
+            <p class="cat-card__tagline">full kitchens and living space, for stays of any length.</p>
+            <div class="cat-card__chips">
+              <span>From $80</span>
+              <span>Full Kitchen</span>
+              <span>1 &amp; 2 Bedroom</span>
             </div>
           </div>
         </article>
@@ -5144,7 +5183,7 @@
         </div>
         <div class="services-strip__item reveal">
           <i data-lucide="accessibility"></i>
-          <div><strong>Ground Floor Rooms</strong> Step-free rooms for guests who prefer to avoid stairs</div>
+          <div><strong>Ground Floor Apartment</strong> Step-free living for guests who prefer to avoid stairs</div>
         </div>
         <div class="services-strip__item reveal">
           <i data-lucide="shopping-bag"></i>
@@ -6132,7 +6171,7 @@
     let selectedPayment = '';
 
     const ROOM_PRICES = { comfort: 70, standard: 80, 'ground-floor': 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
-    const ROOM_NAMES = { comfort: 'Superior Double / Comfort Room', standard: 'Deluxe Standard Room', 'ground-floor': 'Ground Floor Room', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
+    const ROOM_NAMES = { comfort: 'Superior Double / Comfort Room', standard: 'Deluxe Standard Room', 'ground-floor': 'Ground Floor One-Bedroom', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
 
 
@@ -6232,24 +6271,30 @@
 
     /* ─────────── Accommodation Categories ─────────── */
     const CATEGORIES = {
-      suites: {
-        title: 'Suites & Residences',
-        tagline: 'Full apartments and the penthouse, living space, kitchens, balconies, and sea views for stays of any length.',
-        rooms: [
-          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] },
-          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen, breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
-          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/apt2-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
-        ]
-      },
-      standard: {
-        title: 'Standard Rooms',
+      rooms: {
+        title: 'Rooms',
         tagline: 'Elegant en-suite rooms with air conditioning, flat-screen TVs, and breakfast served each morning of your stay.',
         rooms: [
           { key: 'comfort', name: 'Superior Double / Comfort Room', price: 70, img: 'images/comfort-1.jpg', gallery: 'comfort', desc: 'Comfortable double room with a lounge chair and work desk, our best value.', chips: ['Double Bed', 'Work Desk', 'Breakfast'] },
           { key: 'standard', name: 'Deluxe Standard Room', price: 80, img: 'images/std-room-1.jpg', gallery: 'standard', desc: 'King bed, en-suite bathroom and modern furnishings, perfect for short stays.', chips: ['King Bed', 'En-suite', 'Breakfast'] },
-          { key: 'ground-floor', name: 'Ground Floor Room', price: 80, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor unit with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Breakfast'] },
           { key: 'superior-deluxe', name: 'Superior Deluxe Room', price: 90, img: 'images/sdlx-1.jpg', gallery: 'superior-deluxe', desc: 'Upgraded king room with premium bedding and a rain-shower en-suite.', chips: ['King Bed', 'Rain Shower', 'Breakfast'] },
           { key: 'superior-twin', name: 'Superior Deluxe Twin', price: 100, img: 'images/twin-1.jpg', gallery: 'superior-twin', desc: 'Two single beds with a lounge area, ideal for friends or colleagues sharing.', chips: ['Twin Beds', 'Lounge Area', 'Breakfast'] }
+        ]
+      },
+      studio: {
+        title: 'Studio Penthouse',
+        tagline: 'Open-plan living at the summit of Belvoir, a kitchen, lounge and balcony under one roof, with breakfast included.',
+        rooms: [
+          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] }
+        ]
+      },
+      apartments: {
+        title: 'Serviced Apartments',
+        tagline: 'Self-contained apartments with full kitchens, living areas and balconies, for stays of any length.',
+        rooms: [
+          { key: 'ground-floor', name: 'Ground Floor One-Bedroom', price: 80, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor apartment with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Breakfast'] },
+          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen, breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
+          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/apt2-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
         ]
       }
     };
@@ -6276,6 +6321,10 @@
           '</div>' +
         '</article>'
       ).join('');
+      // a one-unit category leaves a single narrow card adrift in a wide grid,
+      // so it gets a roomier column instead
+      document.getElementById('catOverlayGrid')
+        .classList.toggle('cat-overlay__grid--single', cat.rooms.length === 1);
       const ov = document.getElementById('catOverlay');
       ov.classList.add('active');
       ov.scrollTop = 0;
@@ -6342,7 +6391,7 @@
         bookValue: 'standard'
       },
       'ground-floor': {
-        title: 'Ground Floor Room',
+        title: 'Ground Floor One-Bedroom',
         desc: 'A self-contained ground floor unit with its own living area, dining space and kitchen, plus a private bedroom and bathroom. No stairs to climb from the entrance.',
         images: [
           { src: 'images/gf-1.jpg', alt: 'Ground floor living area with artwork and dining space' },
