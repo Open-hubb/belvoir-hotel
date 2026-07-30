@@ -25,6 +25,62 @@
   <meta name="twitter:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night.">
   <meta name="twitter:image" content="https://belvoir-hotel.vercel.app/images/og-image.jpg">
 
+  <!-- Structured data. This is what lets a search result carry the rate,
+       location and check-in times rather than just a title and a snippet. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Hotel",
+    "@id": "https://belvoir-hotel.vercel.app/#hotel",
+    "name": "Belvoir Hotel & Furnished Apartment Residence",
+    "description": "Luxury serviced apartments and en-suite rooms with panoramic ocean views in the heart of Freetown, Sierra Leone.",
+    "url": "https://belvoir-hotel.vercel.app/",
+    "image": "https://belvoir-hotel.vercel.app/images/og-image.jpg",
+    "logo": "https://belvoir-hotel.vercel.app/images/logo.png",
+    "telephone": "+232 77 777 063",
+    "email": "info@belvoir-estates.com",
+    "priceRange": "$70-$170",
+    "currenciesAccepted": "USD, SLE",
+    "paymentAccepted": "Cash, Credit Card, Mobile Money",
+    "checkinTime": "14:00",
+    "checkoutTime": "10:00",
+    "petsAllowed": false,
+    "smokingAllowed": false,
+    "numberOfRooms": 8,
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Belvoir Avenue, off Wilkinson Road",
+      "addressLocality": "Freetown",
+      "addressCountry": "SL"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 8.4657,
+      "longitude": -13.2707
+    },
+    "amenityFeature": [
+      { "@type": "LocationFeatureSpecification", "name": "Free WiFi", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "Free parking", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "Air conditioning", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "Airport shuttle", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "Restaurant", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "24-hour front desk", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "On-site mini mart", "value": true },
+      { "@type": "LocationFeatureSpecification", "name": "Laundry service", "value": true }
+    ],
+    "makesOffer": [
+      { "@type": "Offer", "name": "Superior Double / Comfort Room", "price": "70", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Deluxe Standard Room", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Ground Floor One-Bedroom", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Superior Deluxe Room", "price": "90", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Superior Deluxe Twin", "price": "100", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "One-Bedroom Apartment", "price": "125", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Studio Penthouse", "price": "130", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Two-Bedroom Apartment", "price": "170", "priceCurrency": "USD", "availability": "https://schema.org/InStock" }
+    ]
+  }
+  </script>
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3066,6 +3122,33 @@
       gap: 1rem;
     }
 
+    .footer__legal {
+      display: inline-flex;
+      gap: 1.25rem;
+      margin-left: 1.25rem;
+      padding-left: 1.25rem;
+      border-left: 1px solid rgba(176, 141, 87, 0.3);
+    }
+    .footer__legal a {
+      color: var(--color-gold-muted);
+      text-decoration: none;
+      transition: color 0.3s var(--ease-out-expo);
+    }
+    .footer__legal a:hover { color: var(--color-gold); }
+    .footer__legal a:focus-visible {
+      outline: 2px solid var(--color-gold);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+    @media (max-width: 640px) {
+      .footer__legal {
+        display: flex;
+        margin: 0.6rem 0 0;
+        padding: 0;
+        border-left: none;
+      }
+    }
+
     .footer__copy {
       font-size: 0.875rem;
       font-weight: 300;
@@ -6045,6 +6128,9 @@
           <div>
             <strong>Before you continue</strong>
             <p id="bwCurrencyNote"></p>
+            <p style="margin-top:0.5rem;">By continuing you agree to our
+              <a href="/terms" target="_blank" rel="noopener" style="color:var(--fh-terra);text-decoration:underline;text-underline-offset:3px;">booking terms</a>,
+              including the cancellation policy.</p>
           </div>
         </div>
       </section>
@@ -6227,7 +6313,13 @@
       </div>
 
       <div class="footer__bottom">
-        <div class="footer__copy">&copy; <span id="copyrightYear"></span> Belvoir Hotel & Furnished Residence. All rights reserved.</div>
+        <div class="footer__copy">
+          &copy; <span id="copyrightYear"></span> Belvoir Hotel &amp; Furnished Residence. All rights reserved.
+          <span class="footer__legal">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Booking Terms</a>
+          </span>
+        </div>
         <div class="footer__tagline">Built and Powered by <a href="https://www.flotme.ai" target="_blank" rel="noopener noreferrer" style="color: var(--color-gold); text-decoration: underline; text-underline-offset: 3px;">Flot</a></div>
       </div>
     </div>
@@ -7341,12 +7433,51 @@
       if (bwState.step > 1) bwGo(bwState.step - 1);
     }
 
-    function bwNext() {
+    /**
+     * Ask the server whether this room is free. Belvoir holds one of each, so a
+     * clash is a hard stop. A failed check is not treated as unavailable: the
+     * exclusion constraint still catches a genuine clash at checkout, so a
+     * network blip should not block a real booking.
+     */
+    async function bwRoomIsFree(roomKey, ci, co) {
+      try {
+        const res = await fetch('/api/availability?checkin=' + encodeURIComponent(ci) +
+                                '&checkout=' + encodeURIComponent(co));
+        if (!res.ok) return { free: true, checked: false };
+        const data = await res.json();
+        const room = (data.rooms || []).find(r => r.key === roomKey);
+        if (!room) return { free: true, checked: false };
+        return { free: room.available, checked: true, alternatives: data.rooms.filter(r => r.available) };
+      } catch (e) {
+        return { free: true, checked: false };
+      }
+    }
+
+    async function bwNext() {
       const s = bwState.step;
       if (s === 1) {
         const t = bwTotals();
         if (!t.ci || !t.co) return bwShowError('Please choose both a check-in and check-out date.');
         if (new Date(t.co) <= new Date(t.ci)) return bwShowError('Check-out must be after check-in.');
+
+        const btn = document.getElementById('bwNextBtn');
+        const label = document.getElementById('bwNextLabel');
+        const original = label ? label.textContent : '';
+        if (btn) { btn.disabled = true; }
+        if (label) label.textContent = 'Checking availability…';
+
+        const result = await bwRoomIsFree(bwState.room, t.ci, t.co);
+
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = original;
+
+        if (!result.free) {
+          const others = (result.alternatives || []).slice(0, 3).map(r => r.name).join(', ');
+          return bwShowError(
+            'Sorry, the ' + bwState.label + ' is already booked for those dates.' +
+            (others ? ' Still free: ' + others + '.' : ' Please try different dates.')
+          );
+        }
         return bwGo(2);
       }
       if (s === 2) {
@@ -7422,7 +7553,14 @@
         });
         if (!res.ok) {
           const detail = await res.json().catch(() => ({}));
-          throw new Error('HTTP ' + res.status + (detail.error ? ' - ' + detail.error : ''));
+          const err = new Error('HTTP ' + res.status + (detail.error ? ' - ' + detail.error : ''));
+          // A clash is a real answer, not a transport failure. It must not be
+          // retried or queued, or the guest ends up paying for a room that is
+          // already gone.
+          err.status = res.status;
+          err.code = detail.code;
+          err.userMessage = detail.error;
+          throw err;
         }
         return res.json();
       } finally {
@@ -7442,10 +7580,19 @@
       try {
         return await postBooking(record);
       } catch (first) {
+        // A room clash or a rejected booking is the server's final answer.
+        // Retrying or queueing it would send the guest to pay for a room they
+        // cannot have, so it is surfaced immediately instead.
+        if (first.code === 'ROOM_UNAVAILABLE' || first.status === 409 || first.status === 400) {
+          throw first;
+        }
         console.warn('Booking save failed, retrying:', first.message);
         try {
           return await postBooking(record, 10000);
         } catch (second) {
+          if (second.code === 'ROOM_UNAVAILABLE' || second.status === 409 || second.status === 400) {
+            throw second;
+          }
           console.error('Booking could not be saved, queued for retry:', second.message);
           queueBooking(record);
           return null;
@@ -7479,7 +7626,20 @@
         id: bwState.bookingId,
         claim: bwState.claim
       });
-      const saved = await saveBooking(record);
+      let saved;
+      try {
+        saved = await saveBooking(record);
+      } catch (err) {
+        // The room went while they were filling in details, or the server
+        // rejected the stay. Keep them in the wizard so they can pick again
+        // rather than sending them to pay for something unavailable.
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1';
+        bwShowError(err.userMessage ||
+          'We could not confirm that room. Please choose different dates or another room.');
+        if (err.code === 'ROOM_UNAVAILABLE') bwGo(1);
+        return;
+      }
       if (saved && saved.id) bwState.bookingId = saved.id;
 
       closeBookWizard();
@@ -7487,7 +7647,7 @@
       // The amount is not passed to the checkout: the server reads it from the
       // booking row, so it cannot be altered from the browser.
       if (saved && saved.id) {
-        openFlotCheckout(saved.id, bwState.claim, bwState.payment === 'full' ? t.total : t.deposit);
+        openFlotCheckout(saved.id, bwState.claim, bwState.payment === 'full' ? t.total : t.deposit, saved.reference);
       } else {
         // The booking could not be saved, so it is queued locally and the guest
         // is told rather than being sent to a checkout nothing can reconcile.
@@ -7537,9 +7697,10 @@
       if (fcState.timer) { clearInterval(fcState.timer); fcState.timer = null; }
     }
 
-    function openFlotCheckout(bookingId, claim, usd) {
+    function openFlotCheckout(bookingId, claim, usd, reference) {
       fcStopPolling();
       fcState = { bookingId: bookingId, claim: claim, usd: usd, type: null,
+                  reference: reference || null,
                   currency: FC_DEFAULT_CURRENCY,
                   orderId: null, attemptId: null, timer: null, startedAt: 0 };
 
@@ -7711,7 +7872,7 @@
         const paid = Number(fcState.charged || (data && data.amount) || fcState.usd);
         document.getElementById('fcRcAmt').textContent =
           (cur === 'SLE' ? 'Le ' : '$') + paid.toLocaleString();
-        document.getElementById('fcRcOrder').textContent = fcState.orderId || '—';
+        document.getElementById('fcRcOrder').textContent = fcState.reference || fcState.orderId || '—';
         document.getElementById('fcRcRef').textContent = fcState.attemptId || '—';
         document.getElementById('fcRcDate').textContent = new Date().toLocaleString('en-GB');
         receipt.hidden = false;

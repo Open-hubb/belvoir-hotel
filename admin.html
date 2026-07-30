@@ -253,6 +253,46 @@
     .pill--paid { background: rgba(46,125,87,0.14); color: var(--green-ok); }
     .pill--unpaid { background: rgba(195,74,54,0.12); color: var(--red-warn); }
     .pill--dep { background: var(--peach); color: var(--navy); }
+    .pill--cancelled { background: rgba(12,27,51,0.1); color: var(--ink-soft); }
+
+    /* Blocked dates */
+    .card--form { display: block; }
+    .blk__form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
+      align-items: end;
+    }
+    .blk__field { display: flex; flex-direction: column; gap: 0.3rem; }
+    .blk__field--wide { grid-column: span 2; }
+    .blk__field label {
+      font-size: 0.7rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .blk__field select, .blk__field input {
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      padding: 0.6rem 0.75rem;
+      border: 1.5px solid rgba(12,27,51,0.18);
+      border-radius: 10px;
+      background: #fff;
+      min-height: 44px;
+    }
+    .blk__field select:focus, .blk__field input:focus {
+      outline: none; border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(176,141,87,0.18);
+    }
+    .blk__note { color: var(--red-warn); font-size: 0.86rem; margin-top: 0.6rem; }
+    .blk__note:empty { display: none; }
+    @media (max-width: 620px) { .blk__field--wide { grid-column: span 1; } }
+
+    /* A cancelled booking stays on the list as a record, but must not read as
+       something the front desk still has to act on. */
+    .card--cancelled { opacity: 0.55; }
+    .card--cancelled .card__who strong,
+    .card--cancelled .card__meta strong { text-decoration: line-through; }
     .card__requests {
       grid-column: 1 / -1;
       font-size: 0.84rem;
@@ -322,6 +362,7 @@
           <button class="tab active" data-v="bookings">Bookings</button>
           <button class="tab" data-v="enquiries">Enquiries <span class="badge" id="enqBadge"></span></button>
           <button class="tab" data-v="payments">Payments <span class="badge" id="payBadge"></span></button>
+          <button class="tab" data-v="blocks">Blocked</button>
         </div>
         <div class="tabs" id="tabs">
           <button class="tab active" data-f="all">All</button>
@@ -344,6 +385,7 @@
     let BOOKINGS = [];
     let ENQUIRIES = [];
     let PAYMENTS = [];
+    let BLOCKS = [];
     let FILTER = 'all';
     let VIEW = 'bookings';
 
@@ -397,21 +439,28 @@
         body: body ? JSON.stringify(body) : undefined
       });
       if (res.status === 401) throw new Error('unauthorized');
-      if (!res.ok) throw new Error('request failed');
+      if (!res.ok) {
+        // Surface the server's wording so a clash explains itself rather than
+        // showing a generic failure
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.error || 'request failed');
+      }
       return res.json();
     }
 
     async function load() {
       $('list').innerHTML = '<div class="loading">Loading bookings…</div>';
       try {
-        const [bk, eq, pay] = await Promise.all([
+        const [bk, eq, pay, blk] = await Promise.all([
           api('GET'),
           api('GET', null, '/api/enquiries').catch(() => ({ enquiries: [] })),
-          api('GET', null, '/api/payments').catch(() => ({ payments: [] }))
+          api('GET', null, '/api/payments').catch(() => ({ payments: [] })),
+          api('GET', null, '/api/blocks').catch(() => ({ blocks: [] }))
         ]);
         BOOKINGS = bk.bookings;
         ENQUIRIES = eq.enquiries || [];
         PAYMENTS = pay.payments || [];
+        BLOCKS = blk.blocks || [];
         render();
         $('loginView').style.display = 'none';
         $('dashView').classList.add('active');
@@ -460,6 +509,7 @@
         PAYMENTS.filter(p => !p.matched).length || '';
       if (VIEW === 'enquiries') return renderEnquiries();
       if (VIEW === 'payments') return renderPayments();
+      if (VIEW === 'blocks') return renderBlocks();
       stats();
       const q = $('search').value.trim().toLowerCase();
       let rows = BOOKINGS;
@@ -474,7 +524,7 @@
       $('list').innerHTML = rows.map(b => {
         const paid = b.payment_status === 'paid';
         const left = isLeft(b);
-        return '<article class="card' + (left ? ' card--left' : '') + '" data-id="' + b.id + '">' +
+        return '<article class="card' + (left ? ' card--left' : '') + (b.status === 'cancelled' ? ' card--cancelled' : '') + '" data-id="' + b.id + '">' +
           '<div class="card__who">' +
             '<strong>' + esc(b.guest_name) + '</strong>' +
             '<a href="tel:' + esc(b.guest_phone) + '">' + esc(b.guest_phone) + '</a>' +
@@ -503,6 +553,10 @@
                 (b.payment_option === 'deposit' ? '<span class="pill pill--dep">Deposit</span>' : '') +
                 '<button class="btn btn--sm ' + (paid ? 'btn--ghost' : '') + '" onclick="toggle(' + b.id + ', \'' + (paid ? 'unpaid' : 'paid') + '\')">' +
                   (paid ? 'Mark Unpaid' : 'Mark Paid') + '</button>') +
+            (b.status === 'cancelled'
+              ? '<span class="pill pill--cancelled">Cancelled</span>' +
+                '<button class="btn btn--sm btn--ghost" onclick="setBookingStatus(' + b.id + ', \'active\')">Restore</button>'
+              : '<button class="btn btn--sm btn--ghost" onclick="setBookingStatus(' + b.id + ', \'cancelled\')">Cancel</button>') +
           '</div>' +
           (b.requests ? '<div class="card__requests"><b>Requests:</b> ' + esc(b.requests) + '</div>' : '') +
         '</article>';
@@ -600,6 +654,87 @@
       }).join('');
     }
 
+    /* ── Blocked dates ──────────────────────────────────────────────
+       A block takes a room out of service. Availability treats it exactly
+       like a booking, so blocked dates cannot be sold. */
+
+    const BLOCK_ROOMS = [
+      ['comfort', 'Superior Double / Comfort Room'],
+      ['standard', 'Deluxe Standard Room'],
+      ['ground-floor', 'Ground Floor One-Bedroom'],
+      ['superior-deluxe', 'Superior Deluxe Room'],
+      ['superior-twin', 'Superior Deluxe Twin'],
+      ['studio', 'Studio Penthouse'],
+      ['one-bed', 'One-Bedroom Apartment'],
+      ['two-bed', 'Two-Bedroom Apartment'],
+    ];
+
+    function renderBlocks() {
+      const opts = BLOCK_ROOMS.map(([k, n]) => '<option value="' + k + '">' + esc(n) + '</option>').join('');
+      const form =
+        '<article class="card card--form">' +
+          '<div class="blk__form">' +
+            '<div class="blk__field"><label for="blkRoom">Room</label>' +
+              '<select id="blkRoom">' + opts + '</select></div>' +
+            '<div class="blk__field"><label for="blkFrom">From</label>' +
+              '<input type="date" id="blkFrom"></div>' +
+            '<div class="blk__field"><label for="blkTo">To</label>' +
+              '<input type="date" id="blkTo"></div>' +
+            '<div class="blk__field blk__field--wide"><label for="blkReason">Reason</label>' +
+              '<input type="text" id="blkReason" placeholder="Repainting, deep clean, owner stay…"></div>' +
+            '<button class="btn btn--sm" onclick="addBlock()">Block Dates</button>' +
+          '</div>' +
+          '<p class="blk__note" id="blkErr" role="alert"></p>' +
+        '</article>';
+
+      const list = !BLOCKS.length
+        ? '<div class="empty">No rooms are blocked. Anything you block here stops being bookable.</div>'
+        : BLOCKS.map(b =>
+            '<article class="card">' +
+              '<div class="card__who"><strong>' + esc(b.room_name || b.room_key) + '</strong>' +
+                '<span class="card__date">Added ' + fmtWhen(b.created_at) + '</span></div>' +
+              '<div class="card__meta"><strong>Out of service</strong>' +
+                fmtDate(b.starts) + ' → ' + fmtDate(b.ends) + '</div>' +
+              '<div class="card__money">' + (b.reason ? esc(b.reason) : '<span style="opacity:.5">No reason given</span>') + '</div>' +
+              '<div class="card__side">' +
+                '<button class="btn btn--sm btn--ghost" onclick="removeBlock(' + b.id + ')">Unblock</button>' +
+              '</div>' +
+            '</article>').join('');
+
+      $('list').innerHTML = form + list;
+    }
+
+    async function addBlock() {
+      const err = document.getElementById('blkErr');
+      err.textContent = '';
+      const payload = {
+        room: document.getElementById('blkRoom').value,
+        starts: document.getElementById('blkFrom').value,
+        ends: document.getElementById('blkTo').value,
+        reason: document.getElementById('blkReason').value.trim(),
+      };
+      if (!payload.starts || !payload.ends) { err.textContent = 'Please choose both dates.'; return; }
+      try {
+        await api('POST', payload, '/api/blocks');
+        const fresh = await api('GET', null, '/api/blocks');
+        BLOCKS = fresh.blocks || [];
+        render();
+      } catch (e) {
+        err.textContent = e.message || 'Could not block those dates.';
+      }
+    }
+
+    async function removeBlock(id) {
+      if (!confirm('Unblock these dates? The room becomes bookable again.')) return;
+      try {
+        await api('DELETE', null, '/api/blocks?id=' + id);
+        BLOCKS = BLOCKS.filter(b => b.id !== id);
+        render();
+      } catch (e) {
+        alert('Could not unblock. Please refresh and try again.');
+      }
+    }
+
     async function markEnquiry(id, status) {
       const card = document.querySelector('.card[data-eid="' + id + '"]');
       if (card) card.style.opacity = '0.5';
@@ -621,6 +756,25 @@
         await api('PATCH', { id, payment_status: status });
         const b = BOOKINGS.find(x => x.id === id);
         if (b) b.payment_status = status;
+        render();
+      } catch (e) {
+        if (card) card.style.opacity = '1';
+        alert('Could not update. Please refresh and try again.');
+      }
+    }
+
+    /** Cancelling releases the dates, so the room becomes bookable again. */
+    async function setBookingStatus(id, status) {
+      const b = BOOKINGS.find(x => x.id === id);
+      if (status === 'cancelled') {
+        const who = b ? b.guest_name + ' · ' + b.room_name : '#' + id;
+        if (!confirm('Cancel this booking?\n\n' + who + '\n\nThe dates will be released and the room can be booked by someone else.')) return;
+      }
+      const card = document.querySelector('.card[data-id="' + id + '"]');
+      if (card) card.style.opacity = '0.5';
+      try {
+        await api('PATCH', { id, status });
+        if (b) b.status = status;
         render();
       } catch (e) {
         if (card) card.style.opacity = '1';

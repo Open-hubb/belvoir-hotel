@@ -9,6 +9,7 @@
 const { neon } = require('@neondatabase/serverless');
 const QRCode = require('qrcode');
 const F = require('./_flot');
+const { limit } = require('./_ratelimit');
 
 let _sql = null;
 function db() {
@@ -21,6 +22,8 @@ module.exports = async (req, res) => {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (limit(req, res, 'paylink', 15, 60000)) return;
 
   const body = req.body || {};
   const bookingId = parseInt(body.bookingId, 10);

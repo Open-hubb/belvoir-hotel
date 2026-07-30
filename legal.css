@@ -1,0 +1,182 @@
+/* Shared styling for the policy pages. Kept separate from index.html because
+   these are the only multi-page documents on the site and they need a
+   readable measure rather than the marketing layout. */
+
+:root {
+  --navy: #0C1B33;
+  --gold: #B08D57;
+  --gold-light: #C9A96E;
+  --cream: #F5F0EB;
+  --paper: #FFFDF8;
+  --ink: #22293A;
+  --ink-soft: rgba(34, 41, 58, 0.72);
+  --border: rgba(12, 27, 51, 0.12);
+  --display: 'Cinzel', Georgia, serif;
+  --accent: 'Cormorant Garamond', Georgia, serif;
+  --body: 'Josefin Sans', -apple-system, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--body);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ink);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+.legal-nav {
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.legal-nav__inner {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.legal-nav__logo {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--navy);
+  text-decoration: none;
+}
+.legal-nav__logo span { color: var(--gold); }
+
+.legal-nav__links { display: flex; gap: 1.5rem; }
+.legal-nav__links a {
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 0.25rem 0;
+}
+.legal-nav__links a:hover,
+.legal-nav__links a[aria-current="page"] { color: var(--gold); }
+.legal-nav__links a:focus-visible,
+.legal-nav__logo:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+main { max-width: 780px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem 5rem; }
+
+h1 {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 2.9rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+}
+
+.legal-updated {
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-top: 0.75rem;
+}
+
+.legal-lede {
+  font-family: var(--accent);
+  font-style: italic;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 1.5rem 0 0;
+}
+
+h2 {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 2.75rem 0 0.75rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--border);
+}
+
+h3 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 1.5rem 0 0.4rem;
+}
+
+p, li { font-size: 1rem; }
+p { margin-bottom: 1rem; }
+ul, ol { margin: 0 0 1rem 1.25rem; }
+li { margin-bottom: 0.5rem; }
+
+a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+strong { font-weight: 600; color: var(--navy); }
+
+.legal-callout {
+  background: var(--paper);
+  border-left: 3px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  padding: 1.1rem 1.35rem;
+  margin: 1.5rem 0;
+}
+.legal-callout p:last-child { margin-bottom: 0; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.9375rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.legal-foot {
+  margin-top: 3.5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 1rem; top: 1rem;
+  position: fixed;
+  z-index: 10;
+  background: var(--navy);
+  color: var(--paper);
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+}

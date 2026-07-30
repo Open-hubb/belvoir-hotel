@@ -1,4 +1,5 @@
 const { neon } = require('@neondatabase/serverless');
+const { limit } = require('./_ratelimit');
 const crypto = require('crypto');
 
 let _sql = null;
@@ -22,6 +23,7 @@ module.exports = async (req, res) => {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+  if (limit(req, res, 'admin', 30, 60000)) return;
   if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   try {

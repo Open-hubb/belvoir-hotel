@@ -1,4 +1,5 @@
 const { neon } = require('@neondatabase/serverless');
+const { limit } = require('./_ratelimit');
 const crypto = require('crypto');
 const { notifyEnquiry } = require('./_notify');
 
@@ -25,6 +26,7 @@ module.exports = async (req, res) => {
     const sql = db();
 
     if (req.method === 'POST') {
+      if (limit(req, res, 'enquiry', 6, 60000)) return;
       const b = req.body || {};
       const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 
@@ -61,12 +63,14 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'GET') {
+      if (limit(req, res, 'admin', 30, 60000)) return;
       if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
       const rows = await sql`SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 500`;
       return res.status(200).json({ enquiries: rows });
     }
 
     if (req.method === 'PATCH') {
+      if (limit(req, res, 'admin', 30, 60000)) return;
       if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
       const b = req.body || {};
       const id = parseInt(b.id, 10);

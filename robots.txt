@@ -1,0 +1,7 @@
+# Belvoir Hotel & Residence
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://belvoir-hotel.vercel.app/sitemap.xml

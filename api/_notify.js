@@ -52,9 +52,10 @@ function shell(kicker, heading, rowsHtml, note, cta) {
 </body>`;
 }
 
-async function send({ subject, html, replyTo }) {
+async function send({ subject, html, replyTo, to }) {
   const key = process.env.RESEND_API_KEY;
-  if (!key || !TO.length) return { skipped: true };
+  const recipients = to ? [].concat(to).filter(Boolean) : TO;
+  if (!key || !recipients.length) return { skipped: true };
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -64,7 +65,7 @@ async function send({ subject, html, replyTo }) {
     },
     body: JSON.stringify({
       from: FROM,
-      to: TO,
+      to: recipients,
       subject,
       html,
       ...(replyTo ? { reply_to: replyTo } : {}),
@@ -120,9 +121,50 @@ const day = (d) => {
   }
 };
 
+/**
+ * The guest's own confirmation. This is the one that matters to them: it is
+ * the only record they get of what they booked and what they owe, and it
+ * carries the reference the front desk will ask for on arrival.
+ */
+async function confirmBooking(b) {
+  if (!b.guest_email) return { skipped: true };
+  const deposit = b.payment_option === 'deposit';
+  const balance = Number(b.total) - Number(b.amount_due);
+
+  const rows =
+    row('Reference', b.reference) +
+    row('Room', b.room_name) +
+    row('Check-in', `${day(b.checkin)} from 2:00 PM`) +
+    row('Check-out', `${day(b.checkout)} by 10:00 AM`) +
+    row('Nights', b.nights) +
+    row('Guests', b.guests) +
+    row('Paid', `${money(b.amount_due)}${deposit ? ' (30% deposit)' : ' (in full)'}`) +
+    (deposit && balance > 0 ? row('Due at check-in', money(balance)) : '') +
+    row('Stay total', money(b.total));
+
+  return send({
+    to: b.guest_email,
+    subject: `Your Belvoir booking is confirmed · ${b.reference || ''}`.trim(),
+    replyTo: TO[0],
+    html: shell(
+      'Booking confirmed',
+      `We look forward to welcoming you`,
+      rows,
+      (b.requests ? `Your requests: ${b.requests}\n\n` : '') +
+        'Belvoir Avenue, off Wilkinson Road, Freetown. The front desk is staffed 24 hours, ' +
+        'so a late arrival is no problem, just let us know. ' +
+        'To change or cancel, reply to this email or call +232 77 777 063 quoting your reference. ' +
+        'Cancel more than 48 hours before check-in for a full refund of anything paid in full; ' +
+        'deposits are non-refundable.',
+      { href: 'https://belvoir-hotel.vercel.app/terms', label: 'Booking terms' },
+    ),
+  });
+}
+
 async function notifyBooking(b) {
   const deposit = b.payment_option === 'deposit';
   const rows =
+    row('Reference', b.reference) +
     row('Guest', b.guest_name) +
     row('Email', b.guest_email) +
     row('Phone', b.guest_phone) +
@@ -148,4 +190,4 @@ async function notifyBooking(b) {
   });
 }
 
-module.exports = { notifyEnquiry, notifyBooking };
+module.exports = { notifyEnquiry, notifyBooking, confirmBooking };
