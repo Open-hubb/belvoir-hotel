@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Belvoir Hotel & Residence · Freetown, Sierra Leone</title>
-  <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night. Be Inspired… We Deliver.">
+  <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $70/night. Be Inspired… We Deliver.">
   <link rel="canonical" href="https://belvoir-hotel.vercel.app/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230C1B33'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' fill='%23B08D57'%3EB%3C/text%3E%3C/svg%3E">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
@@ -15,14 +15,14 @@
   <meta property="og:locale" content="en_GB">
   <meta property="og:url" content="https://belvoir-hotel.vercel.app/">
   <meta property="og:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
-  <meta property="og:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night. Be Inspired… We Deliver.">
+  <meta property="og:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $70/night. Be Inspired… We Deliver.">
   <meta property="og:image" content="https://belvoir-hotel.vercel.app/images/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="The Belvoir Hotel &amp; Residence building at dusk, Freetown">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
-  <meta name="twitter:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $80/night.">
+  <meta name="twitter:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $70/night.">
   <meta name="twitter:image" content="https://belvoir-hotel.vercel.app/images/og-image.jpg">
 
   <!-- Structured data. This is what lets a search result carry the rate,
@@ -69,13 +69,13 @@
       { "@type": "LocationFeatureSpecification", "name": "Laundry service", "value": true }
     ],
     "makesOffer": [
-      { "@type": "Offer", "name": "Superior Double / Comfort Room", "price": "70", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Deluxe Standard Room", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Ground Floor One-Bedroom", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Superior Deluxe Room", "price": "90", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Superior Double / Comfort", "price": "70", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Deluxe Standard", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Ground Floor One-Bedroom", "price": "110", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Superior Deluxe King", "price": "90", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
       { "@type": "Offer", "name": "Superior Deluxe Twin", "price": "100", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "One-Bedroom Apartment", "price": "125", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Studio Penthouse", "price": "130", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "One-Bedroom Apartment", "price": "130", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Studio Penthouse", "price": "110", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
       { "@type": "Offer", "name": "Two-Bedroom Apartment", "price": "170", "priceCurrency": "USD", "availability": "https://schema.org/InStock" }
     ]
   }
@@ -2360,6 +2360,14 @@
 
     .longstay-banner__heading span { color: var(--color-gold); }
 
+    /* Each rate stays on one line so a narrow screen breaks between the two
+       offers rather than mid-phrase, and the separator goes with it. */
+    .longstay-banner__heading .longstay-banner__rate {
+      color: var(--color-white);
+      white-space: nowrap;
+    }
+    .longstay-banner__heading .longstay-banner__sep { color: var(--color-white); }
+
     .longstay-banner__desc {
       font-size: 0.9375rem;
       color: var(--color-gold-muted);
@@ -2379,6 +2387,10 @@
         text-align: center;
         justify-content: center;
       }
+      /* Stack the two rates instead of letting the separator dangle at the
+         end of the first line. */
+      .longstay-banner__heading .longstay-banner__rate { display: block; }
+      .longstay-banner__heading .longstay-banner__sep { display: none; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -2446,24 +2458,24 @@
       align-items: start;
     }
 
+    /* Three columns, not four. The layout caps the bento at ~770px however
+       wide the window gets, so a fourth column only ever bought ~180px cards
+       and clipped the longer titles. Three keeps every card readable. */
     .amenities__bento {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(3, 1fr);
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: auto;
       gap: 1rem;
-      min-height: 520px;
     }
 
-    /* Bento sizing, explicit placement for precise control */
-    .amenity-card--wifi     { grid-column: 1 / 3; grid-row: 1; }
-    .amenity-card--shuttle  { grid-column: 3;     grid-row: 1; }
-    .amenity-card--security { grid-column: 4;     grid-row: 1 / 3; }
-    .amenity-card--house    { grid-column: 1;     grid-row: 2; }
-    .amenity-card--spa      { grid-column: 2;     grid-row: 2; }
-    .amenity-card--business { grid-column: 3;     grid-row: 2; }
-    .amenity-card--hottub   { grid-column: 1;     grid-row: 3; }
-    .amenity-card--parking  { grid-column: 2;     grid-row: 3; }
-    .amenity-card--concierge{ grid-column: 3 / 5; grid-row: 3; }
+    /* Only the two wide cards are placed; the rest flow into the gaps. */
+    .amenity-card--wifi     { grid-column: 1 / 3; }
+
+    /* Below the desktop layout the bento takes the full width, which is what
+       gives the three columns room to breathe on a laptop. */
+    @media (min-width: 901px) and (max-width: 1279px) {
+      .amenities__layout { grid-template-columns: 1fr; gap: 2.5rem; }
+    }
 
     .amenity-card {
       background: rgba(255, 255, 255, 0.03);
@@ -2536,6 +2548,12 @@
       letter-spacing: 0.08em;
       color: var(--color-white);
       margin-bottom: 0.3rem;
+      /* A single long word ("Housekeeping") is wider than a narrow column and
+         would otherwise run past the card edge. Hyphenate rather than clip. */
+      hyphens: auto;
+      /* "anywhere" rather than "break-word": only the former shrinks the
+         element's min-content width, which is what the grid measures. */
+      overflow-wrap: anywhere;
     }
 
 
@@ -2558,10 +2576,11 @@
       .amenity-card--security { grid-column: auto; grid-row: auto; }
       .amenity-card--house    { grid-column: auto; grid-row: auto; }
       .amenity-card--spa      { grid-column: auto; grid-row: auto; }
-      .amenity-card--business { grid-column: auto; grid-row: auto; }
+      .amenity-card--newunits { grid-column: auto; grid-row: auto; }
       .amenity-card--hottub   { grid-column: auto; grid-row: auto; }
       .amenity-card--parking  { grid-column: auto; grid-row: auto; }
-      .amenity-card--concierge{ grid-column: 1 / 3; grid-row: auto; }
+      .amenity-card--dining   { grid-column: auto; grid-row: auto; }
+      .amenity-card--concierge{ grid-column: auto; grid-row: auto; }
     }
 
     @media (max-width: 500px) {
@@ -2702,6 +2721,55 @@
       color: var(--color-gold);
     }
 
+    /* Everything below is on the doorstep, so it reads as one cluster rather
+       than five more rows all valued "Walking". */
+    .location__walkable {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .location__walkable-head {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+    }
+
+    .location__walkable-head svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      stroke-width: 1.5;
+    }
+
+    .location__walkable-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .location__walkable-list li {
+      padding: 0.45rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-white);
+      color: var(--color-navy);
+      font-size: 0.9375rem;
+      font-weight: 400;
+    }
+
     @media (max-width: 768px) {
       .location__layout { grid-template-columns: 1fr; }
     }
@@ -2709,21 +2777,44 @@
     /* ═══════════════════════════════════════════════════════════════
        REVIEWS SECTION
     ═══════════════════════════════════════════════════════════════ */
-    .reviews__slider {
-      display: flex;
-      gap: 2rem;
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
+    /* A continuous right-to-left marquee. The mask fades cards in and out at
+       the edges instead of slicing them off mid-sentence. */
+    .reviews__marquee {
+      overflow: hidden;
       padding: 2rem 0;
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 5rem, #000 calc(100% - 5rem), transparent);
+      mask-image: linear-gradient(to right, transparent, #000 5rem, #000 calc(100% - 5rem), transparent);
     }
 
-    .reviews__slider::-webkit-scrollbar { display: none; }
+    .reviews__track {
+      display: flex;
+      gap: 2rem;
+      width: max-content;
+      animation: reviews-scroll 70s linear infinite;
+    }
+
+    /* The track holds the reviews twice, so translating by one full set plus
+       the gap that follows it lands exactly where it started. */
+    @keyframes reviews-scroll {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(calc(-50% - 1rem), 0, 0); }
+    }
+
+    /* Stops while the reader is hovering or tabbing through it. */
+    .reviews__marquee:hover .reviews__track,
+    .reviews__marquee:focus-within .reviews__track {
+      animation-play-state: paused;
+    }
+
+    /* Motion off: no animation, and the rail becomes scrollable so every
+       review is still reachable. */
+    @media (prefers-reduced-motion: reduce) {
+      .reviews__track { animation: none; }
+      .reviews__marquee { overflow-x: auto; }
+    }
 
     .review-card {
       flex: 0 0 min(480px, 85vw);
-      scroll-snap-align: start;
       background: var(--color-white);
       padding: clamp(2rem, 3vw, 3rem);
       position: relative;
@@ -3305,10 +3396,11 @@
       .amenity-card--security { grid-column: auto; grid-row: auto; }
       .amenity-card--house    { grid-column: auto; grid-row: auto; }
       .amenity-card--spa      { grid-column: auto; grid-row: auto; }
-      .amenity-card--business { grid-column: 1 / 3; grid-row: auto; }
+      .amenity-card--newunits { grid-column: auto; grid-row: auto; }
       .amenity-card--hottub   { grid-column: auto; grid-row: auto; }
       .amenity-card--parking  { grid-column: auto; grid-row: auto; }
-      .amenity-card--concierge{ grid-column: 1 / 3; grid-row: auto; }
+      .amenity-card--dining   { grid-column: auto; grid-row: auto; }
+      .amenity-card--concierge{ grid-column: auto; grid-row: auto; }
 
       .amenity-card { padding: 1.25rem 1rem; }
       .amenity-card__icon { width: 26px; height: 26px; margin-bottom: 0.6rem; }
@@ -3429,10 +3521,11 @@
       .amenity-card--security { grid-column: auto; grid-row: auto; }
       .amenity-card--house    { grid-column: auto; grid-row: auto; }
       .amenity-card--spa      { grid-column: auto; grid-row: auto; }
-      .amenity-card--business { grid-column: auto; grid-row: auto; }
+      .amenity-card--newunits { grid-column: auto; grid-row: auto; }
       .amenity-card--hottub   { grid-column: auto; grid-row: auto; }
       .amenity-card--parking  { grid-column: auto; grid-row: auto; }
-      .amenity-card--concierge{ grid-column: 2 / 4; grid-row: auto; }
+      .amenity-card--dining   { grid-column: auto; grid-row: auto; }
+      .amenity-card--concierge{ grid-column: auto; grid-row: auto; }
 
       .dining__layout { grid-template-columns: 1fr; gap: 2.5rem; }
 
@@ -3883,41 +3976,17 @@
     /* ═══════════════════════════════════════════════════════════════
        AMENITIES SERVICES STRIP
     ═══════════════════════════════════════════════════════════════ */
+    /* Same bento cards as the grid above, just across the full width. */
     .services-strip {
       margin-top: clamp(2.5rem, 5vh, 4rem);
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 0.9rem;
+      gap: 1rem;
     }
 
-    .services-strip__item {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.7rem;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(176, 141, 87, 0.18);
-      border-radius: 6px;
-      padding: 1rem 1.1rem;
-      font-size: 0.9375rem;
-      line-height: 1.55;
-      color: var(--color-gold-muted);
-    }
-
-    .services-strip__item i, .services-strip__item svg {
-      width: 15px;
-      height: 15px;
-      color: var(--color-gold-light);
-      flex-shrink: 0;
-      margin-top: 0.15rem;
-    }
-
-    .services-strip__item strong {
-      display: block;
-      color: var(--color-white);
-      font-weight: 400;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.15rem;
-    }
+    /* Seven cards over four columns would leave a hole, so the last one
+       stretches to close the second row. */
+    .services-strip .amenity-card:last-child { grid-column: span 2; }
 
     /* Sits on its own line under the title. Inline it pushed the description
        out of alignment with every other card in the grid. */
@@ -3939,7 +4008,10 @@
     }
 
     @media (max-width: 560px) {
-      .services-strip { grid-template-columns: 1fr; }
+      .services-strip { grid-template-columns: 1fr; gap: 0.75rem; }
+      /* A two-column span inside a single-column grid would invent a second
+         column and squeeze every card. */
+      .services-strip .amenity-card:last-child { grid-column: auto; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -5228,7 +5300,6 @@
     body .booking-bar,
     body .longstay-banner,
     body .amenity-card,
-    body .services-strip__item,
     body .direct-ribbon,
     body .review-card {
       border-radius: 20px;
@@ -5441,15 +5512,15 @@
       <span class="marquee__item">Panoramic Ocean Views</span>
       <span class="marquee__item">Luxury Serviced Apartments</span>
       <span class="marquee__item">Freetown, Sierra Leone</span>
-      <span class="marquee__item">From $80 Per Night</span>
+      <span class="marquee__item">From $70 Per Night</span>
       <span class="marquee__item">Be Inspired… We Deliver</span>
-      <span class="marquee__item">10+ Years of Excellence</span>
+      <span class="marquee__item">7+ Years of Excellence</span>
       <span class="marquee__item">Panoramic Ocean Views</span>
       <span class="marquee__item">Luxury Serviced Apartments</span>
       <span class="marquee__item">Freetown, Sierra Leone</span>
-      <span class="marquee__item">From $80 Per Night</span>
+      <span class="marquee__item">From $70 Per Night</span>
       <span class="marquee__item">Be Inspired… We Deliver</span>
-      <span class="marquee__item">10+ Years of Excellence</span>
+      <span class="marquee__item">7+ Years of Excellence</span>
     </div>
   </div>
 
@@ -5460,7 +5531,9 @@
         <div>
           <div class="section__marker reveal">01 · Accommodations</div>
           <h2 class="section__title reveal">Rooms &<br>Residences</h2>
-          <p class="section__subtitle reveal">Air-conditioned en-suite rooms, a studio penthouse, and serviced apartments with full kitchens and balconies overlooking the Atlantic.</p>
+          <!-- a touch wider than the 600px default so the sentence lands on two
+               lines instead of leaving "stay." stranded on a third -->
+          <p class="section__subtitle reveal" style="max-width: 46rem;">Fully furnished, air-conditioned en-suite rooms, studio flats, and serviced apartments with full kitchens and balconies overlooking the Atlantic — for your short and long stay.</p>
         </div>
       </div>
 
@@ -5475,13 +5548,13 @@
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
             <h3 class="cat-card__title"><em>Rooms</em><span class="cat-card__dot">.</span></h3>
-            <p class="cat-card__tagline">elegant en-suite rooms with breakfast served each morning.</p>
+            <p class="cat-card__tagline">elegant en-suite rooms with breakfast.</p>
             <p class="cat-card__price">From <strong>$70</strong><span>per night</span></p>
           </div>
         </article>
 
         <article class="cat-card cat-card--studio reveal" role="button" tabindex="0" aria-haspopup="dialog" onclick="openCategory('studio')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCategory('studio');}">
-          <img class="cat-card__img" src="images/card-studio.jpg" alt="Studio penthouse at Belvoir with lounge, dining table and balcony doors" loading="lazy" width="810" height="1080">
+          <img class="cat-card__img" src="images/penthouse-open-plan.jpg" alt="Studio penthouse open-plan living area with seating, bed and balcony" loading="lazy" width="1080" height="716">
           <div class="cat-card__wash" aria-hidden="true"></div>
           <div class="cat-card__meta">
             <span>02 &middot; Studio</span>
@@ -5490,7 +5563,7 @@
           <div class="cat-card__content">
             <h3 class="cat-card__title">Studio <em>Flats</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">open-plan living at the summit, a furnished home in the sky.</p>
-            <p class="cat-card__price"><strong>$130</strong><span>per night</span></p>
+            <p class="cat-card__price">From <strong>$110</strong><span>per night</span></p>
           </div>
         </article>
 
@@ -5504,7 +5577,7 @@
           <div class="cat-card__content">
             <h3 class="cat-card__title"><em>Apartments</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">full kitchens and living space, for stays of any length.</p>
-            <p class="cat-card__price">From <strong>$80</strong><span>per night</span></p>
+            <p class="cat-card__price">From <strong>$110</strong><span>per night</span></p>
           </div>
         </article>
       </div>
@@ -5520,8 +5593,8 @@
       <div class="longstay-banner reveal">
         <div class="longstay-banner__text">
           <div class="longstay-banner__label">Extended Stays</div>
-          <div class="longstay-banner__heading">Monthly from <span>$1,000</span> &middot; Annually from <span>$14,000</span></div>
-          <div class="longstay-banner__desc">Tailor-made packages for business travellers, relocating guests, and extended vacations, a fully furnished home for as long as you need.</div>
+          <div class="longstay-banner__heading"><span class="longstay-banner__rate">Starting from <span>$1,000</span> monthly</span><span class="longstay-banner__sep"> &middot; </span><span class="longstay-banner__rate"><span>$14,000</span> annually</span></div>
+          <div class="longstay-banner__desc">Tailor-made packages for business travellers, relocating guests, and extended vacations, a fully furnished home away from home.</div>
         </div>
         <a href="#contact" class="btn-outline" onclick="startLongStayEnquiry(event)">Enquire Now</a>
       </div>
@@ -5551,8 +5624,8 @@
       <div class="tour__meta reveal">
         <span><i data-lucide="building-2"></i> The Property</span>
         <span><i data-lucide="bed-double"></i> Every Room Type</span>
-        <span><i data-lucide="sofa"></i> Suites &amp; Apartments</span>
-        <span><i data-lucide="sun"></i> Golden Hour</span>
+        <span><i data-lucide="sofa"></i> Suites</span>
+        <span><i data-lucide="home"></i> Studio &amp; Apartments</span>
       </div>
     </div>
   </section>
@@ -5572,23 +5645,26 @@
           <h2 class="section__title reveal">A Legacy of<br>Warm Hospitality</h2>
           <div class="hr-divider reveal"></div>
           <p class="about__body reveal">
-            Belvoir is a collection of newly built, fully furnished luxury hotel rooms, studios, and serviced apartments. Located on Belvoir Avenue, off Wilkinson Road, one of the most prestigious and secure addresses in Freetown, our property offers the ideal setting for short stays, extended visits, and yearly residency.
+            Belvoir is a collection of fully furnished luxury hotel rooms, studio flats, apartments and residency. Located on Belvoir Avenue, off Wilkinson Road, one of the most prestigious and secure addresses in Freetown, our property offers the ideal setting for short and long stays. We also welcome yearly residency.
           </p>
           <p class="about__body reveal" style="margin-top: 1rem;">
-            Backed by over a decade of experience in Sierra Leone's real estate industry, we blend modern sophistication with the kind of warm, personalised service that makes every guest feel truly at home.
+            Backed by over 7 years of experience in Sierra Leone's real estate industry, we blend modern sophistication with the kind of warm, personalised service that makes every guest feel truly at home.
+          </p>
+          <p class="about__body reveal" style="margin-top: 1rem;">
+            And we are still growing. A newly built wing of studio flats opens in 2026, adding up to twenty self-contained homes to the residence, each fully furnished and ready to move into.
           </p>
 
           <div class="about__stat-grid reveal">
             <div>
-              <div class="about__stat-number">10+</div>
+              <div class="about__stat-number">7+</div>
               <div class="about__stat-label">Years Experience</div>
             </div>
             <div>
-              <div class="about__stat-number">50+</div>
+              <div class="about__stat-number">25</div>
               <div class="about__stat-label">Luxury Units</div>
             </div>
             <div>
-              <div class="about__stat-number">8.0</div>
+              <div class="about__stat-number">7</div>
               <div class="about__stat-label">Guest Rating</div>
             </div>
           </div>
@@ -5617,7 +5693,7 @@
           <div class="section__marker reveal">04 · Experience</div>
           <h2 class="section__title reveal" style="color: var(--color-white);">Every Detail,<br>Thoughtfully Crafted</h2>
           <div class="hr-divider reveal" style="opacity: 0.3;"></div>
-          <p class="section__subtitle reveal">From complimentary airport transfers to personalised concierge service, every touchpoint is designed to make your stay effortless and memorable.</p>
+          <p class="section__subtitle reveal">From airport transfers on request to personalised concierge service, every touchpoint is designed to make your stay effortless and memorable.</p>
         </div>
 
         <div class="amenities__bento">
@@ -5649,7 +5725,7 @@
             <i data-lucide="sparkles" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
               <div class="amenity-card__title">Housekeeping</div>
-              <div class="amenity-card__desc">Daily cleaning & laundry</div>
+              <div class="amenity-card__desc">Daily cleaning, laundry and ironing services</div>
             </div>
           </div>
           <div class="amenity-card amenity-card--spa reveal">
@@ -5659,11 +5735,11 @@
               <div class="amenity-card__desc">On-site fitness facilities</div>
             </div>
           </div>
-          <div class="amenity-card amenity-card--business reveal">
-            <i data-lucide="briefcase" class="amenity-card__icon"></i>
+          <div class="amenity-card amenity-card--newunits reveal">
+            <i data-lucide="hard-hat" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
-              <div class="amenity-card__title">Business Centre</div>
-              <div class="amenity-card__desc">Conference rooms and 24-hour work facilities</div>
+              <div class="amenity-card__title">New Units <span class="badge-soon">Coming Soon</span></div>
+              <div class="amenity-card__desc">Studio flats and a one-bedroom apartment</div>
             </div>
           </div>
 
@@ -5682,6 +5758,20 @@
               <div class="amenity-card__desc">Private on-site parking</div>
             </div>
           </div>
+          <div class="amenity-card amenity-card--conference reveal">
+            <i data-lucide="briefcase" class="amenity-card__icon"></i>
+            <div class="amenity-card__text">
+              <div class="amenity-card__title">Conference Room <span class="badge-soon">Coming Soon</span></div>
+              <div class="amenity-card__desc">Meeting space for business guests</div>
+            </div>
+          </div>
+          <div class="amenity-card amenity-card--dining reveal">
+            <i data-lucide="utensils" class="amenity-card__icon"></i>
+            <div class="amenity-card__text">
+              <div class="amenity-card__title">Restaurant</div>
+              <div class="amenity-card__desc">Local and continental food</div>
+            </div>
+          </div>
           <div class="amenity-card amenity-card--concierge reveal">
             <i data-lucide="concierge-bell" class="amenity-card__icon"></i>
             <div class="amenity-card__text">
@@ -5693,38 +5783,56 @@
       </div>
 
       <div class="services-strip">
-        <div class="services-strip__item reveal">
-          <i data-lucide="zap"></i>
-          <div><strong>24-Hour Electricity</strong> Uninterrupted power throughout your stay</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="zap" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">24-Hour Electricity</div>
+            <div class="amenity-card__desc">Uninterrupted power throughout your stay</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="gauge"></i>
-          <div><strong>Individual Meters</strong> Some apartments include their own electricity meter, so you can manage and pay your own usage</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="gauge" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Individual Meters</div>
+            <div class="amenity-card__desc">Some apartments include their own electricity meter, a tailor-made arrangement so you can manage and pay your own usage</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="ship"></i>
-          <div><strong>Sea Coach Tickets</strong> Booking assistance for Sea Coach water transfers</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="ship" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Sea Coach Tickets</div>
+            <div class="amenity-card__desc">Booking assistance for Sea Coach water transfers</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="calendar-clock"></i>
-          <div><strong>Long Stay Packages</strong> Tailor-made rates for extended stays</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="calendar-clock" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Long Stay Packages</div>
+            <div class="amenity-card__desc">Tailor-made rates for extended stays</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="cigarette-off"></i>
-          <div><strong>Non-Smoking Property</strong> With a dedicated outdoor smoking area</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="cigarette-off" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Non-Smoking Property</div>
+            <div class="amenity-card__desc">With a dedicated outdoor smoking area</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="clock"></i>
-          <div><strong>Check-out at 11:00 AM</strong> Late check-out on request, subject to availability</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="clock" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Check-out at 11:00 AM</div>
+            <div class="amenity-card__desc">Late check-out on request, subject to availability</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="accessibility"></i>
-          <div><strong>Ground Floor Apartment</strong> Step-free living for guests who prefer to avoid stairs</div>
+        <div class="amenity-card reveal">
+          <i data-lucide="accessibility" class="amenity-card__icon"></i>
+          <div class="amenity-card__text">
+            <div class="amenity-card__title">Ground Floor Apartment</div>
+            <div class="amenity-card__desc">Step-free living for guests who prefer to avoid stairs</div>
+          </div>
         </div>
-        <div class="services-strip__item reveal">
-          <i data-lucide="shopping-bag"></i>
-          <div><strong>On-Site Mini Mart</strong> Everyday essentials without leaving the property</div>
-        </div>
+      </div>
       </div>
     </div>
   </section>
@@ -5755,7 +5863,7 @@
           <p class="section__subtitle reveal" style="color: var(--color-text-muted);">Our on-site restaurant celebrates two traditions: the vibrant, generous flavours of African cuisine, and refined Continental favourites, open for breakfast through dinner.</p>
 
           <div class="about__body reveal" style="margin-top: 1.5rem;">
-            From à la carte breakfast to candlelit dinners, our kitchen crafts every meal with locally sourced ingredients and international technique. Breakfast is included with studio rooms, one-bedroom apartments, penthouses, and ground floor rooms. Custom meal preparation is available on request.
+            Breakfast is included with every room. In the studio flats and apartments it comes on request, as does custom meal preparation.
           </div>
 
           <div class="dining__cuisines reveal">
@@ -5865,6 +5973,19 @@
               <span class="distance-item__value">Walking</span>
             </div>
           </div>
+
+          <div class="location__walkable reveal">
+            <div class="location__walkable-head">
+              <i data-lucide="footprints"></i> All within walking distance
+            </div>
+            <ul class="location__walkable-list">
+              <li>Gyms</li>
+              <li>Restaurants</li>
+              <li>Night Clubs</li>
+              <li>Supermarkets</li>
+              <li>Sports Clubs</li>
+            </ul>
+          </div>
         </div>
 
         <div class="location__map reveal">
@@ -5882,34 +6003,67 @@
         <h2 class="section__title reveal">What Our<br>Guests Say</h2>
       </div>
 
-      <div class="reviews__slider">
-        <div class="review-card reveal">
-          <div class="review-card__stars">
-            <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+      <div class="reviews__marquee" id="reviewsMarquee">
+        <div class="reviews__track">
+          <!-- Set one: the reviews themselves. -->
+          <div class="review-card">
+            <div class="review-card__stars" role="img" aria-label="Rated 5 out of 5">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark" aria-hidden="true">"</div>
+            <p class="review-card__text">The feeling and experiencing home to home. The very friendly & welcoming front desk staff most especially Gladys & Musa. The manager Michelle was very flexible and exceptionally helpful. The accommodation has everything required for daily living plus more.</p>
+            <div class="review-card__author">Verified Guest · Planet of Hotels</div>
           </div>
-          <div class="review-card__quote-mark">"</div>
-          <p class="review-card__text">The feeling and experiencing home to home. The very friendly & welcoming front desk staff most especially Gladys & Musa. The manager Michelle was very flexible and exceptionally helpful. The accommodation has everything required for daily living plus more.</p>
-          <div class="review-card__author">Verified Guest · Planet of Hotels</div>
-        </div>
 
-        <div class="review-card reveal">
-          <div class="review-card__stars">
-            <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+          <div class="review-card">
+            <div class="review-card__stars" role="img" aria-label="Rated 5 out of 5">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark" aria-hidden="true">"</div>
+            <p class="review-card__text">I love everything about the accommodation. They even organised our Covid-19 PCR Test on return. Everything covered. Well done Belvoir Estate Apartments! Water & light were no issues, wow, this is in Sierra Leone?</p>
+            <div class="review-card__author">Verified Guest · Booking.com</div>
           </div>
-          <div class="review-card__quote-mark">"</div>
-          <p class="review-card__text">I love everything about the accommodation. They even organised our Covid-19 PCR Test on return. Everything covered. Well done Belvoir Estate Apartments! Water & light were no issues, wow, this is in Sierra Leone?</p>
-          <div class="review-card__author">Verified Guest · Booking.com</div>
-        </div>
 
-        <div class="review-card reveal">
-          <div class="review-card__stars">
-            <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+          <div class="review-card">
+            <div class="review-card__stars" role="img" aria-label="Rated 5 out of 5">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark" aria-hidden="true">"</div>
+            <p class="review-card__text">Reliable power, good working AC, good location, and excellent security and service. The staff go above and beyond, William and Sahr were very supportive throughout our entire stay.</p>
+            <div class="review-card__author">Verified Guest · Hotels.com</div>
           </div>
-          <div class="review-card__quote-mark">"</div>
-          <p class="review-card__text">Reliable power, good working AC, good location, and excellent security and service. The staff go above and beyond, William and Sahr were very supportive throughout our entire stay.</p>
-          <div class="review-card__author">Verified Guest · Hotels.com</div>
+
+          <!-- Set two: the same reviews again, so the loop has no seam. Hidden
+               from assistive tech, which would otherwise read them twice. -->
+          <div class="review-card" aria-hidden="true">
+            <div class="review-card__stars">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark">"</div>
+            <p class="review-card__text">The feeling and experiencing home to home. The very friendly & welcoming front desk staff most especially Gladys & Musa. The manager Michelle was very flexible and exceptionally helpful. The accommodation has everything required for daily living plus more.</p>
+            <div class="review-card__author">Verified Guest · Planet of Hotels</div>
+          </div>
+
+          <div class="review-card" aria-hidden="true">
+            <div class="review-card__stars">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark">"</div>
+            <p class="review-card__text">I love everything about the accommodation. They even organised our Covid-19 PCR Test on return. Everything covered. Well done Belvoir Estate Apartments! Water & light were no issues, wow, this is in Sierra Leone?</p>
+            <div class="review-card__author">Verified Guest · Booking.com</div>
+          </div>
+
+          <div class="review-card" aria-hidden="true">
+            <div class="review-card__stars">
+              <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i>
+            </div>
+            <div class="review-card__quote-mark">"</div>
+            <p class="review-card__text">Reliable power, good working AC, good location, and excellent security and service. The staff go above and beyond, William and Sahr were very supportive throughout our entire stay.</p>
+            <div class="review-card__author">Verified Guest · Hotels.com</div>
+          </div>
         </div>
       </div>
+
     </div>
   </section>
 
@@ -5920,7 +6074,7 @@
       <div class="section__marker reveal" style="justify-content: center;">09 · Reserve</div>
       <h2 class="section__title reveal" style="text-align: center;">Begin Your<br>Freetown Story</h2>
       <div class="hr-divider hr-divider--center reveal"></div>
-      <p class="section__subtitle reveal" style="text-align: center; margin: 0 auto 3rem;">From $80 per night. Whether it's a weekend escape, a month-long business trip, or your new home, Belvoir is ready for you.</p>
+      <p class="section__subtitle reveal" style="text-align: center; margin: 0 auto 3rem;">From $70 per night. Whether it's a weekend escape, a month-long business trip, or your new home, Belvoir is ready for you.</p>
 
       <div class="cta-section__actions reveal">
         <a href="#rooms" class="btn-primary"><span>Choose Your Room</span></a>
@@ -6791,6 +6945,9 @@
       const text = stat.textContent;
       const num = parseFloat(text);
       const suffix = text.replace(/[\d.]/g, '');
+      // Decimals come from how the figure is written, not from its value:
+      // "8.0" is a whole number, so testing num % 1 would land it on "8".
+      const decimals = (text.match(/\.(\d+)/) || ['', ''])[1].length;
 
       ScrollTrigger.create({
         trigger: stat,
@@ -6801,14 +6958,10 @@
             textContent: num,
             duration: 2,
             ease: 'power2.out',
-            snap: { textContent: num % 1 === 0 ? 1 : 0.1 },
+            snap: { textContent: decimals ? 1 / Math.pow(10, decimals) : 1 },
             onUpdate: function() {
               const val = parseFloat(gsap.getProperty(stat, 'textContent'));
-              if (num % 1 !== 0) {
-                stat.textContent = val.toFixed(1) + suffix;
-              } else {
-                stat.textContent = Math.round(val) + suffix;
-              }
+              stat.textContent = (decimals ? val.toFixed(decimals) : Math.round(val)) + suffix;
             }
           });
         }
@@ -6848,8 +7001,8 @@
     let selectedRoom = '';
     let selectedPayment = '';
 
-    const ROOM_PRICES = { comfort: 70, standard: 80, 'ground-floor': 80, 'superior-deluxe': 90, 'superior-twin': 100, studio: 130, 'one-bed': 125, 'two-bed': 170 };
-    const ROOM_NAMES = { comfort: 'Superior Double / Comfort Room', standard: 'Deluxe Standard Room', 'ground-floor': 'Ground Floor One-Bedroom', 'superior-deluxe': 'Superior Deluxe Room', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
+    const ROOM_PRICES = { comfort: 70, standard: 80, 'ground-floor': 110, 'superior-deluxe': 90, 'superior-twin': 100, studio: 110, 'one-bed': 130, 'two-bed': 170 };
+    const ROOM_NAMES = { comfort: 'Superior Double / Comfort', standard: 'Deluxe Standard', 'ground-floor': 'Ground Floor One-Bedroom', 'superior-deluxe': 'Superior Deluxe King', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
 
 
@@ -6976,26 +7129,26 @@
         title: 'Rooms',
         tagline: 'Elegant en-suite rooms with air conditioning, flat-screen TVs, and breakfast served each morning of your stay.',
         rooms: [
-          { key: 'comfort', name: 'Superior Double / Comfort Room', price: 70, img: 'images/comfort-1.jpg', gallery: 'comfort', desc: 'Comfortable double room with a lounge chair and work desk, our best value.', chips: ['Double Bed', 'Work Desk', 'Breakfast'] },
-          { key: 'standard', name: 'Deluxe Standard Room', price: 80, img: 'images/std-room-1.jpg', gallery: 'standard', desc: 'King bed, en-suite bathroom and modern furnishings, perfect for short stays.', chips: ['King Bed', 'En-suite', 'Breakfast'] },
-          { key: 'superior-deluxe', name: 'Superior Deluxe Room', price: 90, img: 'images/sdlx-1.jpg', gallery: 'superior-deluxe', desc: 'Upgraded king room with premium bedding and a rain-shower en-suite.', chips: ['King Bed', 'Rain Shower', 'Breakfast'] },
+          { key: 'comfort', name: 'Superior Double / Comfort', price: 70, img: 'images/comfort-1.jpg', gallery: 'comfort', desc: 'Comfortable double room with a work desk, our best value.', chips: ['Double Bed', 'Work Desk', 'Breakfast'] },
+          { key: 'standard', name: 'Deluxe Standard', price: 80, img: 'images/std-room-1.jpg', gallery: 'standard', desc: 'King bed, en-suite bathroom and modern furnishings, perfect for short stays.', chips: ['King Bed', 'En-suite', 'Breakfast'] },
+          { key: 'superior-deluxe', name: 'Superior Deluxe King', price: 90, img: 'images/sdlx-1.jpg', gallery: 'superior-deluxe', desc: 'Upgraded king room with premium bedding and a rain-shower en-suite.', chips: ['King Bed', 'Rain Shower', 'Breakfast'] },
           { key: 'superior-twin', name: 'Superior Deluxe Twin', price: 100, img: 'images/twin-1.jpg', gallery: 'superior-twin', desc: 'Two single beds with a lounge area, ideal for friends or colleagues sharing.', chips: ['Twin Beds', 'Lounge Area', 'Breakfast'] }
         ]
       },
       studio: {
         title: 'Studio Flats',
-        tagline: 'Open-plan living at the summit of Belvoir, a kitchen, lounge and balcony under one roof, with breakfast included.',
+        tagline: 'Open-plan living at the summit of Belvoir, a kitchen, lounge and balcony under one roof.',
         rooms: [
-          { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] }
+          { key: 'studio', name: 'Studio Penthouse', price: 110, img: 'images/penthouse-open-plan.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir.', chips: ['Sea View', 'Balcony', 'Kitchen'] }
         ],
         // Not yet built, so deliberately has no photograph and no price. It
         // cannot be booked; the button collects interest instead.
         upcoming: [
           {
             name: 'New Studio Flats',
-            desc: 'A new wing of up to twenty self-contained studio flats, each with its own kitchenette, en-suite and workspace. Built for longer stays and relocating professionals.',
-            chips: ['Up to 20 units', 'Kitchenette', 'En-suite'],
-            note: 'Register your interest and we will contact you with rates and dates before they open.'
+            desc: 'A new wing of up to twenty fully furnished studio flats, each opening onto its own private balcony. Fitted kitchenette and dining nook, en-suite bathroom, a proper workstation and fast Wi-Fi throughout. Yours for a weekend or a season.',
+            chips: ['Up to 20 Units', 'Fully Furnished', 'Private Balcony', 'Wi-Fi & Workstation'],
+            note: 'Register your interest and we will come to you first with rates and opening dates.'
           }
         ]
       },
@@ -7003,8 +7156,8 @@
         title: 'Apartments',
         tagline: 'Self-contained apartments with full kitchens, living areas and balconies, for stays of any length.',
         rooms: [
-          { key: 'ground-floor', name: 'Ground Floor One-Bedroom', price: 80, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor apartment with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Breakfast'] },
-          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 125, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen, breakfast included.', chips: ['Full Kitchen', 'Living Area', 'Breakfast'] },
+          { key: 'ground-floor', name: 'Ground Floor One-Bedroom', price: 110, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor apartment with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Full Kitchen'] },
+          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 130, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen.', chips: ['Full Kitchen', 'Living Area', 'Balcony'] },
           { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 170, img: 'images/apt2-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
         ]
       }
@@ -7100,22 +7253,22 @@
     /* ─────────── Accommodation Detail Modal ─────────── */
     const ACC_TYPES = {
       comfort: {
-        title: 'Superior Double / Comfort Room',
-        desc: 'Our best-value room. A comfortable double bed, a private lounge chair and a work desk, finished with African art and warm lighting. Breakfast is served each morning of your stay.',
+        title: 'Superior Double / Comfort',
+        desc: 'Our best-value room. A comfortable double bed and a work desk, finished with African art and warm lighting. Breakfast is served each morning of your stay.',
         images: [
           { src: 'images/comfort-1.jpg', alt: 'Comfort room with double bed and African art' },
           { src: 'images/comfort-2.jpg', alt: 'Comfort room double bed and wall art' },
           { src: 'images/comfort-3.jpg', alt: 'Comfort room bed beneath the window' },
-          { src: 'images/comfort-4.jpg', alt: 'Comfort room lounge chair, desk and flat-screen TV' },
+          { src: 'images/comfort-4.jpg', alt: 'Comfort room work desk and flat-screen TV' },
           { src: 'images/comfort-5.jpg', alt: 'Comfort room seating area with wardrobe' }
         ],
         breakfast: true,
-        features: ['Double bed', 'Private lounge chair', 'Work desk', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping'],
+        features: ['Double bed', 'Work desk', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'comfort'
       },
       standard: {
-        title: 'Deluxe Standard Room',
+        title: 'Deluxe Standard',
         desc: 'An elegant en-suite room with a king bed, premium bedding and modern furnishings. The perfect base for short stays, with breakfast served each morning.',
         images: [
           { src: 'images/std-room-1.jpg', alt: 'Deluxe standard room with king bed and African art' },
@@ -7140,13 +7293,13 @@
           { src: 'images/gf-5.jpg', alt: 'Ground floor wardrobe and dressing mirror' },
           { src: 'images/gf-4.jpg', alt: 'Ground floor en-suite bathroom with shower' }
         ],
-        breakfast: true,
+        breakfast: false,
         features: ['Step-free entrance', 'Private living area', 'Kitchen & dining', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Fitted wardrobe', 'Free high-speed WiFi'],
         note: 'Recommended for elderly guests and guests who prefer avoiding stairs. Let us know when booking and we will reserve it for you.',
         bookValue: 'ground-floor'
       },
       'superior-deluxe': {
-        title: 'Superior Deluxe Room',
+        title: 'Superior Deluxe King',
         desc: 'An upgraded king room with premium bedding, a wooden feature headboard and a rain-shower en-suite finished in deep blue tiling. Breakfast is included each morning.',
         images: [
           { src: 'images/sdlx-1.jpg', alt: 'Superior deluxe room with king bed and blue artwork' },
@@ -7179,7 +7332,7 @@
       },
       'one-bed': {
         title: 'One-Bedroom Apartment',
-        desc: 'A fully furnished apartment with a separate bedroom, private living room, dining area and full kitchen. Everything you need to settle in, whether for a week or a year. Breakfast is included.',
+        desc: 'A fully furnished apartment with a separate bedroom, private living room, dining area and full kitchen. Everything you need to settle in, whether for a week or a year.',
         images: [
           { src: 'images/ob-1.jpg', alt: 'Apartment living room with leather sofa and marble floors' },
           { src: 'images/ob-2.jpg', alt: 'Apartment kitchen and dining area with pendant lighting' },
@@ -7190,7 +7343,7 @@
           { src: 'images/ob-6.jpg', alt: 'Apartment bathroom with glass shower cabin' },
           { src: 'images/ob-7.jpg', alt: 'Apartment en-suite with shower cabin and water heater' }
         ],
-        breakfast: true,
+        breakfast: false,
         features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
         note: '',
         bookValue: 'one-bed'
@@ -7209,20 +7362,19 @@
         ],
         breakfast: false,
         features: ['Two bedrooms', 'Living area', 'Full kitchen', 'Private balcony', 'Air conditioning', 'Flat-screen TV', 'Two bathrooms', 'Free high-speed WiFi'],
-        note: 'Self-catering. Breakfast is not included with the two-bedroom apartment.',
+        note: 'Self-catering. Breakfast is available on request.',
         bookValue: 'two-bed'
       },
       studio: {
         title: 'Studio Penthouse',
-        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches, premium furnishings and breakfast served each morning.',
+        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches and premium furnishings.',
+        // The ph-*.jpg set was a different room. Only this one is the
+        // penthouse; more shots go here as they arrive.
         images: [
-          { src: 'images/ph-living.jpg', alt: 'Penthouse open-plan kitchen, dining and living area' },
-          { src: 'images/ph-parlor.jpg', alt: 'Penthouse parlour with sectional sofa and balcony doors' },
-          { src: 'images/ph-bedroom.jpg', alt: 'Penthouse bedroom with ceiling rose and pendant light' },
-          { src: 'images/ph-bedroom-2.jpg', alt: 'Penthouse bedroom with king bed' }
+          { src: 'images/penthouse-open-plan.jpg', alt: 'Penthouse open-plan living area with seating, bed and balcony' }
         ],
-        breakfast: true,
-        features: ['Panoramic sea view', 'Open-plan living', 'Private balcony', 'Premium furnishings', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
+        breakfast: false,
+        features: ['Panoramic sea view', 'Open-plan living', 'Private balcony', 'Bathtub', 'Premium furnishings', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'studio'
       }

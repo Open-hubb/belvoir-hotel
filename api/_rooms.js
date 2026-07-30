@@ -10,13 +10,13 @@
 // used for display. The check in scripts/check-rates.mjs compares the two.
 
 const ROOMS = {
-  'comfort':         { name: 'Superior Double / Comfort Room', rate: 70 },
-  'standard':        { name: 'Deluxe Standard Room',           rate: 80 },
-  'ground-floor':    { name: 'Ground Floor One-Bedroom',       rate: 80 },
-  'superior-deluxe': { name: 'Superior Deluxe Room',           rate: 90 },
+  'comfort':         { name: 'Superior Double / Comfort', rate: 70 },
+  'standard':        { name: 'Deluxe Standard',           rate: 80 },
+  'ground-floor':    { name: 'Ground Floor One-Bedroom',       rate: 110 },
+  'superior-deluxe': { name: 'Superior Deluxe King',           rate: 90 },
   'superior-twin':   { name: 'Superior Deluxe Twin',           rate: 100 },
-  'studio':          { name: 'Studio Penthouse',               rate: 130 },
-  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 125 },
+  'studio':          { name: 'Studio Penthouse',               rate: 110 },
+  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 130 },
   'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 170 },
 };
 
