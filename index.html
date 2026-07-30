@@ -4364,6 +4364,56 @@
       overflow: hidden;
     }
 
+    /* ─── Not yet built ───────────────────────────────────────────────
+       Deliberately structured differently from a bookable room: a tinted
+       panel where the photograph would be, so it reads as "not yet"
+       before a word is read. There is no photograph because the studios
+       do not exist, and showing the current one would misrepresent them. */
+    .cat-room--soon {
+      background: linear-gradient(168deg, var(--fh-paper) 0%, rgba(199, 220, 236, 0.22) 100%);
+      border: 1px dashed rgba(176, 141, 87, 0.5);
+      box-shadow: 0 2px 6px rgba(17, 71, 58, 0.04);
+    }
+
+    .cat-room--soon:hover { transform: none; }
+
+    .cat-room__soon-mark {
+      aspect-ratio: 16 / 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        repeating-linear-gradient(135deg,
+          rgba(176, 141, 87, 0.07) 0 12px,
+          rgba(176, 141, 87, 0.02) 12px 24px);
+      color: var(--color-gold);
+    }
+    .cat-room__soon-mark i, .cat-room__soon-mark svg { width: 38px; height: 38px; }
+
+    .cat-room__soon-badge {
+      flex-shrink: 0;
+      font-family: var(--font-body);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-navy);
+      background: var(--color-gold-light);
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      white-space: nowrap;
+    }
+
+    .cat-room__soon-note {
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--color-text-muted);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--color-border);
+    }
+
     .cat-room__img img {
       width: 100%;
       height: 100%;
@@ -4444,13 +4494,19 @@
       padding: 0.32rem 0.8rem;
     }
 
+    /* At the larger type scale these two labels no longer fit side by side in
+       a 352px card, and the button text was wrapping to three lines. The row
+       now stacks instead of squashing, and each label stays on one line. */
     .cat-room__actions {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
+      flex-wrap: wrap;
+      gap: 0.6rem 0.75rem;
       margin-top: 0.35rem;
     }
+
+    .cat-room__actions > * { white-space: nowrap; }
 
     .cat-room__ghost {
       font-family: var(--font-body);
@@ -4483,12 +4539,12 @@
       font-family: var(--font-body);
       font-size: 0.8125rem;
       font-weight: 400;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       background: var(--fhero-green);
       color: var(--fh-paper);
       border-radius: 999px;
-      padding: 0.8rem 1.5rem;
+      padding: 0.8rem 1.25rem;
       transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo);
     }
 
@@ -6798,6 +6854,29 @@
 
 
     /* ─────────── Enquiry form ─────────── */
+    /**
+     * The new studios cannot be booked, so the card collects a lead instead.
+     * Closes the overlay, seeds the contact form and scrolls to it, so the
+     * enquiry lands in the dashboard like any other and there is a list to
+     * email the day they open.
+     */
+    function registerStudioInterest() {
+      closeCategory();
+      const stay = document.getElementById('stayType');
+      if (stay) stay.value = 'extended';
+      const msg = document.getElementById('message');
+      if (msg && !msg.value.trim()) {
+        msg.value = "I'd like to register interest in the new studio flats at Belvoir.\n\nPreferred move-in date:\nLength of stay:\nNumber of guests:";
+      }
+      const target = document.getElementById('contact');
+      if (!target) return;
+      setTimeout(() => {
+        if (typeof lenis !== 'undefined') lenis.scrollTo(target, { offset: -80 });
+        else target.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => { const n = document.getElementById('name'); if (n) n.focus(); }, 900);
+      }, 320);
+    }
+
     function startLongStayEnquiry(e) {
       const stay = document.getElementById('stayType');
       if (stay) stay.value = 'long';
@@ -6908,6 +6987,16 @@
         tagline: 'Open-plan living at the summit of Belvoir, a kitchen, lounge and balcony under one roof, with breakfast included.',
         rooms: [
           { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] }
+        ],
+        // Not yet built, so deliberately has no photograph and no price. It
+        // cannot be booked; the button collects interest instead.
+        upcoming: [
+          {
+            name: 'New Studio Flats',
+            desc: 'A new wing of up to twenty self-contained studio flats, each with its own kitchenette, en-suite and workspace. Built for longer stays and relocating professionals.',
+            chips: ['Up to 20 units', 'Kitchenette', 'En-suite'],
+            note: 'Register your interest and we will contact you with rates and dates before they open.'
+          }
         ]
       },
       apartments: {
@@ -6951,11 +7040,30 @@
             '</div>' +
           '</div>' +
         '</article>'
+      ).join('') + (cat.upcoming || []).map(u =>
+        // No image and no price, because neither exists yet. Showing the
+        // current studio here would imply the new ones look the same.
+        '<article class="cat-room cat-room--soon">' +
+          '<div class="cat-room__soon-mark" aria-hidden="true"><i data-lucide="hard-hat"></i></div>' +
+          '<div class="cat-room__body">' +
+            '<div class="cat-room__row">' +
+              '<h4 class="cat-room__name">' + u.name + '</h4>' +
+              '<span class="cat-room__soon-badge">Coming Soon</span>' +
+            '</div>' +
+            '<p class="cat-room__desc">' + u.desc + '</p>' +
+            '<div class="cat-room__chips">' + u.chips.map(c => '<span>' + c + '</span>').join('') + '</div>' +
+            (u.note ? '<p class="cat-room__soon-note">' + u.note + '</p>' : '') +
+            '<div class="cat-room__actions">' +
+              '<button class="cat-room__book" onclick="registerStudioInterest()">Register Interest</button>' +
+            '</div>' +
+          '</div>' +
+        '</article>'
       ).join('');
       // a one-unit category leaves a single narrow card adrift in a wide grid,
       // so it gets a roomier column instead
+      const cardCount = cat.rooms.length + (cat.upcoming || []).length;
       document.getElementById('catOverlayGrid')
-        .classList.toggle('cat-overlay__grid--single', cat.rooms.length === 1);
+        .classList.toggle('cat-overlay__grid--single', cardCount === 1);
       const ov = document.getElementById('catOverlay');
       ov.classList.add('active');
       ov.scrollTop = 0;
