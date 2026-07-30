@@ -2720,13 +2720,15 @@
     /* ═══════════════════════════════════════════════════════════════
        GALLERY SECTION
     ═══════════════════════════════════════════════════════════════ */
-    /* Eight items fill 12 cells exactly (the lead spans 2x2, the fourth spans 2),
-       so the grid closes on a full third row instead of a ragged one. */
+    /* Ten items fill 16 cells exactly: the lead spans 2x2, and three wide items
+       span 2 each, so the grid closes on a full fourth row rather than a ragged
+       one. Changing the item count means redoing this sum. */
     .gallery__grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(3, 280px);
+      grid-template-rows: repeat(4, 280px);
       gap: 0.75rem;
+      grid-auto-flow: dense;
     }
 
     .gallery__item {
@@ -2736,7 +2738,9 @@
     }
 
     .gallery__item:nth-child(1) { grid-column: span 2; grid-row: span 2; }
-    .gallery__item:nth-child(4) { grid-column: span 2; }
+    .gallery__item:nth-child(4),
+    .gallery__item:nth-child(7),
+    .gallery__item:nth-child(10) { grid-column: span 2; }
 
     .gallery__item img {
       width: 100%;
@@ -2782,10 +2786,12 @@
     @media (max-width: 768px) {
       .gallery__grid {
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: repeat(4, 200px);
+        grid-template-rows: repeat(6, 200px);
       }
       .gallery__item:nth-child(1) { grid-column: span 2; grid-row: span 1; }
-      .gallery__item:nth-child(4) { grid-column: span 1; }
+      .gallery__item:nth-child(4),
+      .gallery__item:nth-child(10) { grid-column: span 1; }
+      .gallery__item:nth-child(7) { grid-column: span 2; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -3247,11 +3253,13 @@
       /* Gallery */
       .gallery__grid {
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: 180px 180px 180px;
+        grid-template-rows: repeat(6, 180px);
         gap: 0.5rem;
       }
       .gallery__item:nth-child(1) { grid-column: 1 / 3; grid-row: span 1; }
-      .gallery__item:nth-child(4) { grid-column: span 1; }
+      .gallery__item:nth-child(4),
+      .gallery__item:nth-child(10) { grid-column: span 1; }
+      .gallery__item:nth-child(7) { grid-column: 1 / 3; }
 
       /* Location */
       .location__layout { grid-template-columns: 1fr; gap: 2rem; }
@@ -3353,10 +3361,12 @@
 
       .gallery__grid {
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: repeat(3, 220px);
+        grid-template-rows: repeat(6, 220px);
       }
       .gallery__item:nth-child(1) { grid-column: 1 / 3; grid-row: span 1; }
-      .gallery__item:nth-child(4) { grid-column: span 1; }
+      .gallery__item:nth-child(4),
+      .gallery__item:nth-child(10) { grid-column: span 1; }
+      .gallery__item:nth-child(7) { grid-column: 1 / 3; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -5665,11 +5675,19 @@
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
+          <img src="images/exterior-day.jpg" alt="The Belvoir building framed by trees under a clear sky" loading="lazy" width="1024" height="465">
+          <div class="gallery__item-overlay"></div>
+        </div>
+        <div class="gallery__item reveal">
           <img src="images/apt2-parlor.jpg" alt="Serviced apartment living room at Belvoir" loading="lazy" width="1600" height="1200">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
           <img src="images/standard-bedroom-twin.jpeg" alt="Twin bedroom at Belvoir with wooden headboard" loading="lazy" width="1080" height="810">
+          <div class="gallery__item-overlay"></div>
+        </div>
+        <div class="gallery__item reveal">
+          <img src="images/exterior-night.jpg" alt="The Belvoir forecourt lit at night" loading="lazy" width="1024" height="768">
           <div class="gallery__item-overlay"></div>
         </div>
       </div>
