@@ -135,7 +135,7 @@ async function confirmBooking(b) {
     row('Reference', b.reference) +
     row('Room', b.room_name) +
     row('Check-in', `${day(b.checkin)} from 2:00 PM`) +
-    row('Check-out', `${day(b.checkout)} by 10:00 AM`) +
+    row('Check-out', `${day(b.checkout)} by 11:00 AM`) +
     row('Nights', b.nights) +
     row('Guests', b.guests) +
     row('Paid', `${money(b.amount_due)}${deposit ? ' (30% deposit)' : ' (in full)'}`) +

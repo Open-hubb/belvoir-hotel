@@ -43,7 +43,7 @@
     "currenciesAccepted": "USD, SLE",
     "paymentAccepted": "Cash, Credit Card, Mobile Money",
     "checkinTime": "14:00",
-    "checkoutTime": "10:00",
+    "checkoutTime": "11:00",
     "petsAllowed": false,
     "smokingAllowed": false,
     "numberOfRooms": 8,
@@ -5418,9 +5418,9 @@
           </div>
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
-            <h3 class="cat-card__title">Guest <em>Rooms</em><span class="cat-card__dot">.</span></h3>
+            <h3 class="cat-card__title"><em>Rooms</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">elegant en-suite rooms with breakfast served each morning.</p>
-            <p class="cat-card__price">From <strong>$70</strong><span data-usd="70">Le 1,680</span></p>
+            <p class="cat-card__price">From <strong>$70</strong><span>per night</span></p>
           </div>
         </article>
 
@@ -5432,9 +5432,9 @@
           </div>
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
-            <h3 class="cat-card__title">Studio <em>Penthouse</em><span class="cat-card__dot">.</span></h3>
+            <h3 class="cat-card__title">Studio <em>Flats</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">open-plan living at the summit, a furnished home in the sky.</p>
-            <p class="cat-card__price"><strong>$130</strong><span data-usd="130">Le 3,120</span></p>
+            <p class="cat-card__price"><strong>$130</strong><span>per night</span></p>
           </div>
         </article>
 
@@ -5446,9 +5446,9 @@
           </div>
           <span class="cat-card__arrow" aria-hidden="true"><i data-lucide="arrow-right"></i></span>
           <div class="cat-card__content">
-            <h3 class="cat-card__title">Serviced <em>Apartments</em><span class="cat-card__dot">.</span></h3>
+            <h3 class="cat-card__title"><em>Apartments</em><span class="cat-card__dot">.</span></h3>
             <p class="cat-card__tagline">full kitchens and living space, for stays of any length.</p>
-            <p class="cat-card__price">From <strong>$80</strong><span data-usd="80">Le 1,920</span></p>
+            <p class="cat-card__price">From <strong>$80</strong><span>per night</span></p>
           </div>
         </article>
       </div>
@@ -5659,7 +5659,7 @@
         </div>
         <div class="services-strip__item reveal">
           <i data-lucide="clock"></i>
-          <div><strong>Check-out at 10:00 AM</strong> Late check-out on request, subject to availability</div>
+          <div><strong>Check-out at 11:00 AM</strong> Late check-out on request, subject to availability</div>
         </div>
         <div class="services-strip__item reveal">
           <i data-lucide="accessibility"></i>
@@ -5912,7 +5912,7 @@
               <i data-lucide="clock" class="contact__info-icon"></i>
               <div>
                 <div class="contact__info-label">Reception</div>
-                <div class="contact__info-value">24-hour front desk<br>Check-in from 2:00 PM · Check-out by 10:00 AM</div>
+                <div class="contact__info-value">24-hour front desk<br>Check-in from 2:00 PM · Check-out by 11:00 AM</div>
               </div>
             </div>
           </div>
@@ -6867,7 +6867,7 @@
     /* ─────────── Accommodation Categories ─────────── */
     const CATEGORIES = {
       rooms: {
-        title: 'Guest Rooms',
+        title: 'Rooms',
         tagline: 'Elegant en-suite rooms with air conditioning, flat-screen TVs, and breakfast served each morning of your stay.',
         rooms: [
           { key: 'comfort', name: 'Superior Double / Comfort Room', price: 70, img: 'images/comfort-1.jpg', gallery: 'comfort', desc: 'Comfortable double room with a lounge chair and work desk, our best value.', chips: ['Double Bed', 'Work Desk', 'Breakfast'] },
@@ -6877,14 +6877,14 @@
         ]
       },
       studio: {
-        title: 'Studio Penthouse',
+        title: 'Studio Flats',
         tagline: 'Open-plan living at the summit of Belvoir, a kitchen, lounge and balcony under one roof, with breakfast included.',
         rooms: [
           { key: 'studio', name: 'Studio Penthouse', price: 130, img: 'images/ph-living.jpg', gallery: 'studio', desc: 'Open-plan penthouse living at the summit of Belvoir, breakfast included.', chips: ['Sea View', 'Balcony', 'Breakfast'] }
         ]
       },
       apartments: {
-        title: 'Serviced Apartments',
+        title: 'Apartments',
         tagline: 'Self-contained apartments with full kitchens, living areas and balconies, for stays of any length.',
         rooms: [
           { key: 'ground-floor', name: 'Ground Floor One-Bedroom', price: 80, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor apartment with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Breakfast'] },
@@ -6912,8 +6912,8 @@
           '<div class="cat-room__img"><img src="' + r.img + '" alt="' + r.name + ' at Belvoir" loading="lazy"></div>' +
           '<div class="cat-room__body">' +
             '<div class="cat-room__row"><h4 class="cat-room__name">' + r.name + '</h4>' +
-              '<div class="cat-room__price">$' + r.price + ' <small>/night</small>' +
-                '<span class="cat-room__price-le" data-usd="' + r.price + '">' + leFor(r.price) + '</span>' +
+              '<div class="cat-room__price">$' + r.price + ' <small>/night</small>'
+              +
               '</div>' +
             '</div>' +
             '<p class="cat-room__desc">' + r.desc + '</p>' +
@@ -7116,7 +7116,7 @@
       } else {
         chips += '<span class="detail-modal__info-chip detail-modal__info-chip--muted"><i data-lucide="chef-hat"></i> Self-Catering</span>';
       }
-      chips += '<span class="detail-modal__info-chip detail-modal__info-chip--muted"><i data-lucide="clock"></i> Check-out 10:00 AM</span>';
+      chips += '<span class="detail-modal__info-chip detail-modal__info-chip--muted"><i data-lucide="clock"></i> Check-out 11:00 AM</span>';
       strip.innerHTML = chips;
 
       document.getElementById('detailFeatures').innerHTML = data.features
