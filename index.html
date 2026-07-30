@@ -6353,6 +6353,32 @@
 
     /* ─── Preloader ─── */
     const preloader = document.getElementById('preloader');
+
+    /* The splash is a first-impression moment, not something to sit through on
+       every refresh. It plays once per browser session, so a returning visitor
+       or anyone reloading goes straight to the hero. Skipped entirely for
+       anyone who has asked for reduced motion: five seconds of a scaling logo
+       is exactly what that setting exists to avoid. */
+    const SPLASH_KEY = 'belvoirSplashSeen';
+    let splashAlreadySeen = false;
+    try {
+      splashAlreadySeen = sessionStorage.getItem(SPLASH_KEY) === '1';
+    } catch (e) {
+      // Private browsing can throw on storage access; treat it as unseen
+    }
+    const splashReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (splashAlreadySeen || splashReducedMotion) {
+      preloader.style.display = 'none';
+      // Deferred by a frame because animateHero reads constants declared below
+      // this block; calling it synchronously hits the temporal dead zone.
+      requestAnimationFrame(() => animateHero());
+    } else {
+      try { sessionStorage.setItem(SPLASH_KEY, '1'); } catch (e) {}
+      runSplash();
+    }
+
+    function runSplash() {
     const preloaderTl = gsap.timeline();
 
     preloaderTl
@@ -6380,6 +6406,7 @@
           animateHero();
         }
       }, 4.75);
+    }
 
     /* ─────────── Hero: cinematic video ─────────── */
     const HERO_RM = window.matchMedia('(prefers-reduced-motion: reduce)');
