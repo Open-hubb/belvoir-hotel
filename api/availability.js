@@ -10,6 +10,7 @@
 
 const { neon } = require('@neondatabase/serverless');
 const { ROOMS, priceStay } = require('./_rooms');
+const { limit } = require('./_ratelimit');
 
 let _sql = null;
 function db() {
@@ -36,6 +37,7 @@ async function takenRooms(sql, checkin, checkout) {
 }
 
 module.exports = async (req, res) => {
+  if (limit(req, res, 'availability', 60, 60000)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });

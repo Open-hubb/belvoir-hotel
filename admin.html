@@ -392,7 +392,16 @@
     const fmtMoney = n => '$' + Number(n).toLocaleString();
     const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const fmtWhen = s => new Date(s).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+    // Escapes quotes as well as angle brackets. Guest-supplied values are put
+    // inside attributes (tel:, mailto:), and textContent leaves quotes intact,
+    // so a phone number of `" onmouseover="…` would otherwise close the
+    // attribute and run script with this page's session key.
+    const esc = s => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 
     // The address replies should be sent from. mailto cannot set the sender, so
     // this is used to pick the right account in webmail and to warn if the mail
