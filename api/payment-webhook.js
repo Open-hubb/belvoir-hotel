@@ -19,6 +19,7 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 const { limit } = require('./_ratelimit');
+const { settleBooking } = require('./_paid');
 
 let _sql = null;
 function db() {
@@ -104,14 +105,9 @@ module.exports = async (req, res) => {
 
     // "failed" means the guest can still retry, so leave the booking pending
     if (booking && completed) {
-      await sql`
-        UPDATE bookings
-        SET payment_status = 'paid',
-            stage = 'checkout',
-            notes = CASE WHEN COALESCE(notes, '') = ''
-                         THEN ${'Paid via Flot · ' + flotRequestId}
-                         ELSE notes || ${' · Paid via Flot · ' + flotRequestId} END
-        WHERE id = ${booking.id}`;
+      // Settles the booking and, if the webhook is the first route to see the
+      // payment, sends the guest their receipt.
+      await settleBooking(sql, booking.id, flotRequestId, 'webhook');
     }
 
     await sql`

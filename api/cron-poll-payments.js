@@ -16,6 +16,7 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 const F = require('./_flot');
+const { settleBooking } = require('./_paid');
 
 let _sql = null;
 function db() {
@@ -105,14 +106,9 @@ module.exports = async (req, res) => {
       if (status === 'completed') {
         await sql`UPDATE payments SET status = 'completed' WHERE id = ${p.id}`;
         if (p.booking_id) {
-          await sql`
-            UPDATE bookings
-            SET payment_status = 'paid',
-                stage = 'checkout',
-                notes = CASE WHEN COALESCE(notes, '') = ''
-                             THEN ${'Paid via Flot · ' + p.provider_ref + ' · reconciled'}
-                             ELSE notes || ${' · Paid via Flot · ' + p.provider_ref + ' · reconciled'} END
-            WHERE id = ${p.booking_id} AND payment_status IS DISTINCT FROM 'paid'`;
+          // Settles the booking and, if the guest closed the tab before the
+          // browser could poll, this is what finally sends their receipt.
+          await settleBooking(sql, p.booking_id, p.provider_ref, 'reconciled');
         }
         completed++;
         F.log('CRON_PAYMENT_COMPLETED', { orderId: p.reference, bookingId: p.booking_id });

@@ -1,6 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
-const { notifyBooking, confirmBooking } = require('./_notify');
+const { notifyBooking } = require('./_notify');
 
 let _sql = null;
 function db() {
@@ -116,8 +116,8 @@ module.exports = async (req, res) => {
           const ref = updated[0].reference || ('BLV-' + String(updated[0].id).padStart(5, '0'));
           const full = { ...fields, payment_option: payment, amount_due: amount, total, reference: ref };
           // Email must never block a saved booking, so each is caught separately
+          // The team hears about it now; the guest hears only once they pay.
           try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
-          try { await confirmBooking(full); } catch (err) { console.error('guest confirmation failed:', err.message); }
           return res.status(200).json({ ok: true, id: updated[0].id, reference: ref });
         }
         // Token did not match (expired or tampered) — fall through and insert fresh
@@ -156,8 +156,8 @@ module.exports = async (req, res) => {
       // Only tell anyone once the guest actually reaches checkout
       if (stage === 'checkout') {
         const full = { ...fields, payment_option: payment, amount_due: amount, total, reference };
+        // The team hears about it now; the guest hears only once they pay.
         try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
-        try { await confirmBooking(full); } catch (err) { console.error('guest confirmation failed:', err.message); }
       }
 
       return res.status(201).json({ ok: true, id: rows[0].id, claim, reference });

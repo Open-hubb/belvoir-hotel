@@ -8,6 +8,7 @@
 const { neon } = require('@neondatabase/serverless');
 const F = require('./_flot');
 const { limit } = require('./_ratelimit');
+const { settleBooking } = require('./_paid');
 
 let _sql = null;
 function db() {
@@ -84,14 +85,9 @@ module.exports = async (req, res) => {
           WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
 
         if (bookingId) {
-          await sql`
-            UPDATE bookings
-            SET payment_status = 'paid',
-                stage = 'checkout',
-                notes = CASE WHEN COALESCE(notes, '') = ''
-                             THEN ${'Paid via Flot · ' + attemptId}
-                             ELSE notes || ${' · Paid via Flot · ' + attemptId} END
-            WHERE id = ${bookingId} AND payment_status IS DISTINCT FROM 'paid'`;
+          // Settles the booking and, if this is the first route to see the
+          // payment, sends the guest their receipt.
+          await settleBooking(sql, bookingId, attemptId, 'browser');
         }
         F.log('PAYMENT_COMPLETED', { orderId, attemptId, bookingId });
       }

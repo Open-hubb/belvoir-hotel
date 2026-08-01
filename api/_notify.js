@@ -122,9 +122,12 @@ const day = (d) => {
 };
 
 /**
- * The guest's own confirmation. This is the one that matters to them: it is
- * the only record they get of what they booked and what they owe, and it
- * carries the reference the front desk will ask for on arrival.
+ * The guest's confirmation, sent only once their money has actually arrived.
+ *
+ * This is deliberately the one and only email a guest ever receives, so its
+ * presence in their inbox means the payment succeeded. It must therefore never
+ * be sent from the booking flow, only from a path that has seen Flot report the
+ * payment completed. See api/_paid.js, which is the single caller.
  */
 async function confirmBooking(b) {
   if (!b.guest_email) return { skipped: true };
@@ -138,25 +141,57 @@ async function confirmBooking(b) {
     row('Check-out', `${day(b.checkout)} by 11:00 AM`) +
     row('Nights', b.nights) +
     row('Guests', b.guests) +
-    row('Paid', `${money(b.amount_due)}${deposit ? ' (30% deposit)' : ' (in full)'}`) +
+    row('Payment received', `${money(b.amount_due)}${deposit ? ' (30% deposit)' : ' (paid in full)'}`) +
     (deposit && balance > 0 ? row('Due at check-in', money(balance)) : '') +
     row('Stay total', money(b.total));
 
   return send({
     to: b.guest_email,
-    subject: `Your Belvoir booking is confirmed · ${b.reference || ''}`.trim(),
+    subject: `Payment received · your Belvoir booking is confirmed ${b.reference || ''}`.trim(),
     replyTo: TO[0],
     html: shell(
-      'Booking confirmed',
+      'Payment received',
       `We look forward to welcoming you`,
       rows,
       (b.requests ? `Your requests: ${b.requests}\n\n` : '') +
+        'This email is your receipt. Your room is now held for the dates above. ' +
         'Belvoir Avenue, off Wilkinson Road, Freetown. The front desk is staffed 24 hours, ' +
         'so a late arrival is no problem, just let us know. ' +
         'To change or cancel, reply to this email or call +232 77 777 063 quoting your reference. ' +
         'Cancel more than 48 hours before check-in for a full refund of anything paid in full; ' +
         'deposits are non-refundable.',
       { href: 'https://belvoir-hotel.vercel.app/terms', label: 'Booking terms' },
+    ),
+  });
+}
+
+/** Tells the hotel the money landed, as distinct from a booking being started. */
+async function notifyPaid(b) {
+  const deposit = b.payment_option === 'deposit';
+  const rows =
+    row('Reference', b.reference) +
+    row('Guest', b.guest_name) +
+    row('Email', b.guest_email) +
+    row('Phone', b.guest_phone) +
+    row('Room', b.room_name) +
+    row('Check-in', day(b.checkin)) +
+    row('Check-out', day(b.checkout)) +
+    row('Nights', b.nights) +
+    row('Guests', b.guests) +
+    row('Paid', `${money(b.amount_due)}${deposit ? ' (30% deposit)' : ' (in full)'}`) +
+    (deposit ? row('Due at check-in', money(Number(b.total) - Number(b.amount_due))) : '') +
+    row('Stay total', money(b.total)) +
+    row('Confirmed via', b.paid_source || 'Flot');
+
+  return send({
+    subject: `PAID: ${b.room_name} for ${b.guest_name} · ${b.reference || ''}`.trim(),
+    replyTo: b.guest_email,
+    html: shell(
+      'Payment received',
+      `${b.room_name}`,
+      rows,
+      b.requests ? `Special requests: ${b.requests}` : '',
+      { href: 'https://belvoir-hotel.vercel.app/admin', label: 'Open dashboard' },
     ),
   });
 }
@@ -190,4 +225,4 @@ async function notifyBooking(b) {
   });
 }
 
-module.exports = { notifyEnquiry, notifyBooking, confirmBooking };
+module.exports = { notifyEnquiry, notifyBooking, notifyPaid, confirmBooking };
