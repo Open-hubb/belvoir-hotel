@@ -103,7 +103,7 @@ async function notifyEnquiry(e) {
       isLong ? 'Long stay enquiry' : 'Website enquiry',
       rows,
       e.message,
-      { href: 'https://belvoir-hotel.vercel.app/admin', label: 'Open dashboard' },
+      { href: 'https://www.belvoir-estates.com/admin', label: 'Open dashboard' },
     ),
   });
 }
@@ -160,7 +160,7 @@ async function confirmBooking(b) {
         'To change or cancel, reply to this email or call +232 77 777 063 quoting your reference. ' +
         'Cancel more than 48 hours before check-in for a full refund of anything paid in full; ' +
         'deposits are non-refundable.',
-      { href: 'https://belvoir-hotel.vercel.app/terms', label: 'Booking terms' },
+      { href: 'https://www.belvoir-estates.com/terms', label: 'Booking terms' },
     ),
   });
 }
@@ -191,7 +191,7 @@ async function notifyPaid(b) {
       `${b.room_name}`,
       rows,
       b.requests ? `Special requests: ${b.requests}` : '',
-      { href: 'https://belvoir-hotel.vercel.app/admin', label: 'Open dashboard' },
+      { href: 'https://www.belvoir-estates.com/admin', label: 'Open dashboard' },
     ),
   });
 }
@@ -220,7 +220,7 @@ async function notifyBooking(b) {
       `${b.room_name}`,
       rows,
       b.requests ? `Special requests: ${b.requests}` : '',
-      { href: 'https://belvoir-hotel.vercel.app/admin', label: 'Open dashboard' },
+      { href: 'https://www.belvoir-estates.com/admin', label: 'Open dashboard' },
     ),
   });
 }

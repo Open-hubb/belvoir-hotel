@@ -4,4 +4,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://belvoir-hotel.vercel.app/sitemap.xml
+Sitemap: https://www.belvoir-estates.com/sitemap.xml

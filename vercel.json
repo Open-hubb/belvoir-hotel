@@ -4,6 +4,14 @@
   "crons": [
     { "path": "/api/cron-poll-payments", "schedule": "*/10 * * * *" }
   ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "belvoir-estates.com" }],
+      "destination": "https://www.belvoir-estates.com/$1",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

@@ -3,7 +3,7 @@
  * Implements the Flot Merchant Integration Guide v2.0, section 04.
  *
  * Give Flot Staff this URL plus the Basic auth credentials:
- *   https://belvoir-hotel.vercel.app/api/payment-webhook
+ *   https://www.belvoir-estates.com/api/payment-webhook
  *
  * Payload:
  *   { "orderId": "order-123", "flotRequestId": "123456", "status": "completed" }
