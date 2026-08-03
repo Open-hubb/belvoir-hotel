@@ -1,6 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
+const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
-const crypto = require('crypto');
 const { notifyEnquiry } = require('./_notify');
 
 let _sql = null;
@@ -9,15 +9,6 @@ function db() {
   return _sql;
 }
 
-function isAdmin(req) {
-  const key = process.env.ADMIN_KEY || '';
-  const header = req.headers['authorization'] || '';
-  const provided = header.startsWith('Bearer ') ? header.slice(7) : (req.headers['x-admin-key'] || '');
-  if (!key || !provided) return false;
-  const a = Buffer.from(String(provided));
-  const b = Buffer.from(key);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 
 const STAY_TYPES = ['', 'short', 'extended', 'long', 'business'];
 
@@ -64,14 +55,14 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       if (limit(req, res, 'admin', 30, 60000)) return;
-      if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+      if (!(await isAdminRequest(sql, req))) return res.status(401).json({ error: 'Unauthorized' });
       const rows = await sql`SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 500`;
       return res.status(200).json({ enquiries: rows });
     }
 
     if (req.method === 'PATCH') {
       if (limit(req, res, 'admin', 30, 60000)) return;
-      if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+      if (!(await isAdminRequest(sql, req))) return res.status(401).json({ error: 'Unauthorized' });
       const b = req.body || {};
       const id = parseInt(b.id, 10);
       if (!id) return res.status(400).json({ error: 'Missing id' });

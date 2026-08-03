@@ -8,8 +8,8 @@
 // maintenance cannot be sold.
 
 const { neon } = require('@neondatabase/serverless');
+const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
-const crypto = require('crypto');
 const { ROOMS, isRoom, parseDay, today } = require('./_rooms');
 
 let _sql = null;
@@ -18,15 +18,6 @@ function db() {
   return _sql;
 }
 
-function isAdmin(req) {
-  const key = process.env.ADMIN_KEY || '';
-  const header = req.headers['authorization'] || '';
-  const provided = header.startsWith('Bearer ') ? header.slice(7) : (req.headers['x-admin-key'] || '');
-  if (!key || !provided) return false;
-  const a = Buffer.from(String(provided));
-  const b = Buffer.from(key);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 
 function query(req) {
   if (req.query && Object.keys(req.query).length) return req.query;
@@ -36,7 +27,7 @@ function query(req) {
 
 module.exports = async (req, res) => {
   if (limit(req, res, 'admin', 30, 60000)) return;
-  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  if (!(await isAdminRequest(db(), req))) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const sql = db();

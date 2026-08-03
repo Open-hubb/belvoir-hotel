@@ -329,11 +329,13 @@
     <div class="login__card">
       <img src="images/logo.png" alt="Belvoir" class="login__logo" width="610" height="400">
       <h1 class="login__title">Bookings Admin</h1>
-      <p class="login__sub">Managers only · enter your access key</p>
-      <label class="login__label" for="keyInput">Access key</label>
-      <input type="password" id="keyInput" autocomplete="current-password">
-      <p class="login__err" id="loginErr">That key wasn't accepted. Try again.</p>
-      <button class="btn" id="loginBtn" style="width:100%;">Sign In</button>
+      <p class="login__sub">Managers only · sign in to continue</p>
+      <label class="login__label" for="emailInput">Email</label>
+      <input type="email" id="emailInput" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false">
+      <label class="login__label" for="pwInput" style="margin-top:0.9rem;">Password</label>
+      <input type="password" id="pwInput" autocomplete="current-password">
+      <p class="login__err" id="loginErr">Email or password not recognised.</p>
+      <button class="btn" id="loginBtn" style="width:100%;margin-top:1.1rem;">Sign In</button>
     </div>
   </div>
 
@@ -381,7 +383,9 @@
 
   <script>
     const $ = id => document.getElementById(id);
-    let KEY = sessionStorage.getItem('belvoirAdminKey') || '';
+    // Nothing is held in the page. The session lives in an httpOnly cookie
+    // that JavaScript cannot read, so injected script has nothing to steal.
+    let ME = null;
     let BOOKINGS = [];
     let ENQUIRIES = [];
     let PAYMENTS = [];
@@ -444,7 +448,8 @@
     async function api(method, body, path) {
       const res = await fetch(path || '/api/bookings', {
         method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined
       });
       if (res.status === 401) throw new Error('unauthorized');
@@ -473,11 +478,10 @@
         render();
         $('loginView').style.display = 'none';
         $('dashView').classList.add('active');
-        sessionStorage.setItem('belvoirAdminKey', KEY);
+        if (ME && $('whoami')) $('whoami').textContent = ME.name || ME.email;
       } catch (e) {
         if (e.message === 'unauthorized') {
-          sessionStorage.removeItem('belvoirAdminKey');
-          KEY = '';
+          ME = null;
           $('dashView').classList.remove('active');
           $('loginView').style.display = 'flex';
           $('loginErr').classList.add('show');
@@ -791,11 +795,54 @@
       }
     }
 
-    $('loginBtn').addEventListener('click', () => { KEY = $('keyInput').value.trim(); if (KEY) load(); });
-    $('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+    async function signIn() {
+      const email = $('emailInput').value.trim();
+      const password = $('pwInput').value;
+      const err = $('loginErr');
+      if (!email || !password) {
+        err.textContent = 'Enter your email and password.'; err.classList.add('show'); return;
+      }
+      $('loginBtn').disabled = true;
+      $('loginBtn').textContent = 'Signing in…';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'login', email, password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          err.textContent = data.error || 'Email or password not recognised.';
+          err.classList.add('show');
+          return;
+        }
+        ME = data.user;
+        $('pwInput').value = '';
+        err.classList.remove('show');
+        load();
+      } catch (e) {
+        err.textContent = 'Could not reach the server.';
+        err.classList.add('show');
+      } finally {
+        $('loginBtn').disabled = false;
+        $('loginBtn').textContent = 'Sign In';
+      }
+    }
+    $('loginBtn').addEventListener('click', signIn);
+    $('emailInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('pwInput').focus(); });
+    $('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
     $('refreshBtn').addEventListener('click', load);
-    $('logoutBtn').addEventListener('click', () => {
-      sessionStorage.removeItem('belvoirAdminKey');
+    $('logoutBtn').addEventListener('click', async () => {
+      // Revoke the session on the server, not merely forget it here, so a
+      // stolen cookie stops working the moment someone signs out.
+      try {
+        await fetch('/api/auth', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'logout' })
+        });
+      } catch (e) {}
       location.reload();
     });
     $('views').addEventListener('click', e => {
@@ -816,7 +863,14 @@
     });
     $('search').addEventListener('input', render);
 
-    if (KEY) load();
+    // A returning visit either still has a valid cookie or it does not, and
+    // only the server can say which.
+    (async () => {
+      try {
+        const res = await fetch('/api/auth', { credentials: 'same-origin' });
+        if (res.ok) { ME = (await res.json()).user; load(); }
+      } catch (e) {}
+    })();
   </script>
 </body>
 </html>

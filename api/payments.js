@@ -1,6 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
+const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
-const crypto = require('crypto');
 
 let _sql = null;
 function db() {
@@ -8,15 +8,6 @@ function db() {
   return _sql;
 }
 
-function isAdmin(req) {
-  const key = process.env.ADMIN_KEY || '';
-  const header = req.headers['authorization'] || '';
-  const provided = header.startsWith('Bearer ') ? header.slice(7) : (req.headers['x-admin-key'] || '');
-  if (!key || !provided) return false;
-  const a = Buffer.from(String(provided));
-  const b = Buffer.from(key);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
@@ -24,7 +15,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   if (limit(req, res, 'admin', 30, 60000)) return;
-  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  if (!(await isAdminRequest(db(), req))) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const sql = db();
