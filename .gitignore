@@ -39,3 +39,6 @@ HANDOFF.md
 # Flot private key (never commit)
 *.pem
 private_key*.pem
+
+# SEO audit output (regenerate with /seo-audit)
+*-audit/
