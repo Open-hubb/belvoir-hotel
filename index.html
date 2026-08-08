@@ -4791,6 +4791,11 @@
     .cat-room__actions > * { white-space: nowrap; }
 
     .cat-room__ghost {
+      display: inline-block;
+      text-decoration: none;
+      background: none;
+      border: 0;
+      cursor: pointer;
       font-family: var(--font-body);
       font-size: 0.8125rem;
       letter-spacing: 0.18em;
@@ -5848,7 +5853,7 @@
     <div class="container">
       <div class="about">
         <div class="about__image-wrap reveal">
-          <img src="images/reception.jpg" alt="Belvoir reception and lounge with warm orange walls and stone accent desk" loading="lazy" width="1600" height="1200">
+          <img src="images/reception.jpg" alt="Belvoir reception and lounge with warm orange walls and stone accent desk" loading="lazy" width="1400" height="1050">
           <div class="about__image-overlay"></div>
           <div class="about__image-frame"></div>
         </div>
@@ -6119,7 +6124,7 @@
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/ph-parlor.jpg" alt="Penthouse parlour at Belvoir" loading="lazy" width="1200" height="1600">
+          <img src="images/ph-parlor.jpg" alt="Penthouse parlour at Belvoir" loading="lazy" width="1050" height="1400">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
@@ -6127,11 +6132,11 @@
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/std-room-2.jpg" alt="Standard king bedroom at Belvoir" loading="lazy" width="1600" height="1200">
+          <img src="images/std-room-2.jpg" alt="Standard king bedroom at Belvoir" loading="lazy" width="1400" height="1050">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/apt-balcony.jpg" alt="Private balcony with balustrade at Belvoir" loading="lazy" width="1200" height="1600">
+          <img src="images/apt-balcony.jpg" alt="Private balcony with balustrade at Belvoir" loading="lazy" width="1050" height="1400">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
@@ -6139,7 +6144,7 @@
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
-          <img src="images/apt2-parlor.jpg" alt="Serviced apartment living room at Belvoir" loading="lazy" width="1600" height="1200">
+          <img src="images/apt2-parlor.jpg" alt="Serviced apartment living room at Belvoir" loading="lazy" width="1400" height="1050">
           <div class="gallery__item-overlay"></div>
         </div>
         <div class="gallery__item reveal">
@@ -7477,6 +7482,19 @@
     })();
 
     /* ─────────── Accommodation Categories ─────────── */
+    // Each room now has a crawlable page of its own; the card links to it so
+    // search engines can find them and a guest can share a single room.
+    const ROOM_SLUGS = {
+      'comfort': 'superior-double-comfort',
+      'standard': 'deluxe-standard',
+      'superior-deluxe': 'superior-deluxe-king',
+      'superior-twin': 'superior-deluxe-twin',
+      'studio': 'studio-penthouse',
+      'ground-floor': 'ground-floor-one-bedroom',
+      'one-bed': 'one-bedroom-apartment',
+      'two-bed': 'two-bedroom-apartment'
+    };
+
     const CATEGORIES = {
       rooms: {
         title: 'Rooms',
@@ -7541,7 +7559,7 @@
             '<p class="cat-room__desc">' + r.desc + '</p>' +
             '<div class="cat-room__chips">' + r.chips.map(c => '<span>' + c + '</span>').join('') + '</div>' +
             '<div class="cat-room__actions">' +
-              '<button class="cat-room__ghost" onclick="catGallery(\'' + r.gallery + '\')">View Gallery</button>' +
+              '<a class="cat-room__ghost" href="/rooms/' + ROOM_SLUGS[r.key] + '">Full Details</a>' +
               '<button class="cat-room__book" onclick="catBook(\'' + r.key + '\', \'' + r.name + '\')">Select &amp; Book</button>' +
             '</div>' +
           '</div>' +
