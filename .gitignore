@@ -42,3 +42,7 @@ private_key*.pem
 
 # SEO audit output (regenerate with /seo-audit)
 *-audit/
+
+# Raw photo originals kept locally, never deployed
+images/2 bedroom/
+images/logo-original-backup.png
