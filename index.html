@@ -3330,8 +3330,10 @@
 
     .footer__top {
       display: grid;
-      grid-template-columns: 2fr 1fr 1fr 1fr;
-      gap: 3rem;
+      /* Five columns now the rooms are listed: brand, Explore, Services,
+         Our Rooms, Also on. The brand block keeps the wider share. */
+      grid-template-columns: 1.7fr 1fr 1fr 1.2fr 1fr;
+      gap: 2.25rem;
       padding-bottom: 4rem;
       border-bottom: 1px solid rgba(176, 141, 87, 0.12);
     }
@@ -6838,6 +6840,20 @@
             <li><a href="#contact">Airport Transfers</a></li>
             <li><a href="#contact">Car Rental</a></li>
             <li><a href="#contact">Conference Rooms</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer__col-title">Our Rooms</div>
+          <ul class="footer__col-links">
+            <li><a href="/rooms/superior-double-comfort">Superior Double / Comfort</a></li>
+            <li><a href="/rooms/deluxe-standard">Deluxe Standard</a></li>
+            <li><a href="/rooms/superior-deluxe-king">Superior Deluxe King</a></li>
+            <li><a href="/rooms/superior-deluxe-twin">Superior Deluxe Twin</a></li>
+            <li><a href="/rooms/studio-penthouse">Studio Penthouse</a></li>
+            <li><a href="/rooms/ground-floor-one-bedroom">Ground Floor One-Bedroom</a></li>
+            <li><a href="/rooms/one-bedroom-apartment">One-Bedroom Apartment</a></li>
+            <li><a href="/rooms/two-bedroom-apartment">Two-Bedroom Apartment</a></li>
           </ul>
         </div>
 

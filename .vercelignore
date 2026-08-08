@@ -1,3 +1,14 @@
-remotion/
+# vercel deploys the working directory, not git — these must be excluded here too
+images/2 bedroom/
+images/unsorted/
+images/sorted images/
+images/logo-original-backup.png
+images/*.HEIC
+*-audit/
 temporary screenshots/
+remotion/
+scripts/
 node_modules/
+.firecrawl/
+WhatsApp*
+*.md
