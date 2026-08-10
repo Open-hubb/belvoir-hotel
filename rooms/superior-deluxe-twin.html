@@ -168,25 +168,52 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the Superior Deluxe Twin">
-        <figure class="rp__shot">
-          <img src="/images/twin-1.jpg" alt="Twin room with two single beds and garden view" loading="eager" fetchpriority="high" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/twin-2.jpg" alt="Twin beds with blue artwork and mini fridge" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/twin-3.jpg" alt="Twin room with work desk beside the window" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/twin-6.jpg" alt="Twin room with wardrobe and hanging rail" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/twin-4.jpg" alt="Twin room entrance with mini fridge and desk" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/twin-5.jpg" alt="Twin room lounge sofa and flat-screen TV" loading="lazy" width="1080" height="810">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the Superior Deluxe Twin">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/twin-1.jpg" alt="Twin room with two single beds and garden view" loading="eager" fetchpriority="high" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="1" aria-hidden="true">
+            <img src="/images/twin-2.jpg" alt="Twin beds with blue artwork and mini fridge" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="2" aria-hidden="true">
+            <img src="/images/twin-3.jpg" alt="Twin room with work desk beside the window" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="3" aria-hidden="true">
+            <img src="/images/twin-6.jpg" alt="Twin room with wardrobe and hanging rail" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="4" aria-hidden="true">
+            <img src="/images/twin-4.jpg" alt="Twin room entrance with mini fridge and desk" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="5" aria-hidden="true">
+            <img src="/images/twin-5.jpg" alt="Twin room lounge sofa and flat-screen TV" loading="lazy" width="1080" height="810">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 6</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 6">
+          <img src="/images/twin-1.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="1" aria-current="false" aria-label="Show photograph 2 of 6">
+          <img src="/images/twin-2.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="2" aria-current="false" aria-label="Show photograph 3 of 6">
+          <img src="/images/twin-3.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="3" aria-current="false" aria-label="Show photograph 4 of 6">
+          <img src="/images/twin-6.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="4" aria-current="false" aria-label="Show photograph 5 of 6">
+          <img src="/images/twin-4.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="5" aria-current="false" aria-label="Show photograph 6 of 6">
+          <img src="/images/twin-5.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -245,5 +272,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

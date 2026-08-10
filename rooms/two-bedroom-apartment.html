@@ -170,31 +170,64 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the Two-Bedroom Apartment">
-        <figure class="rp__shot">
-          <img src="/images/two-bed-living.jpg" alt="Two-bedroom apartment living room with corner sofa and dining table" loading="eager" fetchpriority="high" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-lounge.jpg" alt="Two-bedroom apartment lounge with framed art and window" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-seating.jpg" alt="Corner sofa beneath framed prints in the two-bedroom apartment" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-dining.jpg" alt="Two-bedroom apartment dining table seating four" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-dining-detail.jpg" alt="Dining table laid with glassware beneath framed art" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-bathroom-wide.jpg" alt="Two-bedroom apartment bathroom with basin, mirror and pebble tiling" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-bathroom.jpg" alt="Two-bedroom apartment bathroom with basin, mirror and WC" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/two-bed-shower.jpg" alt="Walk-in shower with rain head and pebble tiling" loading="lazy" width="810" height="1080">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the Two-Bedroom Apartment">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/two-bed-living.jpg" alt="Two-bedroom apartment living room with corner sofa and dining table" loading="eager" fetchpriority="high" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="1" aria-hidden="true">
+            <img src="/images/two-bed-lounge.jpg" alt="Two-bedroom apartment lounge with framed art and window" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="2" aria-hidden="true">
+            <img src="/images/two-bed-seating.jpg" alt="Corner sofa beneath framed prints in the two-bedroom apartment" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="3" aria-hidden="true">
+            <img src="/images/two-bed-dining.jpg" alt="Two-bedroom apartment dining table seating four" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="4" aria-hidden="true">
+            <img src="/images/two-bed-dining-detail.jpg" alt="Dining table laid with glassware beneath framed art" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="5" aria-hidden="true">
+            <img src="/images/two-bed-bathroom-wide.jpg" alt="Two-bedroom apartment bathroom with basin, mirror and pebble tiling" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="6" aria-hidden="true">
+            <img src="/images/two-bed-bathroom.jpg" alt="Two-bedroom apartment bathroom with basin, mirror and WC" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="7" aria-hidden="true">
+            <img src="/images/two-bed-shower.jpg" alt="Walk-in shower with rain head and pebble tiling" loading="lazy" width="810" height="1080">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 8</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 8">
+          <img src="/images/two-bed-living.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="1" aria-current="false" aria-label="Show photograph 2 of 8">
+          <img src="/images/two-bed-lounge.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="2" aria-current="false" aria-label="Show photograph 3 of 8">
+          <img src="/images/two-bed-seating.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="3" aria-current="false" aria-label="Show photograph 4 of 8">
+          <img src="/images/two-bed-dining.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="4" aria-current="false" aria-label="Show photograph 5 of 8">
+          <img src="/images/two-bed-dining-detail.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="5" aria-current="false" aria-label="Show photograph 6 of 8">
+          <img src="/images/two-bed-bathroom-wide.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="6" aria-current="false" aria-label="Show photograph 7 of 8">
+          <img src="/images/two-bed-bathroom.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="7" aria-current="false" aria-label="Show photograph 8 of 8">
+          <img src="/images/two-bed-shower.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -253,5 +286,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

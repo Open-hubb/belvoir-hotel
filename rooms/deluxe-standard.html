@@ -167,22 +167,46 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the Deluxe Standard">
-        <figure class="rp__shot">
-          <img src="/images/std-room-1.jpg" alt="Deluxe standard room with king bed and African art" loading="eager" fetchpriority="high" width="1400" height="1050">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/std-room-2.jpg" alt="Deluxe standard room with king bed and warm decor" loading="lazy" width="1400" height="1050">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/std-room-1b.jpg" alt="Deluxe standard room work desk and flat-screen TV" loading="lazy" width="1400" height="1050">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/std-bath.jpg" alt="En-suite bathroom with rain shower" loading="lazy" width="1050" height="1400">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/std-bathtub.jpg" alt="En-suite bathroom with walk-in shower" loading="lazy" width="1050" height="1400">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the Deluxe Standard">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/std-room-1.jpg" alt="Deluxe standard room with king bed and African art" loading="eager" fetchpriority="high" width="1400" height="1050">
+          </li>
+          <li class="rp__slide" data-i="1" aria-hidden="true">
+            <img src="/images/std-room-2.jpg" alt="Deluxe standard room with king bed and warm decor" loading="lazy" width="1400" height="1050">
+          </li>
+          <li class="rp__slide" data-i="2" aria-hidden="true">
+            <img src="/images/std-room-1b.jpg" alt="Deluxe standard room work desk and flat-screen TV" loading="lazy" width="1400" height="1050">
+          </li>
+          <li class="rp__slide" data-i="3" aria-hidden="true">
+            <img src="/images/std-bath.jpg" alt="En-suite bathroom with rain shower" loading="lazy" width="1050" height="1400">
+          </li>
+          <li class="rp__slide" data-i="4" aria-hidden="true">
+            <img src="/images/std-bathtub.jpg" alt="En-suite bathroom with walk-in shower" loading="lazy" width="1050" height="1400">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 5</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 5">
+          <img src="/images/std-room-1.jpg" alt="" loading="lazy" width="1400" height="1050">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="1" aria-current="false" aria-label="Show photograph 2 of 5">
+          <img src="/images/std-room-2.jpg" alt="" loading="lazy" width="1400" height="1050">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="2" aria-current="false" aria-label="Show photograph 3 of 5">
+          <img src="/images/std-room-1b.jpg" alt="" loading="lazy" width="1400" height="1050">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="3" aria-current="false" aria-label="Show photograph 4 of 5">
+          <img src="/images/std-bath.jpg" alt="" loading="lazy" width="1050" height="1400">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="4" aria-current="false" aria-label="Show photograph 5 of 5">
+          <img src="/images/std-bathtub.jpg" alt="" loading="lazy" width="1050" height="1400">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -241,5 +265,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

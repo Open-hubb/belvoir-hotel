@@ -4845,6 +4845,18 @@
     .cat-room__book:active { transform: translateY(0); }
     .cat-room__book:focus-visible { outline: 2px solid var(--fh-terra); outline-offset: 3px; }
 
+    /* The honeypot. Moved out of sight rather than display:none, because some
+       bots skip fields they can tell are hidden. Nothing here is focusable. */
+    .hp-field {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
     .form-status {
       display: none;
       margin-top: 1rem;
@@ -6500,6 +6512,14 @@
               <label for="message">Your Message</label>
               <textarea id="message" name="message" rows="4" required></textarea>
             </div>
+            <!-- Not a real field. It is off-screen, out of the tab order and
+                 hidden from screen readers, so no guest can reach it; anything
+                 that fills it was reading the markup rather than the page.
+                 Left visible to CSS-off bots on purpose — that is the trap. -->
+            <div class="hp-field" aria-hidden="true">
+              <label for="company">Company (leave this empty)</label>
+              <input type="text" id="company" name="company" tabindex="-1" autocomplete="off">
+            </div>
             <button type="submit" class="btn-primary" id="enquirySubmit" style="align-self: flex-start;"><span>Send Message</span></button>
             <p class="form-status" id="enquiryStatus" role="status" aria-live="polite"></p>
           </form>
@@ -7424,6 +7444,10 @@
       }
     }
 
+    // Stamped when the script runs, not at build time, so a cached page still
+    // reports how long this visitor actually had the form open.
+    const FORM_RENDERED_AT = Date.now();
+
     (function initEnquiryForm() {
       const form = document.getElementById('enquiryForm');
       if (!form) return;
@@ -7444,7 +7468,9 @@
           phone: document.getElementById('phone').value.trim(),
           stayType: document.getElementById('stayType').value,
           message: document.getElementById('message').value.trim(),
-          source: document.getElementById('stayType').value === 'long' ? 'long-stay' : 'contact'
+          source: document.getElementById('stayType').value === 'long' ? 'long-stay' : 'contact',
+          company: document.getElementById('company').value,   // honeypot; always empty for a real guest
+          renderedAt: FORM_RENDERED_AT                          // lets the server see an impossibly fast fill
         };
 
         if (!payload.name || !payload.email || !payload.message) {

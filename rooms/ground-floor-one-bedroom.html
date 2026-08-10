@@ -164,25 +164,52 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the Ground Floor One-Bedroom">
-        <figure class="rp__shot">
-          <img src="/images/gf-1.jpg" alt="Ground floor living area with artwork and dining space" loading="eager" fetchpriority="high" width="1024" height="768">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/gf-2.jpg" alt="Ground floor bedroom with patterned bedding" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/gf-3.jpg" alt="Ground floor dining table with original artwork" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/gf-6.jpg" alt="Ground floor lounge with sofa and armchair" loading="lazy" width="1080" height="810">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/gf-5.jpg" alt="Ground floor wardrobe and dressing mirror" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/gf-4.jpg" alt="Ground floor en-suite bathroom with shower" loading="lazy" width="810" height="1080">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the Ground Floor One-Bedroom">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/gf-1.jpg" alt="Ground floor living area with artwork and dining space" loading="eager" fetchpriority="high" width="1024" height="768">
+          </li>
+          <li class="rp__slide" data-i="1" aria-hidden="true">
+            <img src="/images/gf-2.jpg" alt="Ground floor bedroom with patterned bedding" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="2" aria-hidden="true">
+            <img src="/images/gf-3.jpg" alt="Ground floor dining table with original artwork" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="3" aria-hidden="true">
+            <img src="/images/gf-6.jpg" alt="Ground floor lounge with sofa and armchair" loading="lazy" width="1080" height="810">
+          </li>
+          <li class="rp__slide" data-i="4" aria-hidden="true">
+            <img src="/images/gf-5.jpg" alt="Ground floor wardrobe and dressing mirror" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="5" aria-hidden="true">
+            <img src="/images/gf-4.jpg" alt="Ground floor en-suite bathroom with shower" loading="lazy" width="810" height="1080">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 6</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 6">
+          <img src="/images/gf-1.jpg" alt="" loading="lazy" width="1024" height="768">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="1" aria-current="false" aria-label="Show photograph 2 of 6">
+          <img src="/images/gf-2.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="2" aria-current="false" aria-label="Show photograph 3 of 6">
+          <img src="/images/gf-3.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="3" aria-current="false" aria-label="Show photograph 4 of 6">
+          <img src="/images/gf-6.jpg" alt="" loading="lazy" width="1080" height="810">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="4" aria-current="false" aria-label="Show photograph 5 of 6">
+          <img src="/images/gf-5.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="5" aria-current="false" aria-label="Show photograph 6 of 6">
+          <img src="/images/gf-4.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -241,5 +268,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

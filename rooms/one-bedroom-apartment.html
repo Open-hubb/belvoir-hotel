@@ -170,31 +170,64 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the One-Bedroom Apartment">
-        <figure class="rp__shot">
-          <img src="/images/ob-1.jpg" alt="Apartment living room with leather sofa and marble floors" loading="eager" fetchpriority="high" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-2.jpg" alt="Apartment kitchen and dining area with pendant lighting" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-3.jpg" alt="Apartment bedroom with king bed and ceiling rose" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-4.jpg" alt="Apartment lounge with stone feature wall and television" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-5.jpg" alt="Apartment bedroom with wardrobe and patterned bedding" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-8.jpg" alt="Apartment dining area opening onto the living room" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-6.jpg" alt="Apartment bathroom with glass shower cabin" loading="lazy" width="810" height="1080">
-        </figure>
-        <figure class="rp__shot">
-          <img src="/images/ob-7.jpg" alt="Apartment en-suite with shower cabin and water heater" loading="lazy" width="810" height="1080">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the One-Bedroom Apartment">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/ob-1.jpg" alt="Apartment living room with leather sofa and marble floors" loading="eager" fetchpriority="high" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="1" aria-hidden="true">
+            <img src="/images/ob-2.jpg" alt="Apartment kitchen and dining area with pendant lighting" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="2" aria-hidden="true">
+            <img src="/images/ob-3.jpg" alt="Apartment bedroom with king bed and ceiling rose" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="3" aria-hidden="true">
+            <img src="/images/ob-4.jpg" alt="Apartment lounge with stone feature wall and television" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="4" aria-hidden="true">
+            <img src="/images/ob-5.jpg" alt="Apartment bedroom with wardrobe and patterned bedding" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="5" aria-hidden="true">
+            <img src="/images/ob-8.jpg" alt="Apartment dining area opening onto the living room" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="6" aria-hidden="true">
+            <img src="/images/ob-6.jpg" alt="Apartment bathroom with glass shower cabin" loading="lazy" width="810" height="1080">
+          </li>
+          <li class="rp__slide" data-i="7" aria-hidden="true">
+            <img src="/images/ob-7.jpg" alt="Apartment en-suite with shower cabin and water heater" loading="lazy" width="810" height="1080">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 8</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 8">
+          <img src="/images/ob-1.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="1" aria-current="false" aria-label="Show photograph 2 of 8">
+          <img src="/images/ob-2.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="2" aria-current="false" aria-label="Show photograph 3 of 8">
+          <img src="/images/ob-3.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="3" aria-current="false" aria-label="Show photograph 4 of 8">
+          <img src="/images/ob-4.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="4" aria-current="false" aria-label="Show photograph 5 of 8">
+          <img src="/images/ob-5.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="5" aria-current="false" aria-label="Show photograph 6 of 8">
+          <img src="/images/ob-8.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="6" aria-current="false" aria-label="Show photograph 7 of 8">
+          <img src="/images/ob-6.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+        <li><button type="button" class="rp__thumb" data-i="7" aria-current="false" aria-label="Show photograph 8 of 8">
+          <img src="/images/ob-7.jpg" alt="" loading="lazy" width="810" height="1080">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -252,5 +285,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

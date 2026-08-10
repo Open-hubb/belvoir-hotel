@@ -164,10 +164,22 @@
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the Studio Penthouse">
-        <figure class="rp__shot">
-          <img src="/images/penthouse-open-plan.jpg" alt="Penthouse open-plan living area with seating, bed and balcony" loading="eager" fetchpriority="high" width="1080" height="716">
-        </figure>
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the Studio Penthouse">
+      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+          <li class="rp__slide is-current" data-i="0">
+            <img src="/images/penthouse-open-plan.jpg" alt="Penthouse open-plan living area with seating, bed and balcony" loading="eager" fetchpriority="high" width="1080" height="716">
+          </li>
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / 1</p>
+      </div>
+      <ul class="rp__thumbs">
+        <li><button type="button" class="rp__thumb" data-i="0" aria-current="true" aria-label="Show photograph 1 of 1">
+          <img src="/images/penthouse-open-plan.jpg" alt="" loading="lazy" width="1080" height="716">
+        </button></li>
+      </ul>
     </section>
 
     <section class="rp__detail">
@@ -219,5 +231,7 @@
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>

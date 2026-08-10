@@ -99,13 +99,116 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
 .rp__book:hover { background: var(--gold); transform: translateY(-2px); }
 
 /* ── gallery ─────────────────────────────────────────────────────── */
-.rp__gallery {
-  max-width: 68rem; margin: 0 auto; padding: 0 1.5rem;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;
+.rp__gallery { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
+
+/* One large stage instead of a grid of small tiles, so every photograph gets
+   the size the first one used to get on its own. Slides are stacked and
+   cross-faded; only opacity moves. */
+.rp__stage {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--sand);
+  aspect-ratio: 3 / 2;
+  box-shadow:
+    0 22px 45px -28px rgba(12, 27, 51, 0.5),
+    0 3px 10px -5px rgba(176, 141, 87, 0.28);
 }
-.rp__shot { margin: 0; border-radius: 14px; overflow: hidden; background: var(--sand); }
-.rp__shot:first-child { grid-column: 1 / -1; }
-.rp__shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+
+.rp__slides { list-style: none; margin: 0; padding: 0; }
+
+.rp__slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rp__slide.is-current { opacity: 1; }
+.rp__slide img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Enough of a scrim behind the controls that white arrows stay legible on a
+   pale photograph, without dimming the picture across the middle. */
+.rp__stage::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38%;
+  background: linear-gradient(to top, rgba(12, 27, 51, 0.5), transparent);
+  pointer-events: none;
+}
+
+.rp__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(12, 27, 51, 0.55);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rp__nav:hover { background: var(--gold); }
+.rp__nav:active { transform: translateY(-50%) scale(0.93); }
+.rp__nav:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.rp__nav--prev { left: 0.85rem; }
+.rp__nav--next { right: 0.85rem; }
+
+.rp__counter {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.9rem;
+  z-index: 2;
+  color: #fff;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Thumbnails double as the direct way to any one photograph. */
+.rp__thumbs {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 0.6rem;
+}
+.rp__thumb {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--sand);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rp__thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.rp__thumb:hover { opacity: 0.85; }
+.rp__thumb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.rp__thumb[aria-current='true'] {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+@media (max-width: 560px) {
+  .rp__stage { aspect-ratio: 4 / 3; }
+  .rp__nav { width: 44px; height: 44px; }
+  .rp__thumbs { grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); }
+}
 .rp__shot:first-child img { aspect-ratio: 16 / 9; }
 
 /* ── detail ──────────────────────────────────────────────────────── */
@@ -162,4 +265,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
 @media (prefers-reduced-motion: reduce) {
   .rp__book, .rp__siblings a { transition: none; }
   .rp__book:hover, .rp__siblings a:hover { transform: none; }
+  /* Slides cut rather than fade. The script also stops advancing them on its
+     own, so the only movement left is what the reader asks for. */
+  .rp__slide, .rp__nav, .rp__thumb { transition: none; }
+  .rp__nav:active { transform: translateY(-50%); }
 }

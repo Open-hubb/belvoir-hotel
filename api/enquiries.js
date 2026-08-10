@@ -2,6 +2,7 @@ const { neon } = require('@neondatabase/serverless');
 const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
 const { notifyEnquiry } = require('./_notify');
+const { scoreEnquiry } = require('./_spam');
 
 let _sql = null;
 function db() {
@@ -38,10 +39,27 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Invalid stay type.' });
       }
 
+      const verdict = scoreEnquiry({
+        name, email, phone, message,
+        honeypot: b.company,          // the field the form hides from people
+        renderedAt: b.renderedAt,
+      });
+
       const rows = await sql`
-        INSERT INTO enquiries (name, email, phone, stay_type, message, source)
-        VALUES (${name}, ${email}, ${phone}, ${stayType}, ${message}, ${source})
+        INSERT INTO enquiries (name, email, phone, stay_type, message, source, status)
+        VALUES (${name}, ${email}, ${phone}, ${stayType}, ${message}, ${source},
+                ${verdict.spam ? 'spam' : 'new'})
         RETURNING id`;
+
+      if (verdict.spam) {
+        // Filed, not dropped, so a wrongly-scored guest can still be found and
+        // recovered. No email: the point of the exercise is to stop the noise
+        // reaching the team. The response is the same 201 a real enquiry gets,
+        // because telling a bot it failed only teaches it to try again
+        // differently.
+        console.log(`enquiry ${rows[0].id} filed as spam (${verdict.score}): ${verdict.reasons.join('; ')}`);
+        return res.status(201).json({ ok: true, id: rows[0].id });
+      }
 
       // Notify the team, but never fail the enquiry because email fell over
       try {
@@ -56,8 +74,17 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       if (limit(req, res, 'admin', 30, 60000)) return;
       if (!(await isAdminRequest(sql, req))) return res.status(401).json({ error: 'Unauthorized' });
-      const rows = await sql`SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 500`;
-      return res.status(200).json({ enquiries: rows });
+      // req.query exists on Vercel but not on the local dev server, so read the
+      // URL directly when it is missing — same fallback availability.js uses.
+      const qs = (req.query && Object.keys(req.query).length)
+        ? req.query
+        : Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
+      const wantSpam = String(qs.spam || '') === '1';
+      const rows = wantSpam
+        ? await sql`SELECT * FROM enquiries WHERE status = 'spam' ORDER BY created_at DESC LIMIT 500`
+        : await sql`SELECT * FROM enquiries WHERE status <> 'spam' ORDER BY created_at DESC LIMIT 500`;
+      const [{ n }] = await sql`SELECT count(*)::int AS n FROM enquiries WHERE status = 'spam'`;
+      return res.status(200).json({ enquiries: rows, spamCount: n });
     }
 
     if (req.method === 'PATCH') {
@@ -66,7 +93,7 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       const id = parseInt(b.id, 10);
       if (!id) return res.status(400).json({ error: 'Missing id' });
-      if (!['new', 'handled'].includes(b.status)) {
+      if (!['new', 'handled', 'spam'].includes(b.status)) {
         return res.status(400).json({ error: 'Invalid status' });
       }
       const rows = await sql`

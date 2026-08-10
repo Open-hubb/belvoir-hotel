@@ -138,12 +138,35 @@ function page(key) {
     ],
   };
 
-  const gallery = d.images.map((img, i) => {
+  const slides = d.images.map((img, i) => {
     const { w, h } = dims(img.src);
-    return `        <figure class="rp__shot">
-          <img src="/${esc(img.src)}" alt="${esc(img.alt)}" loading="${i === 0 ? 'eager' : 'lazy'}" ${i === 0 ? 'fetchpriority="high" ' : ''}width="${w}" height="${h}">
-        </figure>`;
+    return `          <li class="rp__slide${i === 0 ? ' is-current' : ''}" data-i="${i}"${i === 0 ? '' : ' aria-hidden="true"'}>
+            <img src="/${esc(img.src)}" alt="${esc(img.alt)}" loading="${i === 0 ? 'eager' : 'lazy'}" ${i === 0 ? 'fetchpriority="high" ' : ''}width="${w}" height="${h}">
+          </li>`;
   }).join('\n');
+
+  const thumbs = d.images.map((img, i) => {
+    const { w, h } = dims(img.src);
+    return `        <li><button type="button" class="rp__thumb" data-i="${i}" aria-current="${i === 0 ? 'true' : 'false'}" aria-label="Show photograph ${i + 1} of ${d.images.length}">
+          <img src="/${esc(img.src)}" alt="" loading="lazy" width="${w}" height="${h}">
+        </button></li>`;
+  }).join('\n');
+
+  // One photograph at a time at full width, rather than one large tile and a
+  // row of small ones. Without JavaScript the first slide stays visible and the
+  // thumbnails are still real links to nothing — so the page degrades to what
+  // it showed before rather than to an empty box.
+  const gallery = `      <div class="rp__stage" data-carousel data-interval="5000">
+        <ul class="rp__slides">
+${slides}
+        </ul>
+        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <p class="rp__counter" aria-live="polite">1 / ${d.images.length}</p>
+      </div>
+      <ul class="rp__thumbs">
+${thumbs}
+      </ul>`;
 
   const features = d.features.map((f) => `          <li>${esc(f)}</li>`).join('\n');
 
@@ -210,7 +233,7 @@ ${JSON.stringify(ld, null, 2)}
       <a href="/#rooms" class="rp__book">Check availability</a>
     </header>
 
-    <section class="rp__gallery" aria-label="Photographs of the ${esc(d.title)}">
+    <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the ${esc(d.title)}">
 ${gallery}
     </section>
 
@@ -261,6 +284,8 @@ ${siblings}
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>
   </footer>
+
+  <script src="/rooms.js" defer></script>
 </body>
 </html>
 `;

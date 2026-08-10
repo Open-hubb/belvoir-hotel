@@ -214,6 +214,20 @@
     .pill--left { background: rgba(195,74,54,0.1); color: #A93A28; }
     .card--left { border-left: 3px solid rgba(195,74,54,0.45); }
     .pill--done { background: rgba(46,125,87,0.14); color: var(--green-ok); }
+    .pill--spam { background: rgba(120,113,108,0.16); color: #57534E; }
+
+    /* The filtered-out tile doubles as the way into the filtered list, so it
+       needs to read as a control: a pointer, a focus ring, and a held-down
+       look while it is the active view. */
+    .stat--clickable { cursor: pointer; transition: border-color 0.25s cubic-bezier(0.22,1,0.36,1), background-color 0.25s cubic-bezier(0.22,1,0.36,1); }
+    .stat--clickable:hover { border-color: var(--gold); }
+    .stat--clickable:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .stat--active { background: rgba(176,141,87,0.10); border-color: var(--gold); }
+    .stat--active strong { color: var(--gold); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stat--clickable { transition: none; }
+    }
     .search {
       flex: 1;
       min-width: 180px;
@@ -525,6 +539,7 @@
         await loadUsers();
         BOOKINGS = bk.bookings;
         ENQUIRIES = eq.enquiries || [];
+        SPAM_COUNT = eq.spamCount || 0;
         PAYMENTS = pay.payments || [];
         BLOCKS = blk.blocks || [];
         render();
@@ -629,6 +644,25 @@
       }).join('');
     }
 
+    // Spam is fetched only when asked for, so the normal inbox stays a single
+    // query. SHOW_SPAM swaps which list renderEnquiries draws.
+    let SPAM_COUNT = 0, SPAM_LIST = [], SHOW_SPAM = false;
+
+    async function toggleSpam() {
+      SHOW_SPAM = !SHOW_SPAM;
+      if (SHOW_SPAM && !SPAM_LIST.length) {
+        $('list').innerHTML = '<div class="loading">Loading filtered enquiries…</div>';
+        try {
+          const r = await api('GET', null, '/api/enquiries?spam=1');
+          SPAM_LIST = r.enquiries || [];
+        } catch (err) {
+          SPAM_LIST = [];
+          alert('Could not load the filtered enquiries.');
+        }
+      }
+      render();
+    }
+
     function renderEnquiries() {
       const q = $('search').value.trim().toLowerCase();
       const nw = ENQUIRIES.filter(e => e.status !== 'handled').length;
@@ -637,14 +671,17 @@
         '<div class="stat"><strong>' + ENQUIRIES.length + '</strong><span>Total Enquiries</span></div>' +
         '<div class="stat stat--gold"><strong>' + nw + '</strong><span>Awaiting Reply</span></div>' +
         '<div class="stat stat--green"><strong>' + (ENQUIRIES.length - nw) + '</strong><span>Handled</span></div>' +
-        '<div class="stat"><strong>' + longs + '</strong><span>Long Stay</span></div>';
+        '<div class="stat stat--clickable' + (SHOW_SPAM ? ' stat--active' : '') + '" role="button" tabindex="0"' +
+          ' onclick="toggleSpam()" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleSpam();}">' +
+          '<strong>' + SPAM_COUNT + '</strong><span>' + (SHOW_SPAM ? 'Showing filtered' : 'Filtered out') + '</span></div>';
 
-      let rows = ENQUIRIES;
+      let rows = SHOW_SPAM ? SPAM_LIST : ENQUIRIES;
       if (q) rows = rows.filter(e =>
         [e.name, e.email, e.phone, e.message, e.stay_type].join(' ').toLowerCase().includes(q));
 
       if (!rows.length) {
-        $('list').innerHTML = '<div class="empty">No enquiries yet.</div>';
+        $('list').innerHTML = '<div class="empty">' +
+          (SHOW_SPAM ? 'Nothing has been filtered out.' : 'No enquiries yet.') + '</div>';
         return;
       }
 
@@ -665,10 +702,14 @@
             (e.source === 'long-stay' ? 'From the long stay banner' : 'From the contact form') +
           '</div>' +
           '<div class="card__side">' +
-            '<span class="pill ' + (done ? 'pill--done' : 'pill--new') + '">' + (done ? 'Handled' : 'New') + '</span>' +
-            '<a class="btn btn--sm" style="text-decoration:none;" href="' + reply + '">Reply</a>' +
-            '<button class="btn btn--sm btn--ghost" onclick="markEnquiry(' + e.id + ', \'' + (done ? 'new' : 'handled') + '\')">' +
-              (done ? 'Mark New' : 'Mark Handled') + '</button>' +
+            (SHOW_SPAM
+              ? '<span class="pill pill--spam">Filtered</span>' +
+                '<button class="btn btn--sm" onclick="restoreEnquiry(' + e.id + ')">Not spam</button>'
+              : '<span class="pill ' + (done ? 'pill--done' : 'pill--new') + '">' + (done ? 'Handled' : 'New') + '</span>' +
+                '<a class="btn btn--sm" style="text-decoration:none;" href="' + reply + '">Reply</a>' +
+                '<button class="btn btn--sm btn--ghost" onclick="markEnquiry(' + e.id + ', \'' + (done ? 'new' : 'handled') + '\')">' +
+                  (done ? 'Mark New' : 'Mark Handled') + '</button>' +
+                '<button class="btn btn--sm btn--ghost" onclick="markEnquiry(' + e.id + ', \'spam\')">Spam</button>') +
           '</div>' +
           '<div class="enq__msg">' + esc(e.message) + '</div>' +
         '</article>';
@@ -801,13 +842,33 @@
       }
     }
 
+    // Moves one back into the inbox and drops it from the filtered list.
+    async function restoreEnquiry(id) {
+      try {
+        await api('PATCH', { id, status: 'new' }, '/api/enquiries');
+        const e = SPAM_LIST.find(x => x.id === id);
+        SPAM_LIST = SPAM_LIST.filter(x => x.id !== id);
+        SPAM_COUNT = Math.max(0, SPAM_COUNT - 1);
+        if (e) { e.status = 'new'; ENQUIRIES.unshift(e); }
+        render();
+      } catch (err) {
+        alert('Could not restore it. Please refresh and try again.');
+      }
+    }
+
     async function markEnquiry(id, status) {
       const card = document.querySelector('.card[data-eid="' + id + '"]');
       if (card) card.style.opacity = '0.5';
       try {
         await api('PATCH', { id, status }, '/api/enquiries');
         const e = ENQUIRIES.find(x => x.id === id);
-        if (e) e.status = status;
+        if (status === 'spam') {
+          ENQUIRIES = ENQUIRIES.filter(x => x.id !== id);
+          SPAM_COUNT += 1;
+          if (e) { e.status = 'spam'; SPAM_LIST.unshift(e); }
+        } else if (e) {
+          e.status = status;
+        }
         render();
       } catch (err) {
         if (card) card.style.opacity = '1';
