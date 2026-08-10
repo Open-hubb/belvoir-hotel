@@ -111,7 +111,7 @@ function page(key) {
         image: d.images.map((i) => `${SITE}/${i.src}`),
         amenityFeature: d.features.map((f) => ({ '@type': 'LocationFeatureSpecification', name: f, value: true })),
         ...(bedFeature ? { bed: { '@type': 'BedDetails', typeOfBed: bedFeature } } : {}),
-        containedInPlace: { '@type': 'Hotel', name: 'Belvoir Hotel & Furnished Apartment Residence', '@id': `${SITE}/#hotel` },
+        containedInPlace: { '@type': 'Hotel', name: 'Belvoir Hotel & Residence', '@id': `${SITE}/#hotel` },
         offers: {
           '@type': 'Offer',
           price: String(rate),
@@ -160,8 +160,8 @@ function page(key) {
         <ul class="rp__slides">
 ${slides}
         </ul>
-        <button type="button" class="rp__nav rp__nav--prev" aria-label="Previous photograph">&#8249;</button>
-        <button type="button" class="rp__nav rp__nav--next" aria-label="Next photograph">&#8250;</button>
+        <button type="button" class="rp__arrow rp__arrow--prev" aria-label="Previous photograph">&#8249;</button>
+        <button type="button" class="rp__arrow rp__arrow--next" aria-label="Next photograph">&#8250;</button>
         <p class="rp__counter" aria-live="polite">1 / ${d.images.length}</p>
       </div>
       <ul class="rp__thumbs">
@@ -278,7 +278,7 @@ ${siblings}
   </main>
 
   <footer class="rp__footer">
-    <p><strong>Belvoir Hotel &amp; Furnished Apartment Residence</strong><br>
+    <p><strong>Belvoir Hotel &amp; Residence</strong><br>
        Belvoir Avenue, 86 Wilkinson Road, Freetown, Sierra Leone</p>
     <p><a href="tel:+23277777063">+232 77 777 063</a> ·
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>

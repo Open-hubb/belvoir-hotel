@@ -137,7 +137,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
   pointer-events: none;
 }
 
-.rp__nav {
+.rp__arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -157,11 +157,11 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
   transition: background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
               transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.rp__nav:hover { background: var(--gold); }
-.rp__nav:active { transform: translateY(-50%) scale(0.93); }
-.rp__nav:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.rp__nav--prev { left: 0.85rem; }
-.rp__nav--next { right: 0.85rem; }
+.rp__arrow:hover { background: var(--gold); }
+.rp__arrow:active { transform: translateY(-50%) scale(0.93); }
+.rp__arrow:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.rp__arrow--prev { left: 0.85rem; }
+.rp__arrow--next { right: 0.85rem; }
 
 .rp__counter {
   position: absolute;
@@ -206,10 +206,9 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
 
 @media (max-width: 560px) {
   .rp__stage { aspect-ratio: 4 / 3; }
-  .rp__nav { width: 44px; height: 44px; }
+  .rp__arrow { width: 44px; height: 44px; }
   .rp__thumbs { grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); }
 }
-.rp__shot:first-child img { aspect-ratio: 16 / 9; }
 
 /* ── detail ──────────────────────────────────────────────────────── */
 .rp__detail {
@@ -267,6 +266,6 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
   .rp__book:hover, .rp__siblings a:hover { transform: none; }
   /* Slides cut rather than fade. The script also stops advancing them on its
      own, so the only movement left is what the reader asks for. */
-  .rp__slide, .rp__nav, .rp__thumb { transition: none; }
-  .rp__nav:active { transform: translateY(-50%); }
+  .rp__slide, .rp__arrow, .rp__thumb { transition: none; }
+  .rp__arrow:active { transform: translateY(-50%); }
 }

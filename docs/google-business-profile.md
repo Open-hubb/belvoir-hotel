@@ -53,7 +53,7 @@ Take these verbatim so the profile and the site agree.
 
 | Field | Value |
 |---|---|
-| Business name | *decide — see Open questions* |
+| Business name | Belvoir Hotel & Residence |
 | Primary category | Hotel |
 | Additional categories | Serviced accommodation; Extended stay hotel; Apartment complex |
 | Street address | Belvoir Avenue, 86 Wilkinson Road |
@@ -74,8 +74,8 @@ Google allows 750 characters. This is impartial, avoids the promotional
 phrasing Google rejects, and stays consistent with the site:
 
 > Belvoir Hotel & Residence offers fully furnished hotel rooms, studio flats and
-> one- and two-bedroom serviced apartments on Belvoir Avenue, off Wilkinson
-> Road in Freetown. Every unit is air-conditioned and en-suite, with free WiFi,
+> one- and two-bedroom serviced apartments at Belvoir Avenue, 86 Wilkinson
+> Road, Freetown. Every unit is air-conditioned and en-suite, with free WiFi,
 > a private balcony and individual metering. Apartments include full kitchens.
 > Rooms include breakfast; studios and apartments can arrange it on request.
 > The front desk is staffed 24 hours and private parking is on site. Lumley and
@@ -109,8 +109,9 @@ Google weighs photo count and recency. Upload at minimum:
 - Logo (square) and a cover photo (landscape)
 
 Source folders: `images/sorted images/`, `images/2 bedroom/`.
-Note: the penthouse currently has only one usable photo, and there are no
-usable two-bedroom bedroom shots.
+Note: the studio penthouse has only one photo on the site, so its gallery
+falls back to a single frame. More photos of it would help both the page and
+the profile.
 
 ## Verification
 
@@ -138,22 +139,20 @@ days.
    visible to anyone comparing hotels.
 4. Keep hours accurate around holidays.
 
-## Open question
+## The business name
 
-One thing needs a decision before entering data, because it is awkward to change
-afterwards — a name change on a hotel profile can trigger re-verification.
+**Belvoir Hotel & Residence** — the name on the building signage, and now the
+name the whole site uses.
 
-**The official business name.** Four are in circulation:
+Google wants the real-world name, so that is what goes on the profile. The
+longer forms still exist on Booking.com and in older paperwork, so they are
+declared as `alternateName` in the site's structured data instead. That tells
+Google the four names are one business without putting a long keyword-stuffed
+string in the field that gets listings suspended:
 
-| Name | Where |
-|---|---|
-| Belvoir Hotel & Residence | site title, og:site_name, most copy |
-| Belvoir Hotel & Furnished Apartment Residence | structured data, legal footers |
-| Belvoir Hotel & Furnished Residence | Booking.com |
-| Belvoir Estate and Serviced Apart-Hotel & Residence | Booking.com, second listing |
+- Belvoir Hotel & Furnished Apartment Residence
+- Belvoir Hotel & Furnished Residence
+- Belvoir Estate and Serviced Apart-Hotel & Residence
 
-The profile must carry the real-world name as it appears on the building
-signage. Anything longer reads to Google as keyword stuffing and is a common
-cause of hotel listings being suspended. Once it is settled, the site should be
-made consistent with it — that is a single pass, the same shape as the address
-change.
+If both Booking.com listings turn out to have their own Maps entities, claim the
+stronger one and request a merge for the other rather than leaving two.

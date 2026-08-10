@@ -21,7 +21,7 @@
       // A single photograph is not a carousel. Drop the furniture.
       var only = stage.parentNode.querySelector('.rp__thumbs');
       if (only) only.remove();
-      Array.prototype.forEach.call(stage.querySelectorAll('.rp__nav, .rp__counter'), function (n) { n.remove(); });
+      Array.prototype.forEach.call(stage.querySelectorAll('.rp__arrow, .rp__counter'), function (n) { n.remove(); });
       stage.removeAttribute('data-carousel');
       return;
     }
@@ -29,8 +29,8 @@
     var thumbs = Array.prototype.slice.call(
       stage.parentNode.querySelectorAll('.rp__thumb'));
     var counter = stage.querySelector('.rp__counter');
-    var prev = stage.querySelector('.rp__nav--prev');
-    var next = stage.querySelector('.rp__nav--next');
+    var prev = stage.querySelector('.rp__arrow--prev');
+    var next = stage.querySelector('.rp__arrow--next');
     var wait = Number(stage.getAttribute('data-interval')) || 5000;
 
     var at = 0;
