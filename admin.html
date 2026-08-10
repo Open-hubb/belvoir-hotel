@@ -346,6 +346,17 @@
       <p class="login__hint" id="setupHint" style="display:none;">
         No account exists yet. <a href="#" id="showSetup">Create the first one</a>.
       </p>
+
+      <div id="keyBlock" style="display:none;">
+        <p class="login__hint" style="margin-top:1.4rem;">
+          <a href="#" id="showKey">Sign in with the access key</a>
+        </p>
+        <div id="keyRow" style="display:none;margin-top:0.9rem;">
+          <label class="login__label" for="keyInput">Access key</label>
+          <input type="password" id="keyInput" autocomplete="off">
+          <button class="btn" id="keyBtn" style="width:100%;margin-top:0.9rem;">Use key</button>
+        </div>
+      </div>
     </div>
 
     <!-- First run. Only reachable while no account exists; the server refuses
@@ -972,6 +983,40 @@
       }
     }
 
+    // ── access key ─────────────────────────────────────────────────────
+    // Exchanged for a normal session cookie, so the key is typed once and
+    // never held anywhere the page can read it afterwards.
+    async function keySignIn() {
+      const err = $('loginErr');
+      const key = $('keyInput').value.trim();
+      if (!key) { err.textContent = 'Enter the access key.'; err.classList.add('show'); return; }
+      $('keyBtn').disabled = true;
+      $('keyBtn').textContent = 'Checking…';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'key', key })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          err.textContent = data.error || 'That key was not accepted.';
+          err.classList.add('show');
+          return;
+        }
+        ME = data.user;
+        $('keyInput').value = '';
+        err.classList.remove('show');
+        load();
+      } catch (e) {
+        err.textContent = 'Could not reach the server.';
+        err.classList.add('show');
+      } finally {
+        $('keyBtn').disabled = false;
+        $('keyBtn').textContent = 'Use key';
+      }
+    }
+
     async function signIn() {
       const email = $('emailInput').value.trim();
       const password = $('pwInput').value;
@@ -1007,6 +1052,14 @@
       }
     }
     $('loginBtn').addEventListener('click', signIn);
+    $('showKey').addEventListener('click', e => {
+      e.preventDefault();
+      $('keyRow').style.display = '';
+      $('showKey').parentElement.style.display = 'none';
+      $('keyInput').focus();
+    });
+    $('keyBtn').addEventListener('click', keySignIn);
+    $('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') keySignIn(); });
     $('emailInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('pwInput').focus(); });
     $('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
     $('refreshBtn').addEventListener('click', load);
@@ -1059,6 +1112,8 @@
         } else {
           $('setupHint').style.display = 'none';
         }
+        // Only offer the key route when one is actually configured.
+        if (data.keyLogin) $('keyBlock').style.display = '';
       } catch (e) {}
     })();
   </script>

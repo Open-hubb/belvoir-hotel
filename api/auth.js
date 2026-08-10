@@ -9,6 +9,7 @@
  *   POST /api/auth  {action:'invite'}       add a staff account   (admin)
  *   POST /api/auth  {action:'disable'}      disable/enable staff  (admin)
  *
+ *   POST /api/auth  {action:'key'}          sign in with ADMIN_KEY
  *   POST /api/auth  {action:'setup'}        claim the very first account
  *
  * There is deliberately no public sign-up. This dashboard shows every guest's
@@ -32,7 +33,13 @@ function db() {
   return _sql;
 }
 
+const crypto = require('crypto');
+
 const clean = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+
+// The reserved account an access-key session attaches to. Shown in the Team
+// list like any other, so key use is visible rather than invisible.
+const KEY_ACCOUNT = 'access-key@local';
 
 // Taken from the address the site already emails, so there is nothing extra to
 // configure and the value is one the owner controls.
@@ -68,11 +75,15 @@ module.exports = async (req, res) => {
       // With no accounts at all nobody could sign in, and the only way to make
       // the first one was a terminal command. The page needs to know so it can
       // offer to create it instead of asking for a password that cannot exist.
-      const anyone = await sql`SELECT 1 FROM admin_users LIMIT 1`;
+      // The reserved key account does not count as "somebody has an account":
+      // keying in first should not take away the setup screen for a real one.
+      const anyone = await sql`
+        SELECT 1 FROM admin_users WHERE lower(email) <> ${KEY_ACCOUNT} LIMIT 1`;
       return res.status(401).json({
         error: 'Not signed in',
         needsSetup: anyone.length === 0,
         setupDomain: anyone.length === 0 ? SETUP_DOMAIN : undefined,
+        keyLogin: Boolean(process.env.ADMIN_KEY),
       });
     }
 
@@ -90,7 +101,8 @@ module.exports = async (req, res) => {
 
       // Only ever available while the table is empty. Once an account exists
       // this is closed for good, and new staff are added from inside.
-      const anyone = await sql`SELECT 1 FROM admin_users LIMIT 1`;
+      const anyone = await sql`
+        SELECT 1 FROM admin_users WHERE lower(email) <> ${KEY_ACCOUNT} LIMIT 1`;
       if (anyone.length) {
         return res.status(409).json({ error: 'An account already exists. Please sign in.' });
       }
@@ -131,6 +143,57 @@ module.exports = async (req, res) => {
       A.setSessionCookie(res, token, maxAge);
       console.log('admin: first account created for', email);
       return res.status(201).json({ ok: true, user: publicUser(created[0]) });
+    }
+
+    // ── sign in with the access key ──────────────────────────────────────
+    // The key stays useful for getting straight in while working on the site.
+    // It is exchanged for an ordinary session cookie rather than being held in
+    // the page: the old scheme kept it in sessionStorage, which is exactly what
+    // the stored-XSS was able to read. Used once, then never touched again.
+    if (action === 'key') {
+      if (limit(req, res, 'keylogin', 8, 15 * 60000)) return;
+
+      const secret = process.env.ADMIN_KEY || '';
+      const provided = String(body.key || '');
+      if (!secret) return res.status(400).json({ error: 'No access key is configured.' });
+      if (!provided) return res.status(400).json({ error: 'Enter the access key.' });
+
+      const a = Buffer.from(provided);
+      const b = Buffer.from(secret);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return res.status(401).json({ error: 'That key was not accepted.' });
+      }
+
+      // Sessions hang off a real row, so the key gets a reserved account of its
+      // own. Its password hash is deliberately unusable, so this account can
+      // never be entered with a password — only with the key.
+      let rows = await sql`
+        SELECT id, email, name, role, disabled FROM admin_users
+        WHERE lower(email) = ${KEY_ACCOUNT} LIMIT 1`;
+      if (!rows.length) {
+        // The unique index is on lower(email), so the conflict target has to be
+        // the same expression or Postgres has nothing to match it against.
+        rows = await sql`
+          INSERT INTO admin_users (email, password_hash, name, role)
+          VALUES (${KEY_ACCOUNT}, 'no-password-login', 'Access key', 'owner')
+          ON CONFLICT (lower(email)) DO NOTHING
+          RETURNING id, email, name, role, disabled`;
+        if (!rows.length) {
+          rows = await sql`
+            SELECT id, email, name, role, disabled FROM admin_users
+            WHERE lower(email) = ${KEY_ACCOUNT} LIMIT 1`;
+        }
+      }
+      const user = rows[0];
+      // Turning off the reserved account in the Team tab revokes key access,
+      // which only works if we actually read the column.
+      if (user.disabled) return res.status(403).json({ error: 'Key access has been disabled.' });
+
+      const { token, maxAge } = await A.createSession(sql, user.id, req.headers['user-agent']);
+      await sql`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
+      A.setSessionCookie(res, token, maxAge);
+      console.log('admin: signed in with the access key');
+      return res.status(200).json({ ok: true, user: publicUser(user) });
     }
 
     // ── sign in ──────────────────────────────────────────────────────────
