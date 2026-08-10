@@ -403,6 +403,7 @@
           <button class="tab" data-v="enquiries">Enquiries <span class="badge" id="enqBadge"></span></button>
           <button class="tab" data-v="payments">Payments <span class="badge" id="payBadge"></span></button>
           <button class="tab" data-v="blocks">Blocked</button>
+          <button class="tab" data-v="team">Team</button>
         </div>
         <div class="tabs" id="tabs">
           <button class="tab active" data-f="all">All</button>
@@ -430,6 +431,7 @@
     let BLOCKS = [];
     let FILTER = 'all';
     let VIEW = 'bookings';
+    let USERS = [];
 
     const fmtMoney = n => '$' + Number(n).toLocaleString();
     const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -509,6 +511,7 @@
           api('GET', null, '/api/payments').catch(() => ({ payments: [] })),
           api('GET', null, '/api/blocks').catch(() => ({ blocks: [] }))
         ]);
+        await loadUsers();
         BOOKINGS = bk.bookings;
         ENQUIRIES = eq.enquiries || [];
         PAYMENTS = pay.payments || [];
@@ -561,6 +564,7 @@
       if (VIEW === 'enquiries') return renderEnquiries();
       if (VIEW === 'payments') return renderPayments();
       if (VIEW === 'blocks') return renderBlocks();
+      if (VIEW === 'team') return renderTeam();
       stats();
       const q = $('search').value.trim().toLowerCase();
       let rows = BOOKINGS;
@@ -876,6 +880,98 @@
     $('setupBtn').addEventListener('click', createFirstAccount);
     $('suPw2').addEventListener('keydown', e => { if (e.key === 'Enter') createFirstAccount(); });
 
+
+    /* ─────────── Team ─────────── */
+    async function loadUsers() {
+      try {
+        const d = await api('GET', null, '/api/auth?action=users');
+        USERS = d.users || [];
+        if (d.me) ME = d.me;
+      } catch (e) { USERS = []; }
+    }
+
+    function renderTeam() {
+      $('stats').innerHTML =
+        '<div class="stat"><strong>' + USERS.filter(u => !u.disabled).length + '</strong><span>Active</span></div>' +
+        '<div class="stat"><strong>' + USERS.filter(u => u.disabled).length + '</strong><span>Disabled</span></div>';
+
+      const form =
+        '<article class="card" style="display:block;">' +
+          '<strong style="display:block;margin-bottom:0.9rem;">Add someone to the team</strong>' +
+          '<div class="blk__row">' +
+            '<label class="sr-only" for="tuName">Name</label>' +
+            '<input id="tuName" placeholder="Their name">' +
+            '<label class="sr-only" for="tuEmail">Email</label>' +
+            '<input id="tuEmail" type="email" placeholder="their.name@belvoir-estates.com" autocapitalize="off" spellcheck="false">' +
+            '<label class="sr-only" for="tuPw">Temporary password</label>' +
+            '<input id="tuPw" type="text" placeholder="Temporary password">' +
+            '<label class="sr-only" for="tuRole">Role</label>' +
+            '<select id="tuRole"><option value="manager">Manager</option><option value="owner">Owner</option></select>' +
+            '<button class="btn btn--sm" onclick="inviteUser()">Add</button>' +
+          '</div>' +
+          '<p class="blk__err" id="tuErr"></p>' +
+          '<p style="font-size:0.82rem;color:var(--ink-soft);margin:0.75rem 0 0;">' +
+            'You choose a temporary password and give it to them yourself. ' +
+            'They can change it once they are in. Managers see everything here; ' +
+            'owners can also add and remove people.' +
+          '</p>' +
+        '</article>';
+
+      const rows = USERS.map(u =>
+        '<article class="card' + (u.disabled ? ' card--cancelled' : '') + '">' +
+          '<div class="card__who">' +
+            '<strong>' + esc(u.name) + (u.id === ME?.id ? ' (you)' : '') + '</strong>' +
+            '<a href="mailto:' + esc(u.email) + '">' + esc(u.email) + '</a>' +
+            '<span class="card__date">Added ' + fmtDate(u.created_at) +
+              ' · ' + (u.last_login_at ? 'last in ' + fmtWhen(u.last_login_at) : 'never signed in') + '</span>' +
+          '</div>' +
+          '<div class="card__meta"><strong>' + esc(u.role) + '</strong>' +
+            (u.disabled ? 'disabled' : 'active') + '</div>' +
+          '<div class="card__side">' +
+            (u.id === ME?.id
+              ? '<span class="pill">This is you</span>'
+              : '<button class="btn btn--sm' + (u.disabled ? '' : ' btn--ghost') + '" onclick="toggleUser(' + u.id + ',' + (u.disabled ? 'false' : 'true') + ')">' +
+                  (u.disabled ? 'Re-enable' : 'Disable') + '</button>') +
+          '</div>' +
+        '</article>').join('');
+
+      $('list').innerHTML = form + (rows || '<div class="empty">No other accounts yet.</div>');
+    }
+
+    async function inviteUser() {
+      const err = $('tuErr');
+      err.textContent = '';
+      const payload = {
+        action: 'invite',
+        name: $('tuName').value.trim(),
+        email: $('tuEmail').value.trim(),
+        password: $('tuPw').value,
+        role: $('tuRole').value
+      };
+      if (!payload.email || !payload.password) { err.textContent = 'Email and a temporary password are required.'; return; }
+      try {
+        await api('POST', payload, '/api/auth');
+        $('tuName').value = ''; $('tuEmail').value = ''; $('tuPw').value = '';
+        await loadUsers();
+        render();
+      } catch (e) {
+        err.textContent = e.message || 'Could not add that person.';
+      }
+    }
+
+    async function toggleUser(id, disabled) {
+      // Disabling drops their sessions server-side, so access ends at once
+      // rather than when their cookie happens to expire.
+      if (disabled && !confirm('Disable this account? They will be signed out immediately.')) return;
+      try {
+        await api('POST', { action: 'disable', id, disabled }, '/api/auth');
+        await loadUsers();
+        render();
+      } catch (e) {
+        alert(e.message || 'Could not update that account.');
+      }
+    }
+
     async function signIn() {
       const email = $('emailInput').value.trim();
       const password = $('pwInput').value;
@@ -930,6 +1026,7 @@
       if (!e.target.dataset.v) return;
       VIEW = e.target.dataset.v;
       document.querySelectorAll('#views .tab').forEach(t => t.classList.toggle('active', t === e.target));
+      $('search').style.display = VIEW === 'team' ? 'none' : '';
       $('search').placeholder =
         VIEW === 'enquiries' ? 'Search name, email, message…' :
         VIEW === 'payments'  ? 'Search payer, reference, room…' :
