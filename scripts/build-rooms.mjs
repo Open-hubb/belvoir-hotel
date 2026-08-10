@@ -229,7 +229,7 @@ ${d.note ? `        <p class="rp__note">${esc(d.note)}</p>\n` : ''}      </div>
           <dt>Breakfast</dt><dd>${d.breakfast === true ? 'Included each morning' : 'Available on request'}</dd>
           <dt>Arrival</dt><dd>From 2:00 PM · front desk staffed 24 hours</dd>
           <dt>Departure</dt><dd>By 11:00 AM</dd>
-          <dt>Where</dt><dd>Belvoir Avenue, off Wilkinson Road, Freetown</dd>
+          <dt>Where</dt><dd>Belvoir Avenue, 86 Wilkinson Road, Freetown</dd>
         </dl>
         <p class="rp__aside-cta">
           Book direct and avoid third-party commission.<br>
@@ -256,7 +256,7 @@ ${siblings}
 
   <footer class="rp__footer">
     <p><strong>Belvoir Hotel &amp; Furnished Apartment Residence</strong><br>
-       Belvoir Avenue, off Wilkinson Road, Freetown, Sierra Leone</p>
+       Belvoir Avenue, 86 Wilkinson Road, Freetown, Sierra Leone</p>
     <p><a href="tel:+23277777063">+232 77 777 063</a> ·
        <a href="mailto:info@belvoir-estates.com">info@belvoir-estates.com</a></p>
     <p><a href="/">Home</a> · <a href="/terms">Booking terms</a> · <a href="/privacy">Privacy</a></p>

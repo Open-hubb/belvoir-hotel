@@ -155,7 +155,7 @@ async function confirmBooking(b) {
       rows,
       (b.requests ? `Your requests: ${b.requests}\n\n` : '') +
         'This email is your receipt. Your room is now held for the dates above. ' +
-        'Belvoir Avenue, off Wilkinson Road, Freetown. The front desk is staffed 24 hours, ' +
+        'Belvoir Avenue, 86 Wilkinson Road, Freetown. The front desk is staffed 24 hours, ' +
         'so a late arrival is no problem, just let us know. ' +
         'To change or cancel, reply to this email or call +232 77 777 063 quoting your reference. ' +
         'Cancel more than 48 hours before check-in for a full refund of anything paid in full; ' +
