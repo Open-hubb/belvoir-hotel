@@ -9,9 +9,17 @@
  *   POST /api/auth  {action:'invite'}       add a staff account   (admin)
  *   POST /api/auth  {action:'disable'}      disable/enable staff  (admin)
  *
+ *   POST /api/auth  {action:'setup'}        claim the very first account
+ *
  * There is deliberately no public sign-up. This dashboard shows every guest's
  * name, email, phone and stay history, so accounts are created by someone who
- * is already signed in. The first account comes from scripts/create-admin.mjs.
+ * is already signed in.
+ *
+ * The exception is the first one, which nobody can create from inside because
+ * nobody can get in. 'setup' covers that: it works only while admin_users is
+ * empty and only for an address on the hotel's own mail domain, then closes
+ * permanently. scripts/create-admin.mjs still works for anyone who prefers a
+ * terminal.
  */
 
 const { neon } = require('@neondatabase/serverless');
@@ -25,6 +33,11 @@ function db() {
 }
 
 const clean = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+
+// Taken from the address the site already emails, so there is nothing extra to
+// configure and the value is one the owner controls.
+const SETUP_DOMAIN = (process.env.NOTIFY_EMAIL || 'info@belvoir-estates.com')
+  .split(',')[0].trim().split('@').pop().toLowerCase();
 const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
 
 function query(req) {
@@ -50,8 +63,17 @@ module.exports = async (req, res) => {
       }
 
       const user = await A.sessionUser(sql, req);
-      if (!user) return res.status(401).json({ error: 'Not signed in' });
-      return res.status(200).json({ user: publicUser(user) });
+      if (user) return res.status(200).json({ user: publicUser(user) });
+
+      // With no accounts at all nobody could sign in, and the only way to make
+      // the first one was a terminal command. The page needs to know so it can
+      // offer to create it instead of asking for a password that cannot exist.
+      const anyone = await sql`SELECT 1 FROM admin_users LIMIT 1`;
+      return res.status(401).json({
+        error: 'Not signed in',
+        needsSetup: anyone.length === 0,
+        setupDomain: anyone.length === 0 ? SETUP_DOMAIN : undefined,
+      });
     }
 
     if (req.method !== 'POST') {
@@ -61,6 +83,55 @@ module.exports = async (req, res) => {
 
     const body = req.body || {};
     const action = String(body.action || '');
+
+    // ── claim the first account ──────────────────────────────────────────
+    if (action === 'setup') {
+      if (limit(req, res, 'setup', 6, 15 * 60000)) return;
+
+      // Only ever available while the table is empty. Once an account exists
+      // this is closed for good, and new staff are added from inside.
+      const anyone = await sql`SELECT 1 FROM admin_users LIMIT 1`;
+      if (anyone.length) {
+        return res.status(409).json({ error: 'An account already exists. Please sign in.' });
+      }
+
+      const email = clean(body.email, 160).toLowerCase();
+      const name = clean(body.name, 120);
+      const password = String(body.password || '');
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'That email address does not look right.' });
+      }
+      // /admin is unlisted, but it is still reachable by anyone who guesses the
+      // URL. Tying the first claim to the hotel's own mail domain means a
+      // stranger cannot take the account in the window before the owner does.
+      if (!email.endsWith('@' + SETUP_DOMAIN)) {
+        return res.status(403).json({ error: `The first account must use an @${SETUP_DOMAIN} address.` });
+      }
+      const problem = A.passwordProblem(password);
+      if (problem) return res.status(400).json({ error: problem });
+
+      let created;
+      try {
+        // The unique index settles a race between two simultaneous claims: the
+        // second insert fails rather than creating a duplicate owner.
+        created = await sql`
+          INSERT INTO admin_users (email, password_hash, name, role)
+          VALUES (${email}, ${await A.hashPassword(password)}, ${name || email}, 'owner')
+          RETURNING id, email, name, role`;
+      } catch (err) {
+        if (err && err.code === '23505') {
+          return res.status(409).json({ error: 'An account already exists. Please sign in.' });
+        }
+        throw err;
+      }
+
+      const { token, maxAge } = await A.createSession(sql, created[0].id, req.headers['user-agent']);
+      await sql`UPDATE admin_users SET last_login_at = now() WHERE id = ${created[0].id}`;
+      A.setSessionCookie(res, token, maxAge);
+      console.log('admin: first account created for', email);
+      return res.status(201).json({ ok: true, user: publicUser(created[0]) });
+    }
 
     // ── sign in ──────────────────────────────────────────────────────────
     if (action === 'login') {

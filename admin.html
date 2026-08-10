@@ -90,6 +90,9 @@
     .login input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(176,141,87,0.18); }
     .login__err { display: none; color: var(--red-warn); font-size: 0.86rem; margin-bottom: 0.9rem; }
     .login__err.show { display: block; }
+    .login__hint { margin: 1.1rem 0 0; font-size: 0.84rem; color: var(--ink-soft); text-align: center; }
+    .login__hint a { color: var(--gold); }
+    .login__note { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--ink-soft); }
 
     .btn {
       font-family: var(--sans);
@@ -339,6 +342,35 @@
       <input type="password" id="pwInput" autocomplete="current-password">
       <p class="login__err" id="loginErr">Email or password not recognised.</p>
       <button class="btn" id="loginBtn" style="width:100%;margin-top:1.1rem;">Sign In</button>
+
+      <p class="login__hint" id="setupHint" style="display:none;">
+        No account exists yet. <a href="#" id="showSetup">Create the first one</a>.
+      </p>
+    </div>
+
+    <!-- First run. Only reachable while no account exists; the server refuses
+         once one does, so this cannot be used to add a second owner. -->
+    <div class="login__card" id="setupCard" style="display:none;">
+      <h1 class="login__title">Create your account</h1>
+      <p class="login__sub" id="setupSub">First sign-in for the Belvoir dashboard</p>
+
+      <label class="login__label" for="suName">Your name</label>
+      <input type="text" id="suName" autocomplete="name">
+
+      <label class="login__label" for="suEmail" style="margin-top:0.9rem;">Email</label>
+      <input type="email" id="suEmail" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false">
+
+      <label class="login__label" for="suPw" style="margin-top:0.9rem;">Password</label>
+      <input type="password" id="suPw" autocomplete="new-password">
+      <p class="login__note">At least 10 characters, with a letter and a number.</p>
+
+      <label class="login__label" for="suPw2" style="margin-top:0.9rem;">Confirm password</label>
+      <input type="password" id="suPw2" autocomplete="new-password">
+
+      <p class="login__err" id="setupErr"></p>
+      <button class="btn" id="setupBtn" style="width:100%;margin-top:1.1rem;">Create account &amp; sign in</button>
+
+      <p class="login__hint"><a href="#" id="showLogin">Back to sign in</a></p>
     </div>
   </div>
 
@@ -801,6 +833,49 @@
       }
     }
 
+    // ── first run ──────────────────────────────────────────────────────
+    function showSetupCard(show) {
+      document.getElementById('setupCard').style.display = show ? '' : 'none';
+      document.querySelector('#loginView .login__card').style.display = show ? 'none' : '';
+    }
+    document.getElementById('showSetup').addEventListener('click', e => { e.preventDefault(); showSetupCard(true); $('suName').focus(); });
+    document.getElementById('showLogin').addEventListener('click', e => { e.preventDefault(); showSetupCard(false); });
+
+    async function createFirstAccount() {
+      const err = $('setupErr');
+      const name = $('suName').value.trim();
+      const email = $('suEmail').value.trim();
+      const pw = $('suPw').value;
+      const pw2 = $('suPw2').value;
+      const stop = m => { err.textContent = m; err.classList.add('show'); };
+
+      if (!name || !email || !pw) return stop('Please fill in every field.');
+      if (pw !== pw2) return stop('Those two passwords do not match.');
+
+      $('setupBtn').disabled = true;
+      $('setupBtn').textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setup', name, email, password: pw })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return stop(data.error || 'Could not create the account.');
+        ME = data.user;
+        err.classList.remove('show');
+        $('suPw').value = ''; $('suPw2').value = '';
+        load();
+      } catch (e) {
+        stop('Could not reach the server.');
+      } finally {
+        $('setupBtn').disabled = false;
+        $('setupBtn').textContent = 'Create account & sign in';
+      }
+    }
+    $('setupBtn').addEventListener('click', createFirstAccount);
+    $('suPw2').addEventListener('keydown', e => { if (e.key === 'Enter') createFirstAccount(); });
+
     async function signIn() {
       const email = $('emailInput').value.trim();
       const password = $('pwInput').value;
@@ -874,7 +949,19 @@
     (async () => {
       try {
         const res = await fetch('/api/auth', { credentials: 'same-origin' });
-        if (res.ok) { ME = (await res.json()).user; load(); }
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) { ME = data.user; load(); return; }
+        // No account has been made yet — offer to create it rather than asking
+        // for a password that cannot exist.
+        if (data.needsSetup) {
+          showSetupCard(true);
+          if (data.setupDomain) {
+            $('setupSub').textContent = 'First sign-in · use an @' + data.setupDomain + ' address';
+            $('suEmail').placeholder = 'you@' + data.setupDomain;
+          }
+        } else {
+          $('setupHint').style.display = 'none';
+        }
       } catch (e) {}
     })();
   </script>
