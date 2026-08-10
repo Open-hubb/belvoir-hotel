@@ -24,7 +24,7 @@
  */
 
 const { neon } = require('@neondatabase/serverless');
-const { limit } = require('./_ratelimit');
+const { limitShared } = require('./_ratelimit');
 const A = require('./_auth');
 
 let _sql = null;
@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
 
     // ── claim the first account ──────────────────────────────────────────
     if (action === 'setup') {
-      if (limit(req, res, 'setup', 6, 15 * 60000)) return;
+      if (await limitShared(sql, req, res, 'setup', 6, 15 * 60000)) return;
 
       // Only ever available while the table is empty. Once an account exists
       // this is closed for good, and new staff are added from inside.
@@ -151,7 +151,7 @@ module.exports = async (req, res) => {
     // the page: the old scheme kept it in sessionStorage, which is exactly what
     // the stored-XSS was able to read. Used once, then never touched again.
     if (action === 'key') {
-      if (limit(req, res, 'keylogin', 8, 15 * 60000)) return;
+      if (await limitShared(sql, req, res, 'keylogin', 8, 15 * 60000)) return;
 
       const secret = process.env.ADMIN_KEY || '';
       const provided = String(body.key || '');
@@ -199,7 +199,7 @@ module.exports = async (req, res) => {
     // ── sign in ──────────────────────────────────────────────────────────
     if (action === 'login') {
       // Tight, because this is the one endpoint worth guessing at.
-      if (limit(req, res, 'login', 8, 15 * 60000)) return;
+      if (await limitShared(sql, req, res, 'login', 8, 15 * 60000)) return;
 
       const email = clean(body.email, 160).toLowerCase();
       const password = String(body.password || '');
@@ -242,7 +242,7 @@ module.exports = async (req, res) => {
 
     // ── change my own password ───────────────────────────────────────────
     if (action === 'password') {
-      if (limit(req, res, 'pwchange', 10, 15 * 60000)) return;
+      if (await limitShared(sql, req, res, 'pwchange', 10, 15 * 60000)) return;
       if (me.legacy) {
         return res.status(400).json({ error: 'Sign in with an email account to change a password.' });
       }

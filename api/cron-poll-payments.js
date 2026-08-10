@@ -17,6 +17,7 @@ const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 const F = require('./_flot');
 const { settleBooking } = require('./_paid');
+const { sweepRateLimits } = require('./_ratelimit');
 
 let _sql = null;
 function db() {
@@ -128,9 +129,14 @@ module.exports = async (req, res) => {
         AND received_at <= now() - (${STALE_AFTER_HOURS} || ' hours')::interval
       RETURNING id`;
 
+    // Piggyback the housekeeping rather than adding a second schedule.
+    let sweptLimits = 0;
+    try { sweptLimits = await sweepRateLimits(sql); } catch (e) {}
+
     const result = {
       ok: true,
       checked: open.length,
+      sweptLimits,
       completed,
       failed,
       unchanged,

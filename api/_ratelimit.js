@@ -69,3 +69,69 @@ function limit(req, res, name, max, windowMs) {
 }
 
 module.exports = { limit, take, clientIp };
+
+/**
+ * The same fixed window, but counted in Postgres so every function instance
+ * shares it.
+ *
+ * The in-memory limiter above is per instance. On serverless that is fine for
+ * holding back booking spam, and not fine for guessing a password: an attacker
+ * who spreads attempts across cold starts gets a fresh allowance each time.
+ * Sign-in is rare enough that a round-trip costs nothing, so those endpoints
+ * count here instead.
+ *
+ * The upsert is a single statement, so two simultaneous attempts cannot both
+ * read the same count and both decide they are under the limit.
+ *
+ *   if (await limitShared(sql, req, res, 'login', 8, 15 * 60000)) return;
+ */
+async function limitShared(sql, req, res, name, max, windowMs) {
+  const bucket = `${name}:${clientIp(req)}`;
+  const seconds = Math.ceil(windowMs / 1000);
+
+  let row;
+  try {
+    const rows = await sql`
+      INSERT INTO rate_limits (bucket, hits, window_start)
+      VALUES (${bucket}, 1, now())
+      ON CONFLICT (bucket) DO UPDATE SET
+        hits = CASE
+          WHEN rate_limits.window_start < now() - (${seconds} || ' seconds')::interval
+          THEN 1 ELSE rate_limits.hits + 1 END,
+        window_start = CASE
+          WHEN rate_limits.window_start < now() - (${seconds} || ' seconds')::interval
+          THEN now() ELSE rate_limits.window_start END
+      RETURNING hits, window_start`;
+    row = rows[0];
+  } catch (err) {
+    // A limiter that fails closed would lock everyone out of the dashboard the
+    // moment the database hiccups. Fall back to the in-memory counter, which is
+    // weaker but still a limit, and say so in the log.
+    console.error('shared rate limit unavailable, using in-memory:', err.message);
+    return limit(req, res, name, max, windowMs);
+  }
+
+  if (row.hits > max) {
+    const resetAt = new Date(row.window_start).getTime() + windowMs;
+    const retryAfter = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
+    res.setHeader('Retry-After', String(retryAfter));
+    res.setHeader('X-RateLimit-Limit', String(max));
+    res.setHeader('X-RateLimit-Remaining', '0');
+    res.status(429).json({ error: 'Too many attempts. Please wait and try again.' });
+    return true;
+  }
+
+  res.setHeader('X-RateLimit-Limit', String(max));
+  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - row.hits)));
+  return false;
+}
+
+/** Old windows are dead weight; the cron sweeps them while it runs. */
+async function sweepRateLimits(sql) {
+  const gone = await sql`
+    DELETE FROM rate_limits WHERE window_start < now() - interval '24 hours' RETURNING bucket`;
+  return gone.length;
+}
+
+module.exports.limitShared = limitShared;
+module.exports.sweepRateLimits = sweepRateLimits;

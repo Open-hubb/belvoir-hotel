@@ -64,3 +64,17 @@ console.log(`\n  existing admin accounts: ${users[0].n}`);
 if (users[0].n === 0) {
   console.log('  next: node scripts/create-admin.mjs');
 }
+
+// ── durable rate limiting ─────────────────────────────────────────────────
+// The in-memory limiter is per function instance, so on serverless a burst
+// spread across cold starts slips through. That is tolerable for booking spam
+// and not tolerable for guessing a password, so the counter lives in Postgres
+// where every instance shares it.
+await sql`
+  CREATE TABLE IF NOT EXISTS rate_limits (
+    bucket       text PRIMARY KEY,
+    hits         integer NOT NULL DEFAULT 0,
+    window_start timestamptz NOT NULL DEFAULT now()
+  )`;
+await sql`CREATE INDEX IF NOT EXISTS rate_limits_window ON rate_limits (window_start)`;
+console.log('  rate_limits ready');
