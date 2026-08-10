@@ -86,12 +86,14 @@ phrasing Google rejects, and stays consistent with the site:
 
 ### Amenities to tick
 
-Confirmed by the site: free WiFi, free parking, air conditioning, restaurant,
-24-hour front desk, laundry service, balcony, kitchen (apartments), en-suite
-bathrooms, family rooms.
+Confirmed: free WiFi, free parking, air conditioning, restaurant, 24-hour front
+desk, laundry service, balcony, kitchen (apartments), en-suite bathrooms,
+family rooms, on-site mini mart.
 
-Do **not** tick until confirmed: airport shuttle (on request only — see below),
-mini mart (see below), conference room (not built yet).
+Do **not** tick: conference room (not built yet), airport shuttle. The transfer
+is arranged on request rather than run as a service, and Google's shuttle
+attribute reads to guests as scheduled transport. Put it in the description
+instead, where it can be qualified.
 
 Never tick an amenity that is not currently available. It is the most common
 cause of one-star reviews for hotels and it puts the listing at risk.
@@ -136,20 +138,22 @@ days.
    visible to anyone comparing hotels.
 4. Keep hours accurate around holidays.
 
-## Open questions
+## Open question
 
-Two things need a decision before entering data, because both are awkward to
-change afterwards — a name change on a hotel profile can trigger re-verification.
+One thing needs a decision before entering data, because it is awkward to change
+afterwards — a name change on a hotel profile can trigger re-verification.
 
-1. **The official business name.** The site uses two: "Belvoir Hotel &
-   Residence" (title, most copy) and "Belvoir Hotel & Furnished Apartment
-   Residence" (structured data). Booking.com uses two more. The profile must
-   use the real-world name as it appears on the building signage; anything
-   longer reads as keyword stuffing and can get the listing suspended. Once
-   decided, the site should be made consistent with it.
+**The official business name.** Four are in circulation:
 
-2. **The mini mart.** The site still shows a Mini Mart amenity card and lists
-   "On-site mini mart" in the structured data, and there is a banner section
-   with photos. But removal was requested earlier. If it exists, keep it and it
-   can go on the profile; if not, the card, the schema entry and the banner all
-   need removing.
+| Name | Where |
+|---|---|
+| Belvoir Hotel & Residence | site title, og:site_name, most copy |
+| Belvoir Hotel & Furnished Apartment Residence | structured data, legal footers |
+| Belvoir Hotel & Furnished Residence | Booking.com |
+| Belvoir Estate and Serviced Apart-Hotel & Residence | Booking.com, second listing |
+
+The profile must carry the real-world name as it appears on the building
+signage. Anything longer reads to Google as keyword stuffing and is a common
+cause of hotel listings being suspended. Once it is settled, the site should be
+made consistent with it — that is a single pass, the same shape as the address
+change.
