@@ -55,8 +55,8 @@
     },
     "geo": {
       "@type": "GeoCoordinates",
-      "latitude": 8.4657,
-      "longitude": -13.2707
+      "latitude": 8.476571,
+      "longitude": -13.27347
     },
     "amenityFeature": [
       { "@type": "LocationFeatureSpecification", "name": "Free WiFi", "value": true },
@@ -6209,7 +6209,11 @@
         </div>
 
         <div class="location__map reveal">
-          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3946.583!2d-13.2599!3d8.4657!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zOMKwMjcnNTYuNSJOIDEzwrAxNSczNS42Ilc!5e0!3m2!1sen!2ssl!4v1700000000000" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Belvoir Hotel location on Google Maps"></iframe>
+          <!-- The pin comes straight from the coordinates in the structured data
+               above. The previous embed was a hand-assembled pb= string that
+               carried its own separate copy of the position, and the two had
+               drifted 1.2 km apart. This form has only one number to get wrong. -->
+          <iframe src="https://www.google.com/maps?q=8.476571,-13.27347&amp;hl=en&amp;z=16&amp;output=embed" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Belvoir Hotel &amp; Residence on Wilkinson Road, Freetown — Google Maps"></iframe>
         </div>
       </div>
     </div>
