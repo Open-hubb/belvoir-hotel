@@ -5298,17 +5298,6 @@
       text-align: right;
     }
 
-    .bw__amt-le, .bw__rate-le {
-      display: block;
-      font-family: var(--font-body);
-      font-size: 0.8125rem;
-      font-weight: 400;
-      color: var(--color-text-muted);
-      margin-top: 0.1rem;
-    }
-
-    .bw__rate-le { display: inline-block; margin-left: 0.4rem; margin-top: 0; }
-
     .bw__pay-amt small {
       display: block;
       font-family: var(--font-body);
@@ -7947,16 +7936,15 @@
       })
       .catch(() => { /* keep the default */ });
 
-    /** "Le 1,680" for a USD amount. */
+    /** "Le 1,680" for a USD amount. Prices are quoted in dollars throughout, so
+        this is now only used at the payment step, once a guest has actually
+        chosen to pay in Leones and needs to see what will leave their account. */
     function leFor(usd) {
       return 'Le ' + Math.round(Number(usd) * LE_RATE).toLocaleString();
     }
 
     /** Re-render anything already showing a converted price. */
     function refreshLePrices() {
-      document.querySelectorAll('[data-usd]').forEach(el => {
-        el.textContent = leFor(el.dataset.usd);
-      });
       if (document.getElementById('catOverlay').classList.contains('active') && currentCategory) {
         openCategory(currentCategory);
       }
@@ -7996,8 +7984,7 @@
       document.getElementById('bwRoomImg').src = ROOM_IMGS[roomKey] || 'images/deluxe-standard-room.jpg';
       document.getElementById('bwRoomImg').alt = bwState.label + ' at Belvoir';
       document.getElementById('bwRoomName').textContent = bwState.label;
-      document.getElementById('bwRoomRate').innerHTML =
-        '$' + price + ' per night <span class="bw__rate-le" data-usd="' + price + '">' + leFor(price) + '</span>';
+      document.getElementById('bwRoomRate').textContent = '$' + price + ' per night';
 
       const today = new Date();
       const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -8095,12 +8082,9 @@
 
     function bwBuildPayment() {
       const t = bwTotals();
-      document.getElementById('bwPayFullAmt').innerHTML =
-        '$' + t.total.toLocaleString() +
-        '<span class="bw__amt-le" data-usd="' + t.total + '">' + leFor(t.total) + '</span>';
+      document.getElementById('bwPayFullAmt').textContent = '$' + t.total.toLocaleString();
       document.getElementById('bwPayDepositAmt').innerHTML =
-        '$' + t.deposit.toLocaleString() + ' <small>deposit now</small>' +
-        '<span class="bw__amt-le" data-usd="' + t.deposit + '">' + leFor(t.deposit) + '</span>';
+        '$' + t.deposit.toLocaleString() + ' <small>deposit now</small>';
       document.getElementById('bwPayDepositDesc').textContent = 'Pay a 30% non-refundable deposit ($' + t.deposit.toLocaleString() + ') now to hold your room. The remaining $' + t.remaining.toLocaleString() + ' is due at check-in.';
       document.getElementById('bwPayDepositNote').innerHTML = '<i data-lucide="shield-alert"></i> Deposit of $' + t.deposit.toLocaleString() + ' is non-refundable';
       document.getElementById('bwPayFull').classList.toggle('selected', bwState.payment === 'full');
@@ -8111,10 +8095,13 @@
     function bwUpdateCurrencyNote() {
       const t = bwTotals();
       const amt = bwState.payment === 'deposit' ? t.deposit : t.total;
+      // Prices are quoted in dollars only now. The Leone figure still exists and
+      // is still what a Leone method gets charged — it just belongs at the moment
+      // of payment, where the guest has picked a currency, rather than beside
+      // every price on the way there.
       document.getElementById('bwCurrencyNote').innerHTML =
-        'At checkout you choose the currency. In <b>US Dollars</b> you pay <b>$' + amt.toLocaleString() +
-        '</b> exactly. In <b>Leones</b> you pay <b>' + leFor(amt) + '</b>, converted at $1 = Le ' + LE_RATE +
-        '. Card, Mobile Money and the Flot App all accept either.';
+        'You pay <b>$' + amt.toLocaleString() + '</b>. At checkout you choose the currency — ' +
+        'Card, Mobile Money and the Flot App all accept either US Dollars or Leones.';
     }
 
     function bwSelectPay(type) {
