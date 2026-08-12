@@ -189,7 +189,7 @@
       "name": "How can I pay, and in what currency?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "We accept bank card, Mobile Money and the Flot app. At checkout you choose your currency: pay the quoted amount in US dollars, or in Leones converted at the rate shown at the time of booking. Mobile Money settles in Leones only. You can pay in full or leave a 30% deposit and settle the balance at check-in."
+        "text": "We accept bank card, Mobile Money and the Flot app. All rates are quoted in US dollars. Bank card and the Flot app are charged in dollars; Mobile Money settles in Leones, and the converted amount is shown before you pay. You can pay in full or leave a 30% deposit and settle the balance at check-in."
       }
     },
     {
@@ -2074,58 +2074,14 @@
       margin-top: 0.35rem;
     }
 
-    .fc__cur {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-    }
-
-    .fc__cur-opt {
-      font-family: var(--font-body);
-      font-size: 0.9375rem;
-      font-weight: 500;
-      color: var(--color-text-muted);
-      background: none;
-      border: 1.5px solid var(--color-border);
-      border-radius: 12px;
-      padding: 0.7rem 0.5rem;
-      cursor: pointer;
-      min-height: 46px;
-      transition: border-color 0.3s var(--ease-out-expo),
-                  background-color 0.3s var(--ease-out-expo),
-                  color 0.3s var(--ease-out-expo);
-    }
-
-    .fc__cur-opt span {
-      display: block;
-      font-size: 0.75rem;
-      letter-spacing: 0.16em;
-      margin-top: 0.15rem;
-      opacity: 0.7;
-    }
-
-    .fc__cur-opt:hover { border-color: var(--color-gold); }
-    .fc__cur-opt:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
-
-    .fc__cur-opt[aria-checked="true"] {
-      border-color: var(--color-navy);
-      background: var(--color-navy);
-      color: var(--color-white);
-    }
-
-    .fc__cur-opt[disabled] {
-      opacity: 0.35;
-      cursor: not-allowed;
-      border-style: dashed;
-    }
-    .fc__cur-opt[disabled]:hover { border-color: var(--color-border); }
-
+    /* The Leones line under the amount, shown only for a Leones-only method. */
     .fc__cur-note {
       font-family: var(--font-body);
       font-size: 0.875rem;
+      line-height: 1.5;
       color: var(--color-text-muted);
       text-align: center;
-      margin-top: -0.5rem;
+      margin: -0.25rem 0 0;
     }
     .fc__cur-note[hidden] { display: none; }
 
@@ -6382,7 +6338,7 @@
               <i data-lucide="chevron-down" aria-hidden="true"></i>
             </button>
             <div class="faq__a" id="faqa5" role="region" aria-labelledby="faqq5">
-              <div>We accept bank card, Mobile Money and the Flot app. At checkout you choose your currency: pay the quoted amount in <strong>US dollars</strong>, or in <strong>Leones</strong> converted at the rate shown at the time of booking. Mobile Money settles in Leones only. You can pay in full or leave a 30% deposit and settle the balance at check-in.</div>
+              <div>We accept bank card, Mobile Money and the Flot app. All rates are quoted in <strong>US dollars</strong>. Bank card and the Flot app are charged in dollars; <strong>Mobile Money</strong> settles in Leones, and the converted amount is shown before you pay. You can pay in full or leave a 30% deposit and settle the balance at check-in.</div>
             </div>
           </div>
           <div class="faq__item">
@@ -6750,15 +6706,11 @@
           <div class="fc__amount-sub" id="fcAmountSub">Amount due</div>
         </div>
 
-        <div class="fc__cur" role="radiogroup" aria-label="Pay in which currency">
-          <button type="button" class="fc__cur-opt" role="radio" aria-checked="false" data-cur="USD" onclick="fcSetCurrency('USD')">
-            US Dollars <span>USD</span>
-          </button>
-          <button type="button" class="fc__cur-opt" role="radio" aria-checked="false" data-cur="SLE" onclick="fcSetCurrency('SLE')">
-            Leones <span>SLE</span>
-          </button>
-        </div>
-        <p class="fc__cur-note" id="fcCurNote" hidden>Mobile Money is settled in Leones.</p>
+        <!-- No currency picker. Prices are quoted in dollars, and which wallet
+             the money lands in follows from the method rather than being a
+             second decision for the guest. Mobile Money settles in Leones, so
+             the converted figure appears here once that method is chosen. -->
+        <p class="fc__cur-note" id="fcCurNote" hidden></p>
 
         <div class="fc__methods" role="radiogroup" aria-label="Payment method">
           <button type="button" class="fc__method" role="radio" aria-checked="false" data-type="momo" onclick="fcPick('momo')">
@@ -8125,8 +8077,8 @@
       // of payment, where the guest has picked a currency, rather than beside
       // every price on the way there.
       document.getElementById('bwCurrencyNote').innerHTML =
-        'You pay <b>$' + amt.toLocaleString() + '</b>. At checkout you choose the currency — ' +
-        'Card, Mobile Money and the Flot App all accept either US Dollars or Leones.';
+        'You pay <b>$' + amt.toLocaleString() + '</b>. Card and the Flot App are charged ' +
+        'in dollars; Mobile Money settles in Leones and shows the converted amount before you pay.';
     }
 
     function bwSelectPay(type) {
@@ -8429,7 +8381,7 @@
                   currency: FC_DEFAULT_CURRENCY,
                   orderId: null, attemptId: null, timer: null, startedAt: 0 };
 
-      fcSetCurrency(FC_DEFAULT_CURRENCY);
+      fcResolveCurrency();
       document.getElementById('fcAmountSub').textContent =
         bwState.payment === 'deposit' ? 'Deposit due now' : 'Amount due';
       document.getElementById('fcPickErr').textContent = bookingId
@@ -8454,32 +8406,31 @@
       return FC_METHOD_CURRENCIES[type] || ['SLE'];
     }
 
-    /** Guest picks the wallet the money lands in. The amount follows immediately. */
-    function fcSetCurrency(cur) {
+    /**
+     * The currency is no longer a choice — it follows from the method. Every
+     * price on the site is quoted in dollars, so dollars is used wherever the
+     * method allows it. Mobile Money settles in Leones only, and there the
+     * guest is told what that comes to rather than left to work it out.
+     */
+    function fcResolveCurrency() {
       const allowed = fcAllowed(fcState.type);
-      let next = (cur === 'SLE' || cur === 'USD') ? cur : FC_DEFAULT_CURRENCY;
-      if (!allowed.includes(next)) next = allowed[0];
-      fcState.currency = next;
+      fcState.currency = allowed.includes('USD') ? 'USD' : allowed[0];
 
-      document.querySelectorAll('#fcPick .fc__cur-opt').forEach(o => {
-        const usable = allowed.includes(o.dataset.cur);
-        o.disabled = !usable;
-        o.setAttribute('aria-checked', String(usable && o.dataset.cur === next));
-      });
+      // The headline stays in dollars whatever the method.
+      document.getElementById('fcAmount').textContent =
+        '$' + Number(fcState.usd).toLocaleString();
 
-      // Explain the restriction rather than just greying an option out
       const note = document.getElementById('fcCurNote');
-      note.hidden = allowed.length > 1 || !fcState.type;
-      if (!note.hidden) {
+      if (fcState.type && fcState.currency === 'SLE') {
         const label = fcState.type === 'momo' ? 'Mobile Money' :
                       fcState.type === 'card' ? 'Bank Card' : 'The Flot App';
-        note.textContent = label + ' is settled in ' +
-          (allowed[0] === 'SLE' ? 'Leones' : 'US Dollars') + '.';
+        note.textContent = label + ' settles in Leones, so you will be charged ' +
+          leFor(fcState.usd) + ' at $1 = Le ' + LE_RATE + '.';
+        note.hidden = false;
+      } else {
+        note.textContent = '';
+        note.hidden = true;
       }
-
-      document.getElementById('fcAmount').textContent = next === 'SLE'
-        ? leFor(fcState.usd)
-        : '$' + Number(fcState.usd).toLocaleString();
     }
 
     function fcPick(type) {
@@ -8487,8 +8438,9 @@
       document.querySelectorAll('#fcPick .fc__method').forEach(m => {
         m.setAttribute('aria-checked', String(m.dataset.type === type));
       });
-      // Re-resolve, so choosing a Leones-only method moves the currency with it
-      fcSetCurrency(fcState.currency);
+      // Re-resolve: a Leones-only method moves the currency and reveals the
+      // converted figure; anything else puts it back to dollars.
+      fcResolveCurrency();
       document.getElementById('fcPay').disabled = !fcState.bookingId;
     }
 
