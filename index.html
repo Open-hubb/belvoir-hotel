@@ -4939,8 +4939,9 @@
       position: absolute;
       top: 1.1rem;
       right: 1.1rem;
-      width: 42px;
-      height: 42px;
+      /* 44px is the minimum a finger can reliably hit. It was 42. */
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       background: var(--color-sand);
       display: flex;
@@ -5453,6 +5454,10 @@
       .bw { padding: 0.5rem; align-items: flex-end; }
       .bw__panel { border-radius: 24px 24px 18px 18px; padding: 1.4rem 1.15rem 1.25rem; }
       .bw__step-label { display: none; }
+      /* Five steps span almost the whole panel on a phone, which put the last
+         one underneath the close button — tapping "5" hit Close instead. Drop
+         the stepper below the button rather than squeezing the steps. */
+      .bw__stepper { margin-top: 2.9rem; }
       .bw__step:not(:last-child)::after { left: calc(50% + 21px); right: calc(-50% + 21px); }
       .bw__grid { grid-template-columns: 1fr; }
       .bw__pay { flex-direction: column; gap: 0.7rem; }
