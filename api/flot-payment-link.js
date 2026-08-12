@@ -103,12 +103,25 @@ module.exports = async (req, res) => {
     }
 
     // in-app and card return a link, momo returns a USSD code
+    // Flot's payment link is a JWT in the path, so it runs to about 1,130
+    // characters. That forces a very high QR version, and the old settings put
+    // 129 modules into a 210px box — 1.6px a module, which no phone camera can
+    // resolve. Every choice here buys module size back:
+    //
+    //   level L   129 -> 113 modules. There is no damage to correct for on a
+    //             screen, so the spare capacity was only costing resolution.
+    //   scale 6   draws six real pixels per module rather than squeezing the
+    //             code into a fixed width, so nothing is resampled away.
+    //   margin 4  the quiet zone the spec requires. It was 1, and scanners
+    //             rely on that border to locate the code at all.
+    //   pure black on white rather than navy on cream, for full contrast.
     let qrDataUrl = null;
     if (data.link) {
       qrDataUrl = await QRCode.toDataURL(data.link, {
-        width: 320,
-        margin: 1,
-        color: { dark: '#0C1B33', light: '#FFFDF8' },
+        errorCorrectionLevel: 'L',
+        scale: 6,
+        margin: 4,
+        color: { dark: '#000000', light: '#FFFFFF' },
       }).catch(() => null);
     }
 

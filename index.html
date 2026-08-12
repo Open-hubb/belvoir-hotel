@@ -2242,11 +2242,26 @@
     }
     .fc__btn--ghost:hover:not(:disabled) { border-color: var(--color-navy); box-shadow: none; }
 
+    /* Sized so each QR module lands on enough pixels to be read. The code is
+       dense (a ~1,130-character link), so at the old 210px each module was
+       1.6px and unscannable. No border-radius: the rounding cut into the quiet
+       zone, which is the border scanners use to find the code. The frame sits
+       on a wrapper instead. */
     .fc__qr {
       display: block;
-      width: 210px;
-      height: 210px;
+      width: 300px;
+      max-width: 100%;
+      height: auto;
+      aspect-ratio: 1;
       margin: 0 auto;
+      background: #fff;
+    }
+
+    .fc__qr-frame {
+      width: fit-content;
+      margin: 0 auto;
+      padding: 6px;
+      background: #fff;
       border-radius: 12px;
       border: 1px solid var(--color-border);
     }
@@ -2402,8 +2417,11 @@
     }
 
     @media (max-width: 480px) {
-      .fc__body { padding: 1.15rem; }
-      .fc__qr { width: 170px; height: 170px; }
+      .fc__body { padding: 1.15rem 0.75rem; }
+      /* Was 170px, which made the modules ~1.2px — unreadable. Fill the panel
+         instead; the QR is only useful to someone scanning from another
+         device, and shrinking it helped nobody. */
+      .fc__qr { width: 288px; }
       .fc__ussd { flex-direction: column; gap: 0.75rem; }
       .fc__copy { width: 100%; }
     }
@@ -6783,8 +6801,10 @@
       <!-- QR (card / in-app) -->
       <div class="fc__body" id="fcQr" hidden>
         <p class="fc__hint" id="fcQrLead">Scan to pay</p>
-        <img class="fc__qr" id="fcQrImg" alt="QR code to open the payment page" width="210" height="210">
-        <p class="fc__hint">Or open the payment page directly:</p>
+        <div class="fc__qr-frame">
+          <img class="fc__qr" id="fcQrImg" alt="QR code to open the payment page" width="726" height="726">
+        </div>
+        <p class="fc__hint">On this device? Open the payment page instead:</p>
         <a class="fc__link" id="fcQrLink" target="_blank" rel="noopener noreferrer">Open payment page</a>
         <div class="fc__waiting"><span class="fc__pulse"></span><span id="fcQrWait">Waiting for payment…</span></div>
         <button type="button" class="fc__btn fc__btn--ghost" onclick="fcBackToPick()">Choose another method</button>
