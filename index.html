@@ -45,7 +45,7 @@
     "logo": "https://www.belvoir-estates.com/images/logo.png",
     "telephone": "+232 77 777 063",
     "email": "info@belvoir-estates.com",
-    "priceRange": "$60-$160",
+    "priceRange": "$60-$150",
     "currenciesAccepted": "USD, SLE",
     "paymentAccepted": "Cash, Credit Card, Mobile Money",
     "checkinTime": "14:00",
@@ -80,9 +80,9 @@
       { "@type": "Offer", "name": "Ground Floor One-Bedroom", "price": "100", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
       { "@type": "Offer", "name": "Superior Deluxe King", "price": "80", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
       { "@type": "Offer", "name": "Superior Deluxe Twin", "price": "90", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "One-Bedroom Apartment", "price": "120", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "One-Bedroom Apartment", "price": "110", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
       { "@type": "Offer", "name": "Studio Penthouse", "price": "100", "priceCurrency": "USD", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Two-Bedroom Apartment", "price": "160", "priceCurrency": "USD", "availability": "https://schema.org/InStock" }
+      { "@type": "Offer", "name": "Two-Bedroom Apartment", "price": "150", "priceCurrency": "USD", "availability": "https://schema.org/InStock" }
     ]
   }
   </script>
@@ -181,7 +181,7 @@
       "name": "How much does a room cost?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Rooms start at $60 per night, studio flats from $100 and apartments from $100, up to $160 for the two-bedroom. All rates are quoted per night in US dollars and include the room and the stated number of guests."
+        "text": "Rooms start at $60 per night, studio flats from $100 and apartments from $100, up to $150 for the two-bedroom. All rates are quoted per night in US dollars and include the room and the stated number of guests."
       }
     },
     {
@@ -6329,7 +6329,7 @@
               <i data-lucide="chevron-down" aria-hidden="true"></i>
             </button>
             <div class="faq__a" id="faqa4" role="region" aria-labelledby="faqq4">
-              <div>Rooms start at <strong>$60 per night</strong>, studio flats from $100 and apartments from $100, up to $160 for the two-bedroom. All rates are quoted per night in US dollars and include the room and the stated number of guests.</div>
+              <div>Rooms start at <strong>$60 per night</strong>, studio flats from $100 and apartments from $100, up to $150 for the two-bedroom. All rates are quoted per night in US dollars and include the room and the stated number of guests.</div>
             </div>
           </div>
           <div class="faq__item">
@@ -7371,7 +7371,7 @@
     let selectedRoom = '';
     let selectedPayment = '';
 
-    const ROOM_PRICES = { comfort: 60, standard: 70, 'ground-floor': 100, 'superior-deluxe': 80, 'superior-twin': 90, studio: 100, 'one-bed': 120, 'two-bed': 160 };
+    const ROOM_PRICES = { comfort: 60, standard: 70, 'ground-floor': 100, 'superior-deluxe': 80, 'superior-twin': 90, studio: 100, 'one-bed': 110, 'two-bed': 150 };
     const ROOM_NAMES = { comfort: 'Superior Double / Comfort', standard: 'Deluxe Standard', 'ground-floor': 'Ground Floor One-Bedroom', 'superior-deluxe': 'Superior Deluxe King', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
 
@@ -7546,8 +7546,8 @@
         tagline: 'Self-contained apartments with full kitchens, living areas and balconies, for stays of any length.',
         rooms: [
           { key: 'ground-floor', name: 'Ground Floor One-Bedroom', price: 100, img: 'images/gf-1.jpg', gallery: 'ground-floor', desc: 'Self-contained ground floor apartment with its own living area and kitchen, no stairs to climb.', chips: ['No Stairs', 'Living Area', 'Full Kitchen'] },
-          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 120, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen.', chips: ['Full Kitchen', 'Living Area', 'Balcony'] },
-          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 160, img: 'images/two-bed-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
+          { key: 'one-bed', name: 'One-Bedroom Apartment', price: 110, img: 'images/ob-1.jpg', gallery: 'one-bed', desc: 'Separate bedroom, living area and full kitchen.', chips: ['Full Kitchen', 'Living Area', 'Balcony'] },
+          { key: 'two-bed', name: 'Two-Bedroom Apartment', price: 150, img: 'images/two-bed-living.jpg', gallery: 'two-bed', desc: 'Two bedrooms, living area and full kitchen, self-catering, perfect for families and groups.', chips: ['2 Bedrooms', 'Full Kitchen', 'Self-Catering'] }
         ]
       }
     };
@@ -7733,7 +7733,7 @@
           { src: 'images/ob-7.jpg', alt: 'Apartment en-suite with shower cabin and water heater' }
         ],
         breakfast: false,
-        features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
+        features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Private balcony', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
         note: '',
         bookValue: 'one-bed'
       },

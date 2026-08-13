@@ -16,8 +16,8 @@ const ROOMS = {
   'superior-deluxe': { name: 'Superior Deluxe King',           rate: 80 },
   'superior-twin':   { name: 'Superior Deluxe Twin',           rate: 90 },
   'studio':          { name: 'Studio Penthouse',               rate: 100 },
-  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 120 },
-  'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 160 },
+  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 110 },
+  'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 150 },
 };
 
 // Belvoir holds one of each room type, so any overlapping dates for the same
