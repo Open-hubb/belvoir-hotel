@@ -10,14 +10,14 @@
 // used for display. The check in scripts/check-rates.mjs compares the two.
 
 const ROOMS = {
-  'comfort':         { name: 'Superior Double / Comfort', rate: 70 },
-  'standard':        { name: 'Deluxe Standard',           rate: 80 },
-  'ground-floor':    { name: 'Ground Floor One-Bedroom',       rate: 110 },
-  'superior-deluxe': { name: 'Superior Deluxe King',           rate: 90 },
-  'superior-twin':   { name: 'Superior Deluxe Twin',           rate: 100 },
-  'studio':          { name: 'Studio Penthouse',               rate: 110 },
-  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 130 },
-  'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 170 },
+  'comfort':         { name: 'Superior Double / Comfort', rate: 60 },
+  'standard':        { name: 'Deluxe Standard',           rate: 70 },
+  'ground-floor':    { name: 'Ground Floor One-Bedroom',       rate: 100 },
+  'superior-deluxe': { name: 'Superior Deluxe King',           rate: 80 },
+  'superior-twin':   { name: 'Superior Deluxe Twin',           rate: 90 },
+  'studio':          { name: 'Studio Penthouse',               rate: 100 },
+  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 120 },
+  'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 160 },
 };
 
 // Belvoir holds one of each room type, so any overlapping dates for the same
