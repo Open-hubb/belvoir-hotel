@@ -248,8 +248,8 @@ ${d.note ? `        <p class="rp__note">${esc(d.note)}</p>\n` : ''}      </div>
       <aside class="rp__aside">
         <h2>Good to know</h2>
         <dl>
-          <dt>Rate</dt><dd>$${rate} per night, quoted in US dollars</dd>
-          <dt>Breakfast</dt><dd>${d.breakfast === true ? 'Included each morning' : 'Available on request'}</dd>
+          <dt>Rate</dt><dd>$${rate} per night</dd>
+          <dt>Breakfast</dt><dd>${d.breakfast === true ? 'Included in the rate' : 'Available on request'}</dd>
           <dt>Arrival</dt><dd>From 2:00 PM · front desk staffed 24 hours</dd>
           <dt>Departure</dt><dd>By 11:00 AM</dd>
           <dt>Where</dt><dd>Belvoir Avenue, 86 Wilkinson Road, Freetown</dd>
