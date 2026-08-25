@@ -13,6 +13,7 @@
  */
 
 const { confirmBooking, notifyPaid } = require('./_notify');
+const { notifyAdmins } = require('./_whapi');
 
 /**
  * @param sql        neon tagged-template client
@@ -62,6 +63,11 @@ async function settleBooking(sql, bookingId, providerRef, source) {
     await notifyPaid(booking);
   } catch (err) {
     console.error('team payment notification failed:', bookingId, err.message);
+  }
+  try {
+    await notifyAdmins('payment-received', booking);
+  } catch (err) {
+    console.error('WhatsApp payment alert failed:', bookingId, err.message);
   }
 
   return { settled: true, alreadyPaid: false, booking };

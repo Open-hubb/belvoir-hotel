@@ -2,6 +2,7 @@ const { neon } = require('@neondatabase/serverless');
 const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
 const { notifyEnquiry } = require('./_notify');
+const { notifyAdmins } = require('./_whapi');
 const { scoreEnquiry } = require('./_spam');
 
 let _sql = null;
@@ -66,6 +67,11 @@ module.exports = async (req, res) => {
         await notifyEnquiry({ name, email, phone, stay_type: stayType, message, source });
       } catch (err) {
         console.error('enquiry notification failed:', err.message);
+      }
+      try {
+        await notifyAdmins('new-enquiry', { id: rows[0].id, name, stay_type: stayType, source });
+      } catch (err) {
+        console.error('WhatsApp enquiry alert failed:', err.message);
       }
 
       return res.status(201).json({ ok: true, id: rows[0].id });
