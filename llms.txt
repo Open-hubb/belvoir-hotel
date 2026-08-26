@@ -11,7 +11,7 @@
 - Email: info@belvoir-estates.com
 - Check-in from 2:00 PM; check-out by 11:00 AM
 - Front desk staffed 24 hours
-- Rates: rooms from $70/night, studio flats from $110, apartments from $110 to $170
+- Rates: rooms from $60/night, studio flats from $100, apartments from $100 to $150
 - Extended stays: from $1,000 monthly, $14,000 annually
 - Breakfast included with hotel rooms; studio flats and apartments are self-catering
   with breakfast available on request
@@ -25,6 +25,22 @@
 
 - [Home](https://www.belvoir-estates.com/): rooms, apartments, amenities, dining,
   location, guest reviews and direct booking
+- [Superior Double / Comfort](https://www.belvoir-estates.com/rooms/superior-double-comfort):
+  breakfast-included double room from $60 per night
+- [Deluxe Standard](https://www.belvoir-estates.com/rooms/deluxe-standard):
+  breakfast-included en-suite room from $70 per night
+- [Superior Deluxe King](https://www.belvoir-estates.com/rooms/superior-deluxe-king):
+  breakfast-included king room from $80 per night
+- [Superior Deluxe Twin](https://www.belvoir-estates.com/rooms/superior-deluxe-twin):
+  breakfast-included twin room from $90 per night
+- [Studio Penthouse](https://www.belvoir-estates.com/rooms/studio-penthouse):
+  self-catering studio flat from $100 per night
+- [Ground Floor One-Bedroom](https://www.belvoir-estates.com/rooms/ground-floor-one-bedroom):
+  self-catering apartment from $100 per night
+- [One-Bedroom Apartment](https://www.belvoir-estates.com/rooms/one-bedroom-apartment):
+  self-catering apartment from $110 per night
+- [Two-Bedroom Apartment](https://www.belvoir-estates.com/rooms/two-bedroom-apartment):
+  self-catering apartment from $150 per night
 - [Booking terms](https://www.belvoir-estates.com/terms): payment options,
   cancellation policy, arrival and departure, house rules
 - [Privacy policy](https://www.belvoir-estates.com/privacy): what data is collected
