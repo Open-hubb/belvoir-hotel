@@ -65,7 +65,7 @@ Take these verbatim so the profile and the site agree.
 | Website | https://www.belvoir-estates.com/ |
 | Hours | Open 24 hours, 7 days (24-hour front desk) |
 | Check-in / check-out | 14:00 / 11:00 |
-| Price range | $70–$170 per night |
+| Price range | $60–$150 per night |
 | Rooms | 8 |
 
 ### Description

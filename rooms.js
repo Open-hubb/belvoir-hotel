@@ -104,6 +104,23 @@
 
   function init() {
     Array.prototype.forEach.call(document.querySelectorAll('[data-carousel]'), setup);
+    setupBackLink();
+  }
+
+  function setupBackLink() {
+    var back = document.querySelector('[data-room-back]');
+    if (!back || !document.referrer) return;
+
+    try {
+      if (new URL(document.referrer).origin !== window.location.origin) return;
+    } catch (error) {
+      return;
+    }
+
+    back.addEventListener('click', function (event) {
+      event.preventDefault();
+      window.history.back();
+    });
   }
 
   if (document.readyState === 'loading') {

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Belvoir Hotel & Residence · Freetown, Sierra Leone</title>
-  <meta name="description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $60/night. Be Inspired… We Deliver.">
+  <title>Belvoir Hotel &amp; Residence | Hotel &amp; Apartments in Freetown</title>
+  <meta name="description" content="Hotel rooms and serviced apartments in Freetown, Sierra Leone, with ocean views, kitchens and direct booking from $60 per night.">
   <meta name="google-site-verification" content="xmFNPgmcllgxNM7qjiC2h-j25S7JNzAggChdcmZrt4M">
   <link rel="canonical" href="https://www.belvoir-estates.com/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230C1B33'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia,serif' font-size='18' fill='%23B08D57'%3EB%3C/text%3E%3C/svg%3E">
@@ -15,16 +15,17 @@
   <meta property="og:site_name" content="Belvoir Hotel &amp; Residence">
   <meta property="og:locale" content="en_GB">
   <meta property="og:url" content="https://www.belvoir-estates.com/">
-  <meta property="og:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
-  <meta property="og:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $60/night. Be Inspired… We Deliver.">
+  <meta property="og:title" content="Belvoir Hotel &amp; Residence | Hotel &amp; Apartments in Freetown">
+  <meta property="og:description" content="Hotel rooms and serviced apartments in Freetown, Sierra Leone, with ocean views, kitchens and direct booking from $60 per night.">
   <meta property="og:image" content="https://www.belvoir-estates.com/images/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="The Belvoir Hotel &amp; Residence building at dusk, Freetown">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Belvoir Hotel &amp; Residence · Freetown, Sierra Leone">
-  <meta name="twitter:description" content="Luxury serviced apartments with panoramic ocean views in the heart of Freetown. From $60/night.">
+  <meta name="twitter:title" content="Belvoir Hotel &amp; Residence | Hotel &amp; Apartments in Freetown">
+  <meta name="twitter:description" content="Hotel rooms and serviced apartments in Freetown, Sierra Leone, with ocean views, kitchens and direct booking from $60 per night.">
   <meta name="twitter:image" content="https://www.belvoir-estates.com/images/og-image.jpg">
+  <meta name="twitter:image:alt" content="The Belvoir Hotel &amp; Residence building at dusk, Freetown">
 
   <!-- Structured data. This is what lets a search result carry the rate,
        location and check-in times rather than just a title and a snippet. -->
@@ -5645,7 +5646,7 @@
   </nav>
 
   <!-- Mobile Menu -->
-  <div class="nav__mobile-menu" id="mobileMenu" role="dialog" aria-label="Mobile navigation">
+  <div class="nav__mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Mobile navigation">
     <a href="#about" onclick="closeMobileMenu()">About</a>
     <a href="#rooms" onclick="closeMobileMenu()">Rooms</a>
     <a href="#amenities" onclick="closeMobileMenu()">Amenities</a>
@@ -6578,6 +6579,8 @@
         <p class="bw__subtitle" id="bwSubtitle"></p>
       </div>
 
+      <p class="bw__error" id="bwError" role="alert"></p>
+
       <!-- STEP 1: Dates -->
       <section class="bw__body" id="bwStep1">
         <div class="bw__room-chip">
@@ -6675,8 +6678,6 @@
           </div>
         </div>
       </section>
-
-      <p class="bw__error" id="bwError" role="alert"></p>
 
       <div class="bw__footer">
         <button class="bw__ghost" id="bwBackBtn" onclick="bwBack()">Back</button>
@@ -6935,30 +6936,30 @@
     const preloaderTl = gsap.timeline();
 
     preloaderTl
-      .to('.preloader__logo-img', { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: 'back.out(1.4)' }, 0.15)
-      .to('.preloader__bar', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.65)
-      .to('.preloader__bar-fill', { scaleX: 1, duration: 2.85, ease: 'power1.inOut' }, 0.75)
-      .to('.preloader__tagline', { opacity: 1, duration: 0.7, ease: 'power2.out' }, 0.9)
-      .to('.preloader__spark', { opacity: 0.9, duration: 0.6, stagger: 0.25, ease: 'power2.out' }, 1.1)
+      .to('.preloader__logo-img', { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(1.4)' }, 0.1)
+      .to('.preloader__bar', { opacity: 1, duration: 0.18, ease: 'power2.out' }, 0.25)
+      .to('.preloader__bar-fill', { scaleX: 1, duration: 0.55, ease: 'power1.inOut' }, 0.3)
+      .to('.preloader__tagline', { opacity: 1, duration: 0.25, ease: 'power2.out' }, 0.38)
+      .to('.preloader__spark', { opacity: 0.9, duration: 0.2, stagger: 0.1, ease: 'power2.out' }, 0.45)
       .to(['.preloader__bar', '.preloader__tagline'], {
-        opacity: 0, y: -12, duration: 0.35, ease: 'power2.in', stagger: 0.04
-      }, 3.65)
-      .to('.preloader__spark', { opacity: 0, duration: 0.3 }, 3.65)
+        opacity: 0, y: -12, duration: 0.18, ease: 'power2.in', stagger: 0.04
+      }, 0.9)
+      .to('.preloader__spark', { opacity: 0, duration: 0.15 }, 0.9)
       .to('.preloader__logo-img', {
-        scale: 18,
-        duration: 1.15,
+        scale: 12,
+        duration: 0.35,
         ease: 'power4.in'
-      }, 4.0)
-      .to('.preloader__logo-img', { opacity: 0, duration: 0.3, ease: 'power1.out' }, 4.8)
+      }, 0.9)
+      .to('.preloader__logo-img', { opacity: 0, duration: 0.15, ease: 'power1.out' }, 1.15)
       .to(preloader, {
         opacity: 0,
-        duration: 0.45,
+        duration: 0.2,
         ease: 'power1.out',
         onComplete: () => {
           preloader.style.display = 'none';
           animateHero();
         }
-      }, 4.75);
+      }, 1.1);
     }
 
     /* ─────────── Hero: cinematic video ─────────── */
@@ -7183,19 +7184,79 @@
     const navToggle = document.getElementById('navToggle');
     const mobileMenu = document.getElementById('mobileMenu');
 
+    function openMobileMenu() {
+      navToggle.classList.add('active');
+      mobileMenu.classList.add('active');
+      navToggle.setAttribute('aria-expanded', 'true');
+      const firstLink = mobileMenu.querySelector('a[href]');
+      if (firstLink) firstLink.focus();
+    }
+
     navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      mobileMenu.classList.toggle('active');
-      navToggle.setAttribute('aria-expanded',
-        navToggle.classList.contains('active') ? 'true' : 'false'
-      );
+      if (mobileMenu.classList.contains('active')) closeMobileMenu();
+      else openMobileMenu();
     });
 
     function closeMobileMenu() {
       navToggle.classList.remove('active');
       mobileMenu.classList.remove('active');
       navToggle.setAttribute('aria-expanded', 'false');
+      navToggle.focus();
     }
+
+    function focusableControls(layer) {
+      return Array.from(layer.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((control) =>
+        !control.hasAttribute('hidden') &&
+        control.getClientRects().length > 0 &&
+        getComputedStyle(control).visibility !== 'hidden'
+      );
+    }
+
+    function trapFocus(event, layer) {
+      if (event.key !== 'Tab') return;
+      const controls = focusableControls(layer);
+      if (!controls.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    function activeOverlay() {
+      const ids = ['paymentPopup', 'bookWizard', 'detailModal', 'catOverlay'];
+      const open = ids.map((id) => document.getElementById(id))
+        .find((layer) => layer && layer.classList.contains('active'));
+      return open || (mobileMenu.classList.contains('active') ? mobileMenu : null);
+    }
+
+    function closeOverlay(layer) {
+      if (layer === mobileMenu) return closeMobileMenu();
+      if (layer.id === 'paymentPopup') return fcDismiss();
+      if (layer.id === 'bookWizard') return closeBookWizard();
+      if (layer.id === 'detailModal') return closeDetailModal();
+      if (layer.id === 'catOverlay') return closeCategory();
+    }
+
+    document.addEventListener('keydown', (event) => {
+      const layer = activeOverlay();
+      if (!layer) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeOverlay(layer);
+        return;
+      }
+      trapFocus(event, layer);
+    });
 
     /* ─── 3D Particle Canvas (Hero) ─── */
     (function initHeroCanvas() {
@@ -7631,14 +7692,6 @@
       openDetailModal(galleryKey);
     }
 
-    document.addEventListener('keydown', function(e) {
-      if (e.key !== 'Escape') return;
-      const detail = document.getElementById('detailModal');
-      const overlay = document.getElementById('catOverlay');
-      if (detail.classList.contains('active')) return; // detail modal handler closes itself
-      if (overlay.classList.contains('active')) closeCategory();
-    });
-
     /* ─────────── Accommodation Detail Modal ─────────── */
     const ACC_TYPES = {
       comfort: {
@@ -7652,7 +7705,7 @@
           { src: 'images/comfort-5.jpg', alt: 'Comfort room seating area with wardrobe' }
         ],
         breakfast: true,
-        features: ['Double bed', 'Work desk', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping'],
+        features: ['Double bed', 'Work desk', 'Mini fridge', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'comfort'
       },
@@ -7699,7 +7752,7 @@
           { src: 'images/sdlx-5.jpg', alt: 'En-suite basin, mirror and water heater' }
         ],
         breakfast: true,
-        features: ['King bed', 'Premium bedding', 'Rain shower en-suite', 'Air conditioning', 'Flat-screen TV', 'Work desk', 'Fitted wardrobe', 'Free high-speed WiFi'],
+        features: ['King bed', 'Premium bedding', 'Rain shower en-suite', 'Air conditioning', 'Flat-screen TV', 'Work desk', 'Fitted wardrobe', 'Mini fridge', 'Free high-speed WiFi'],
         note: '',
         bookValue: 'superior-deluxe'
       },
@@ -7721,7 +7774,7 @@
       },
       'one-bed': {
         title: 'One-Bedroom Apartment',
-        desc: 'A fully furnished apartment with a separate bedroom, private living room, dining area and full kitchen. Everything you need to settle in, whether for a week or a year.',
+        desc: 'A fully furnished apartment with a separate bedroom, private living room, dining area, full kitchen, private balcony and sea view. Everything you need to settle in, whether for a week or a year.',
         images: [
           { src: 'images/ob-1.jpg', alt: 'Apartment living room with leather sofa and marble floors' },
           { src: 'images/ob-2.jpg', alt: 'Apartment kitchen and dining area with pendant lighting' },
@@ -7733,13 +7786,13 @@
           { src: 'images/ob-7.jpg', alt: 'Apartment en-suite with shower cabin and water heater' }
         ],
         breakfast: false,
-        features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Private balcony', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
+        features: ['Separate bedroom', 'Private living room', 'Full kitchen', 'Dining area', 'Private balcony', 'Sea view', 'Air conditioning', 'Flat-screen TV', 'En-suite bathroom', 'Free high-speed WiFi'],
         note: '',
         bookValue: 'one-bed'
       },
       'two-bed': {
         title: 'Two-Bedroom Apartment',
-        desc: 'A spacious apartment with two bedrooms, a living area, full kitchen and private balcony. Self-catering and perfect for families and groups.',
+        desc: 'A spacious two-bedroom apartment with a living area, full kitchen, private balcony and sea view. Self-catering and perfect for families and groups.',
         // Photographed in the two-bedroom itself. The old apt-*.jpg set was a
         // different apartment, so it is no longer shown here.
         images: [
@@ -7753,20 +7806,20 @@
           { src: 'images/two-bed-shower.jpg', alt: 'Walk-in shower with rain head and pebble tiling' }
         ],
         breakfast: false,
-        features: ['Two bedrooms', 'Living area', 'Full kitchen', 'Private balcony', 'Air conditioning', 'Flat-screen TV', 'Two bathrooms', 'Free high-speed WiFi'],
+        features: ['Two bedrooms', 'Living area', 'Full kitchen', 'Private balcony', 'Sea view', 'Air conditioning', 'Flat-screen TV', 'Two bathrooms', 'Free high-speed WiFi'],
         note: 'Self-catering. Breakfast is available on request for an extra charge.',
         bookValue: 'two-bed'
       },
       studio: {
         title: 'Studio Penthouse',
-        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic views over Lumley and Aberdeen beaches and premium furnishings.',
+        desc: 'At the summit of Belvoir, open-plan penthouse living with panoramic sea views over Lumley and Aberdeen beaches, a private balcony and walk-in closet.',
         // The ph-*.jpg set was a different room. Only this one is the
         // penthouse; more shots go here as they arrive.
         images: [
           { src: 'images/penthouse-open-plan.jpg', alt: 'Penthouse open-plan living area with seating, bed and balcony' }
         ],
         breakfast: false,
-        features: ['Panoramic sea view', 'Open-plan living', 'Private balcony', 'Bathtub', 'Premium furnishings', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
+        features: ['Panoramic sea view', 'Open-plan living', 'Private balcony', 'Walk-in closet', 'Bathtub', 'Premium furnishings', 'Air conditioning', 'Flat-screen TV', 'Free high-speed WiFi', 'Daily housekeeping'],
         note: '',
         bookValue: 'studio'
       }
@@ -8091,10 +8144,16 @@
       bwUpdateCurrencyNote();
     }
 
-    function bwShowError(msg) {
+    function bwShowError(msg, focusTarget) {
       const el = document.getElementById('bwError');
       el.textContent = msg;
       el.classList.add('visible');
+      if (focusTarget) {
+        focusTarget.focus({ preventScroll: true });
+        focusTarget.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      } else {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      }
     }
 
     function bwHideError() {
@@ -8134,8 +8193,14 @@
       const s = bwState.step;
       if (s === 1) {
         const t = bwTotals();
-        if (!t.ci || !t.co) return bwShowError('Please choose both a check-in and check-out date.');
-        if (new Date(t.co) <= new Date(t.ci)) return bwShowError('Check-out must be after check-in.');
+        const ci = document.getElementById('bwCheckin');
+        const co = document.getElementById('bwCheckout');
+        if (!t.ci || !t.co) {
+          return bwShowError('Please choose both a check-in and check-out date.', !t.ci ? ci : co);
+        }
+        if (new Date(t.co) <= new Date(t.ci)) {
+          return bwShowError('Check-out must be after check-in.', co);
+        }
 
         const btn = document.getElementById('bwNextBtn');
         const label = document.getElementById('bwNextLabel');
@@ -8161,8 +8226,15 @@
         const name = document.getElementById('bwName').value.trim();
         const phone = document.getElementById('bwPhone').value.trim();
         const email = document.getElementById('bwEmail').value.trim();
-        if (!name || !phone || !email) return bwShowError('Please fill in your name, phone number, and email.');
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bwShowError('Please enter a valid email address.');
+        if (!name || !phone || !email) {
+          return bwShowError(
+            'Please fill in your name, phone number, and email.',
+            !name ? document.getElementById('bwName') : (!phone ? document.getElementById('bwPhone') : document.getElementById('bwEmail'))
+          );
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return bwShowError('Please enter a valid email address.', document.getElementById('bwEmail'));
+        }
         captureBooking();   // record the lead now, in case they drop off at payment
         return bwGo(3);
       }

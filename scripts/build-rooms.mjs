@@ -214,6 +214,7 @@ ${JSON.stringify(ld, null, 2)}
 
   <main id="main">
     <nav class="rp__crumbs" aria-label="Breadcrumb">
+      <a href="/#rooms" class="rp__back" data-room-back aria-label="Back to the previous page">Back</a>
       <ol>
         <li><a href="/">Home</a></li>
         <li><a href="/#rooms">${esc(CAT_LABEL[cat])}</a></li>
