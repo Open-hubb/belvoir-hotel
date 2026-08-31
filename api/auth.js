@@ -5,9 +5,11 @@
  *   POST /api/auth  {action:'login'}        email + password -> session cookie
  *   POST /api/auth  {action:'logout'}       revoke this session
  *   POST /api/auth  {action:'password'}     change my own password
- *   GET  /api/auth?action=users             list staff            (admin)
- *   POST /api/auth  {action:'invite'}       add a staff account   (admin)
- *   POST /api/auth  {action:'disable'}      disable/enable staff  (admin)
+ *   POST /api/auth  {action:'forgot'}       send a reset link
+ *   POST /api/auth  {action:'claim'}        use a reset/invite link
+ *   GET  /api/auth?action=users             list staff            (owner)
+ *   POST /api/auth  {action:'invite'}       invite staff by email (owner)
+ *   POST /api/auth  {action:'disable'}      disable/enable staff  (owner)
  *
  *   POST /api/auth  {action:'key'}          sign in with ADMIN_KEY
  *   POST /api/auth  {action:'setup'}        claim the very first account
@@ -26,6 +28,7 @@
 const { neon } = require('@neondatabase/serverless');
 const { limitShared } = require('./_ratelimit');
 const A = require('./_auth');
+const { sendAdminAccessEmail } = require('./_notify');
 
 let _sql = null;
 function db() {
@@ -46,6 +49,25 @@ const KEY_ACCOUNT = 'access-key@local';
 const SETUP_DOMAIN = (process.env.NOTIFY_EMAIL || 'info@belvoir-estates.com')
   .split(',')[0].trim().split('@').pop().toLowerCase();
 const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
+const ACCESS_LINK_MINUTES = 30;
+const emailLooksValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+function publicOrigin() {
+  const fallback = 'https://www.belvoir-estates.com';
+  const candidate = String(process.env.PUBLIC_ORIGIN || fallback).trim().replace(/\/+$/, '');
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'https:' || url.hostname === 'localhost' ? url.origin : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// The secret is deliberately placed after #. Browser fragments do not reach
+// the server in requests, nor appear in ordinary server access logs.
+function accessLink(token) {
+  return publicOrigin() + '/admin#access=' + encodeURIComponent(token);
+}
 
 function query(req) {
   if (req.query && Object.keys(req.query).length) return req.query;
@@ -63,9 +85,21 @@ module.exports = async (req, res) => {
       if (q.action === 'users') {
         const me = await A.isAdminRequest(sql, req);
         if (!me) return res.status(401).json({ error: 'Not signed in' });
+        if (!A.canManageAdmins(me)) {
+          return res.status(403).json({ error: 'Only owners can manage administrator access.' });
+        }
         const rows = await sql`
-          SELECT id, email, name, role, disabled, created_at, last_login_at
-          FROM admin_users ORDER BY created_at ASC`;
+          SELECT u.id, u.email, u.name, u.role, u.disabled, u.created_at, u.last_login_at,
+            (
+              SELECT expires_at FROM admin_access_tokens t
+              WHERE t.user_id = u.id
+                AND t.purpose = 'invite'
+                AND t.expires_at > now()
+              ORDER BY t.created_at DESC
+              LIMIT 1
+            ) AS invitation_expires_at
+          FROM admin_users u
+          ORDER BY u.created_at ASC`;
         return res.status(200).json({ users: rows, me: publicUser(me) });
       }
 
@@ -94,6 +128,97 @@ module.exports = async (req, res) => {
 
     const body = req.body || {};
     const action = String(body.action || '');
+
+    // ── request a password reset ────────────────────────────────────────
+    // This is intentionally public. Its response does not say whether an
+    // address exists, is disabled, or is pending an invitation.
+    if (action === 'forgot') {
+      if (await limitShared(sql, req, res, 'forgot', 5, 15 * 60000)) return;
+
+      const email = clean(body.email, 160).toLowerCase();
+      const accepted = { ok: true, message: 'If that address has an active account, a secure link is on its way.' };
+      if (!emailLooksValid(email)) return res.status(202).json(accepted);
+
+      const rows = await sql`
+        SELECT id, email, name, disabled
+        FROM admin_users
+        WHERE lower(email) = ${email}
+        LIMIT 1`;
+      if (!rows.length || rows[0].disabled) {
+        await A.dummyVerify();
+        return res.status(202).json(accepted);
+      }
+
+      const user = rows[0];
+      const access = A.createAccessToken();
+      const expiresAt = new Date(Date.now() + ACCESS_LINK_MINUTES * 60_000).toISOString();
+      await sql`
+        INSERT INTO admin_access_tokens (token_hash, user_id, purpose, expires_at)
+        VALUES (${access.hash}, ${user.id}, 'reset', ${expiresAt})
+        ON CONFLICT (user_id, purpose) DO UPDATE
+        SET token_hash = EXCLUDED.token_hash,
+            created_at = now(),
+            expires_at = EXCLUDED.expires_at`;
+
+      try {
+        const sent = await sendAdminAccessEmail({
+          to: user.email,
+          name: user.name || user.email,
+          kind: 'reset',
+          url: accessLink(access.token),
+        });
+        // Do not leave a usable secret behind if mail delivery is unavailable.
+        if (sent && sent.skipped) {
+          await sql`DELETE FROM admin_access_tokens WHERE token_hash = ${access.hash}`;
+          console.error('admin password-reset email was not sent: delivery is not configured');
+        }
+      } catch (error) {
+        await sql`DELETE FROM admin_access_tokens WHERE token_hash = ${access.hash}`;
+        console.error('admin password-reset email failed:', error.message);
+      }
+
+      return res.status(202).json(accepted);
+    }
+
+    // ── accept an invitation or reset a password ─────────────────────────
+    if (action === 'claim') {
+      if (await limitShared(sql, req, res, 'access-claim', 8, 15 * 60000)) return;
+
+      const secret = clean(body.token, 180);
+      const password = String(body.password || '');
+      const problem = A.passwordProblem(password);
+      if (!secret || problem) {
+        return res.status(400).json({ error: problem || 'This link is invalid or has expired. Please request a new one.' });
+      }
+
+      // DELETE ... RETURNING makes the secret single-use even if two browser
+      // requests arrive at the same moment.
+      const claimed = await sql`
+        DELETE FROM admin_access_tokens
+        WHERE token_hash = ${A.hashAccessToken(secret)}
+          AND expires_at > now()
+        RETURNING user_id, purpose`;
+      if (!claimed.length) {
+        return res.status(400).json({ error: 'This link is invalid or has expired. Please request a new one.' });
+      }
+
+      const rows = await sql`
+        UPDATE admin_users
+        SET password_hash = ${await A.hashPassword(password)}
+        WHERE id = ${claimed[0].user_id} AND disabled = false
+        RETURNING id, email, name, role, disabled`;
+      if (!rows.length) {
+        return res.status(400).json({ error: 'This account is not available. Please contact an owner.' });
+      }
+
+      const user = rows[0];
+      await sql`DELETE FROM admin_access_tokens WHERE user_id = ${user.id}`;
+      await sql`DELETE FROM admin_sessions WHERE user_id = ${user.id}`;
+      const { token, maxAge } = await A.createSession(sql, user.id, req.headers['user-agent']);
+      await sql`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
+      A.setSessionCookie(res, token, maxAge);
+      return res.status(200).json({ ok: true, user: publicUser(user), purpose: claimed[0].purpose });
+    }
 
     // ── claim the first account ──────────────────────────────────────────
     if (action === 'setup') {
@@ -269,29 +394,58 @@ module.exports = async (req, res) => {
 
     // ── add a staff account ──────────────────────────────────────────────
     if (action === 'invite') {
+      if (!A.canManageAdmins(me)) {
+        return res.status(403).json({ error: 'Only owners can invite administrators.' });
+      }
+      if (await limitShared(sql, req, res, 'admin-invite', 10, 15 * 60000)) return;
+
       const email = clean(body.email, 160).toLowerCase();
       const name = clean(body.name, 120);
-      const password = String(body.password || '');
       const role = ['owner', 'manager'].includes(body.role) ? body.role : 'manager';
 
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!emailLooksValid(email)) {
         return res.status(400).json({ error: 'That email address does not look right.' });
       }
-      const problem = A.passwordProblem(password);
-      if (problem) return res.status(400).json({ error: problem });
 
       const exists = await sql`SELECT 1 FROM admin_users WHERE lower(email) = ${email} LIMIT 1`;
       if (exists.length) return res.status(409).json({ error: 'That email already has an account.' });
 
       const rows = await sql`
         INSERT INTO admin_users (email, password_hash, name, role)
-        VALUES (${email}, ${await A.hashPassword(password)}, ${name || email}, ${role})
+        VALUES (${email}, 'pending-invitation', ${name || email}, ${role})
         RETURNING id, email, name, role`;
-      return res.status(201).json({ ok: true, user: rows[0] });
+      const user = rows[0];
+      const access = A.createAccessToken();
+      const expiresAt = new Date(Date.now() + ACCESS_LINK_MINUTES * 60_000).toISOString();
+      await sql`
+        INSERT INTO admin_access_tokens (token_hash, user_id, purpose, expires_at)
+        VALUES (${access.hash}, ${user.id}, 'invite', ${expiresAt})`;
+
+      try {
+        const sent = await sendAdminAccessEmail({
+          to: user.email,
+          name: user.name || user.email,
+          kind: 'invite',
+          url: accessLink(access.token),
+        });
+        if (sent && sent.skipped) {
+          await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+          return res.status(503).json({ error: 'Email delivery is not configured. The invitation was not created.' });
+        }
+      } catch (error) {
+        await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+        console.error('admin invitation email failed:', error.message);
+        return res.status(502).json({ error: 'The invitation email could not be sent. Please try again.' });
+      }
+
+      return res.status(201).json({ ok: true, user, expiresAt });
     }
 
     // ── disable or re-enable a staff account ─────────────────────────────
     if (action === 'disable') {
+      if (!A.canManageAdmins(me)) {
+        return res.status(403).json({ error: 'Only owners can change administrator access.' });
+      }
       const id = parseInt(body.id, 10);
       const disabled = body.disabled !== false;
       if (!id) return res.status(400).json({ error: 'Missing id' });

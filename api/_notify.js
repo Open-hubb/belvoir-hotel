@@ -225,4 +225,40 @@ async function notifyBooking(b) {
   });
 }
 
-module.exports = { notifyEnquiry, notifyBooking, notifyPaid, confirmBooking };
+/**
+ * Content for a reset or invitation email. Kept separate from delivery so it
+ * can be checked without credentials and so no raw access token is logged.
+ */
+function buildAdminAccessEmail({ kind, name, url }) {
+  const invite = kind === 'invite';
+  const action = invite ? 'Set your password' : 'Reset password';
+  const note = invite
+    ? 'An owner has invited you to the Belvoir bookings dashboard. Set your own password to activate access.'
+    : 'Use the secure link below to choose a new password for your Belvoir bookings dashboard account.';
+
+  return {
+    subject: invite
+      ? 'You’re invited to Belvoir Bookings Admin'
+      : 'Reset your Belvoir Bookings Admin password',
+    html: shell(
+      invite ? 'Dashboard invitation' : 'Password reset',
+      invite ? 'You have been invited' : 'Reset your password',
+      row(invite ? 'Invited administrator' : 'Account', name),
+      note + '\n\nThis link expires in 30 minutes and can be used only once. If you did not expect this email, you can safely ignore it.',
+      { href: url, label: action },
+    ),
+  };
+}
+
+async function sendAdminAccessEmail({ to, name, kind, url }) {
+  return send({ to, ...buildAdminAccessEmail({ kind, name, url }) });
+}
+
+module.exports = {
+  notifyEnquiry,
+  notifyBooking,
+  notifyPaid,
+  confirmBooking,
+  buildAdminAccessEmail,
+  sendAdminAccessEmail,
+};

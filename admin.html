@@ -92,6 +92,19 @@
     .login__err.show { display: block; }
     .login__hint { margin: 1.1rem 0 0; font-size: 0.84rem; color: var(--ink-soft); text-align: center; }
     .login__hint a { color: var(--gold); }
+    .login__link {
+      appearance: none;
+      border: none;
+      padding: 0;
+      background: transparent;
+      color: var(--gold);
+      font: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 0.18em;
+    }
+    .login__link:hover { color: var(--navy); }
+    .login__link:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 2px; }
     .login__note { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--ink-soft); }
 
     .btn {
@@ -343,27 +356,28 @@
 
   <!-- Login -->
   <div class="login" id="loginView">
-    <div class="login__card">
+    <div class="login__card" id="loginCard">
       <picture>
         <source srcset="images/logo.webp" type="image/webp">
         <img src="images/logo.png" alt="Belvoir" class="login__logo" width="560" height="373">
       </picture>
       <h1 class="login__title">Bookings Admin</h1>
-      <p class="login__sub">Managers only · sign in to continue</p>
+      <p class="login__sub">Authorised staff only · sign in to continue</p>
       <label class="login__label" for="emailInput">Email</label>
       <input type="email" id="emailInput" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false">
       <label class="login__label" for="pwInput" style="margin-top:0.9rem;">Password</label>
       <input type="password" id="pwInput" autocomplete="current-password">
       <p class="login__err" id="loginErr">Email or password not recognised.</p>
       <button class="btn" id="loginBtn" style="width:100%;margin-top:1.1rem;">Sign In</button>
+      <p class="login__hint"><button class="login__link" type="button" id="showForgot">Forgot password?</button></p>
 
       <p class="login__hint" id="setupHint" style="display:none;">
-        No account exists yet. <a href="#" id="showSetup">Create the first one</a>.
+        No account exists yet. <button class="login__link" type="button" id="showSetup">Create the first one</button>.
       </p>
 
       <div id="keyBlock" style="display:none;">
         <p class="login__hint" style="margin-top:1.4rem;">
-          <a href="#" id="showKey">Sign in with the access key</a>
+          <button class="login__link" type="button" id="showKey">Sign in with the access key</button>
         </p>
         <div id="keyRow" style="display:none;margin-top:0.9rem;">
           <label class="login__label" for="keyInput">Access key</label>
@@ -395,7 +409,30 @@
       <p class="login__err" id="setupErr"></p>
       <button class="btn" id="setupBtn" style="width:100%;margin-top:1.1rem;">Create account &amp; sign in</button>
 
-      <p class="login__hint"><a href="#" id="showLogin">Back to sign in</a></p>
+      <p class="login__hint"><button class="login__link" type="button" id="showLogin">Back to sign in</button></p>
+    </div>
+
+    <div class="login__card" id="forgotCard" style="display:none;">
+      <h1 class="login__title">Reset your password</h1>
+      <p class="login__sub">Enter your dashboard email and we’ll send a secure reset link.</p>
+      <label class="login__label" for="forgotEmail">Email</label>
+      <input type="email" id="forgotEmail" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false">
+      <p class="login__err" id="forgotErr"></p>
+      <p class="login__note" id="forgotNote" style="display:none;"></p>
+      <button class="btn" id="forgotBtn" style="width:100%;margin-top:1.1rem;">Email reset link</button>
+      <p class="login__hint"><button class="login__link" type="button" id="backFromForgot">Back to sign in</button></p>
+    </div>
+
+    <div class="login__card" id="accessCard" style="display:none;">
+      <h1 class="login__title" id="accessTitle">Set your password</h1>
+      <p class="login__sub" id="accessSub">Choose a password to continue to the Belvoir dashboard.</p>
+      <label class="login__label" for="accessPw">New password</label>
+      <input type="password" id="accessPw" autocomplete="new-password">
+      <p class="login__note">At least 10 characters, with a letter and a number.</p>
+      <label class="login__label" for="accessPw2" style="margin-top:0.9rem;">Confirm new password</label>
+      <input type="password" id="accessPw2" autocomplete="new-password">
+      <p class="login__err" id="accessErr"></p>
+      <button class="btn" id="accessBtn" style="width:100%;margin-top:1.1rem;">Set password &amp; sign in</button>
     </div>
   </div>
 
@@ -457,6 +494,7 @@
     let FILTER = 'all';
     let VIEW = 'bookings';
     let USERS = [];
+    let ACCESS_SECRET = '';
 
     const fmtMoney = n => '$' + Number(n).toLocaleString();
     const fmtDate = s => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -536,7 +574,8 @@
           api('GET', null, '/api/payments').catch(() => ({ payments: [] })),
           api('GET', null, '/api/blocks').catch(() => ({ blocks: [] }))
         ]);
-        await loadUsers();
+        if (ME && ME.role === 'owner') await loadUsers();
+        else USERS = [];
         BOOKINGS = bk.bookings;
         ENQUIRIES = eq.enquiries || [];
         SPAM_COUNT = eq.spamCount || 0;
@@ -582,6 +621,10 @@
     }
 
     function render() {
+      const teamTab = document.querySelector('#views [data-v="team"]');
+      const canManageAdmins = ME && ME.role === 'owner';
+      teamTab.hidden = !canManageAdmins;
+      if (!canManageAdmins && VIEW === 'team') VIEW = 'bookings';
       document.getElementById('tabs').style.display = VIEW === 'bookings' ? '' : 'none';
       document.getElementById('enqBadge').textContent =
         ENQUIRIES.filter(e => e.status !== 'handled').length || '';
@@ -910,12 +953,18 @@
     }
 
     // ── first run ──────────────────────────────────────────────────────
+    function showLoginCard(id) {
+      ['loginCard', 'setupCard', 'forgotCard', 'accessCard'].forEach(cardId => {
+        $(cardId).style.display = cardId === id ? '' : 'none';
+      });
+    }
     function showSetupCard(show) {
-      document.getElementById('setupCard').style.display = show ? '' : 'none';
-      document.querySelector('#loginView .login__card').style.display = show ? 'none' : '';
+      showLoginCard(show ? 'setupCard' : 'loginCard');
     }
     document.getElementById('showSetup').addEventListener('click', e => { e.preventDefault(); showSetupCard(true); $('suName').focus(); });
     document.getElementById('showLogin').addEventListener('click', e => { e.preventDefault(); showSetupCard(false); });
+    document.getElementById('showForgot').addEventListener('click', () => { showLoginCard('forgotCard'); $('forgotEmail').focus(); });
+    document.getElementById('backFromForgot').addEventListener('click', () => showLoginCard('loginCard'));
 
     async function createFirstAccount() {
       const err = $('setupErr');
@@ -952,6 +1001,104 @@
     $('setupBtn').addEventListener('click', createFirstAccount);
     $('suPw2').addEventListener('keydown', e => { if (e.key === 'Enter') createFirstAccount(); });
 
+    // ── password recovery and invitation acceptance ─────────────────────
+    async function requestPasswordReset() {
+      const email = $('forgotEmail').value.trim();
+      const err = $('forgotErr');
+      const note = $('forgotNote');
+      err.classList.remove('show');
+      note.style.display = 'none';
+      if (!email) {
+        err.textContent = 'Enter your email address.';
+        err.classList.add('show');
+        return;
+      }
+
+      $('forgotBtn').disabled = true;
+      $('forgotBtn').textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'forgot', email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not send a reset link.');
+        note.textContent = data.message || 'If that address has an active account, a secure link is on its way.';
+        note.style.display = '';
+      } catch (error) {
+        err.textContent = error.message || 'Could not reach the server.';
+        err.classList.add('show');
+      } finally {
+        $('forgotBtn').disabled = false;
+        $('forgotBtn').textContent = 'Email reset link';
+      }
+    }
+
+    function openAccessLink() {
+      const secret = new URLSearchParams(location.hash.slice(1)).get('access');
+      if (!secret) return false;
+      ACCESS_SECRET = secret;
+      // Do not keep a credential in browser history after it has been read.
+      history.replaceState(null, '', location.pathname + location.search);
+      showLoginCard('accessCard');
+      $('accessPw').focus();
+      return true;
+    }
+    window.addEventListener('hashchange', openAccessLink);
+
+    async function claimAccess() {
+      const password = $('accessPw').value;
+      const confirmPassword = $('accessPw2').value;
+      const err = $('accessErr');
+      err.classList.remove('show');
+      if (!ACCESS_SECRET) {
+        err.textContent = 'This link is invalid or has expired. Please request a new one.';
+        err.classList.add('show');
+        return;
+      }
+      if (!password || !confirmPassword) {
+        err.textContent = 'Enter and confirm your new password.';
+        err.classList.add('show');
+        return;
+      }
+      if (password !== confirmPassword) {
+        err.textContent = 'Those two passwords do not match.';
+        err.classList.add('show');
+        return;
+      }
+
+      $('accessBtn').disabled = true;
+      $('accessBtn').textContent = 'Saving…';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'claim', token: ACCESS_SECRET, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'This link is invalid or has expired.');
+        ACCESS_SECRET = '';
+        $('accessPw').value = '';
+        $('accessPw2').value = '';
+        ME = data.user;
+        load();
+      } catch (error) {
+        err.textContent = error.message || 'Could not reach the server.';
+        err.classList.add('show');
+      } finally {
+        $('accessBtn').disabled = false;
+        $('accessBtn').textContent = 'Set password & sign in';
+      }
+    }
+
+    $('forgotBtn').addEventListener('click', requestPasswordReset);
+    $('forgotEmail').addEventListener('keydown', e => { if (e.key === 'Enter') requestPasswordReset(); });
+    $('accessBtn').addEventListener('click', claimAccess);
+    $('accessPw2').addEventListener('keydown', e => { if (e.key === 'Enter') claimAccess(); });
+
 
     /* ─────────── Team ─────────── */
     async function loadUsers() {
@@ -963,29 +1110,31 @@
     }
 
     function renderTeam() {
+      if (!ME || ME.role !== 'owner') {
+        $('stats').innerHTML = '';
+        $('list').innerHTML = '<div class="empty">Only owners can manage dashboard access.</div>';
+        return;
+      }
       $('stats').innerHTML =
         '<div class="stat"><strong>' + USERS.filter(u => !u.disabled).length + '</strong><span>Active</span></div>' +
         '<div class="stat"><strong>' + USERS.filter(u => u.disabled).length + '</strong><span>Disabled</span></div>';
 
       const form =
         '<article class="card" style="display:block;">' +
-          '<strong style="display:block;margin-bottom:0.9rem;">Add someone to the team</strong>' +
-          '<div class="blk__row">' +
+          '<strong style="display:block;margin-bottom:0.9rem;">Invite an administrator</strong>' +
+          '<div class="blk__form">' +
             '<label class="sr-only" for="tuName">Name</label>' +
             '<input id="tuName" placeholder="Their name">' +
             '<label class="sr-only" for="tuEmail">Email</label>' +
             '<input id="tuEmail" type="email" placeholder="their.name@belvoir-estates.com" autocapitalize="off" spellcheck="false">' +
-            '<label class="sr-only" for="tuPw">Temporary password</label>' +
-            '<input id="tuPw" type="text" placeholder="Temporary password">' +
             '<label class="sr-only" for="tuRole">Role</label>' +
             '<select id="tuRole"><option value="manager">Manager</option><option value="owner">Owner</option></select>' +
-            '<button class="btn btn--sm" onclick="inviteUser()">Add</button>' +
+            '<button class="btn btn--sm" onclick="inviteUser()">Send invite</button>' +
           '</div>' +
-          '<p class="blk__err" id="tuErr"></p>' +
+          '<p class="blk__note" id="tuErr"></p>' +
           '<p style="font-size:0.82rem;color:var(--ink-soft);margin:0.75rem 0 0;">' +
-            'You choose a temporary password and give it to them yourself. ' +
-            'They can change it once they are in. Managers see everything here; ' +
-            'owners can also add and remove people.' +
+            'They receive a secure, single-use email link to set their own password. ' +
+            'The link expires after 30 minutes. Managers can use the dashboard; owners can also manage access.' +
           '</p>' +
         '</article>';
 
@@ -995,7 +1144,8 @@
             '<strong>' + esc(u.name) + (u.id === ME?.id ? ' (you)' : '') + '</strong>' +
             '<a href="mailto:' + esc(u.email) + '">' + esc(u.email) + '</a>' +
             '<span class="card__date">Added ' + fmtDate(u.created_at) +
-              ' · ' + (u.last_login_at ? 'last in ' + fmtWhen(u.last_login_at) : 'never signed in') + '</span>' +
+              ' · ' + (u.last_login_at ? 'last in ' + fmtWhen(u.last_login_at) :
+                (u.invitation_expires_at ? 'invitation pending until ' + fmtWhen(u.invitation_expires_at) : 'never signed in')) + '</span>' +
           '</div>' +
           '<div class="card__meta"><strong>' + esc(u.role) + '</strong>' +
             (u.disabled ? 'disabled' : 'active') + '</div>' +
@@ -1017,13 +1167,12 @@
         action: 'invite',
         name: $('tuName').value.trim(),
         email: $('tuEmail').value.trim(),
-        password: $('tuPw').value,
         role: $('tuRole').value
       };
-      if (!payload.email || !payload.password) { err.textContent = 'Email and a temporary password are required.'; return; }
+      if (!payload.email) { err.textContent = 'An email address is required.'; return; }
       try {
         await api('POST', payload, '/api/auth');
-        $('tuName').value = ''; $('tuEmail').value = ''; $('tuPw').value = '';
+        $('tuName').value = ''; $('tuEmail').value = '';
         await loadUsers();
         render();
       } catch (e) {
@@ -1158,6 +1307,7 @@
     // A returning visit either still has a valid cookie or it does not, and
     // only the server can say which.
     (async () => {
+      if (openAccessLink()) return;
       try {
         const res = await fetch('/api/auth', { credentials: 'same-origin' });
         const data = await res.json().catch(() => ({}));

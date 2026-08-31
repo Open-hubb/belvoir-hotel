@@ -97,6 +97,24 @@ function clearSessionCookie(res) {
 // ── sessions ───────────────────────────────────────────────────────────────
 const sha256 = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
 
+/**
+ * A password-reset or invitation secret. As with sessions, only its SHA-256
+ * digest goes to Postgres. The recipient receives the raw value once, in an
+ * email link whose fragment is not sent to the server in ordinary requests.
+ */
+function hashAccessToken(token) {
+  return sha256(token);
+}
+
+function createAccessToken() {
+  const token = crypto.randomBytes(32).toString('base64url');
+  return { token, hash: hashAccessToken(token) };
+}
+
+function canManageAdmins(user) {
+  return Boolean(user && user.role === 'owner');
+}
+
 async function createSession(sql, userId, userAgent) {
   const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * 86400_000);
@@ -156,6 +174,9 @@ module.exports = {
   verifyPassword,
   dummyVerify,
   passwordProblem,
+  hashAccessToken,
+  createAccessToken,
+  canManageAdmins,
   readCookie,
   setSessionCookie,
   clearSessionCookie,

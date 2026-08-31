@@ -59,6 +59,28 @@ await sql`CREATE INDEX IF NOT EXISTS admin_sessions_user ON admin_sessions (user
 await sql`CREATE INDEX IF NOT EXISTS admin_sessions_expiry ON admin_sessions (expires_at)`;
 console.log('  session indexes ready');
 
+// Invitation and reset links carry random secrets, but the database stores
+// only their SHA-256 digests. Deleting a matching row is the atomic
+// single-use operation performed by api/auth.js.
+await sql`
+  CREATE TABLE IF NOT EXISTS admin_access_tokens (
+    token_hash text PRIMARY KEY,
+    user_id    integer NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+    purpose    text NOT NULL CHECK (purpose IN ('invite', 'reset')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL
+  )`;
+await sql`
+  CREATE INDEX IF NOT EXISTS admin_access_tokens_user_purpose
+  ON admin_access_tokens (user_id, purpose)`;
+await sql`
+  CREATE UNIQUE INDEX IF NOT EXISTS admin_access_tokens_one_per_purpose
+  ON admin_access_tokens (user_id, purpose)`;
+await sql`
+  CREATE INDEX IF NOT EXISTS admin_access_tokens_expiry
+  ON admin_access_tokens (expires_at)`;
+console.log('  admin access-token table ready');
+
 const users = await sql`SELECT count(*)::int AS n FROM admin_users`;
 console.log(`\n  existing admin accounts: ${users[0].n}`);
 if (users[0].n === 0) {
