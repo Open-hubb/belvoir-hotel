@@ -10,23 +10,23 @@
 // used for display. The check in scripts/check-rates.mjs compares the two.
 
 const ROOMS = {
-  'comfort':         { name: 'Superior Double / Comfort', rate: 60 },
-  'standard':        { name: 'Deluxe Standard',           rate: 70 },
-  'ground-floor':    { name: 'Ground Floor One-Bedroom',       rate: 100 },
-  'superior-deluxe': { name: 'Superior Deluxe King',           rate: 80 },
-  'superior-twin':   { name: 'Superior Deluxe Twin',           rate: 90 },
-  'studio':          { name: 'Studio Penthouse',               rate: 100 },
-  'one-bed':         { name: 'One-Bedroom Apartment',          rate: 110 },
-  'two-bed':         { name: 'Two-Bedroom Apartment',          rate: 150 },
+  'comfort':          { name: 'Superior Double / Comfort', rate: 60,  capacity: 1 },
+  'standard':         { name: 'Deluxe Standard',           rate: 70,  capacity: 2 },
+  'ground-floor':     { name: 'Ground Floor One-Bedroom',  rate: 100, capacity: 2 },
+  'superior-deluxe':  { name: 'Superior Deluxe King',      rate: 80,  capacity: 3 },
+  'superior-twin':    { name: 'Superior Deluxe Twin',      rate: 90,  capacity: 1 },
+  'studio':           { name: 'Studio Penthouse',          rate: 100, capacity: 1 },
+  'one-bed':          { name: 'One-Bedroom Apartment',     rate: 110, capacity: 3 },
+  'two-bed':          { name: 'Two-Bedroom Apartment',     rate: 150, capacity: 2 },
 };
-
-// Belvoir holds one of each room type, so any overlapping dates for the same
-// key is a clash. Raise a number here if a second unit is ever added.
-const UNITS_PER_ROOM = 1;
 
 const DEPOSIT_RATE = 0.3;   // matches "30% non-refundable deposit" on the site
 const MAX_NIGHTS = 365;
 const MAX_ADVANCE_DAYS = 730;
+
+function roomCapacity(key) {
+  return Number((ROOMS[key] || {}).capacity || 0);
+}
 
 function isRoom(key) {
   return Object.prototype.hasOwnProperty.call(ROOMS, key);
@@ -91,4 +91,4 @@ function priceStay(roomKey, checkin, checkout, paymentOption) {
   };
 }
 
-module.exports = { ROOMS, UNITS_PER_ROOM, DEPOSIT_RATE, MAX_NIGHTS, isRoom, parseDay, today, priceStay };
+module.exports = { ROOMS, roomCapacity, DEPOSIT_RATE, MAX_NIGHTS, isRoom, parseDay, today, priceStay };

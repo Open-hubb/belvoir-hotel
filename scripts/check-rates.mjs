@@ -42,6 +42,9 @@ for (const key of serverKeys) {
 }
 for (const key of shownKeys) {
   if (!(key in ROOMS)) fail(`${key}: on the page but the server will reject it as an unknown room`);
+  else if (!Number.isInteger(ROOMS[key].capacity) || ROOMS[key].capacity <= 0) {
+    fail(`${key}: page room does not have a positive integer server capacity`);
+  }
 }
 
 // The structured data quotes prices too
