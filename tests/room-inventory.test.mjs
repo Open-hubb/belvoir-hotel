@@ -10,6 +10,10 @@ const availabilitySource = readFileSync(
   new URL('../api/availability.js', import.meta.url),
   'utf8',
 );
+const bookingsSource = readFileSync(
+  new URL('../api/bookings.js', import.meta.url),
+  'utf8',
+);
 const migration = readFileSync(
   new URL('../scripts/migrate-availability.mjs', import.meta.url),
   'utf8',
@@ -96,6 +100,48 @@ test('availability response source exposes count fields, filtering, and no-store
   assert.match(availabilitySource, /!q\.room\s*\|\|\s*key\s*===\s*q\.room/);
   assert.match(availabilitySource, /Cache-Control['"],\s*['"]no-store/);
   for (const legacy of ['available', 'nights', 'total']) assert.match(availabilitySource, new RegExp(`\\b${legacy}\\b`));
+});
+
+test('booking checkout uses a temporary database hold', () => {
+  assert.match(bookingsSource, /acquireBookingHold/);
+  assert.match(bookingsSource, /holdExpiresAt/);
+  assert.match(bookingsSource, /ROOM_UNAVAILABLE/);
+  assert.doesNotMatch(bookingsSource, /takenRooms/);
+});
+
+test('booking claims are created server-side and started upgrades preserve ownership', () => {
+  assert.match(bookingsSource, /claim\s*=\s*crypto\.randomUUID\(\)/);
+  assert.match(bookingsSource, /claim_token\s*=\s*\$\{String\(b\.claim\)\}\s+AND stage = 'started'/);
+  assert.match(bookingsSource, /claim\s*=\s*String\(b\.claim\)/);
+  assert.doesNotMatch(bookingsSource, /RETURNING id, reference, claim_token/);
+  assert.match(bookingsSource, /'started',\s*\$\{claim\},\s*'unreserved',\s*NULL/);
+});
+
+test('failed checkout holds remain non-consuming enquiries and return a final conflict', () => {
+  const holdCall = bookingsSource.indexOf('await acquireBookingHold');
+  const insertAsStarted = bookingsSource.indexOf("'started', ${claim}, 'unreserved', NULL");
+  const checkoutNotification = bookingsSource.indexOf('await notifyBooking', holdCall);
+
+  assert.ok(insertAsStarted >= 0 && insertAsStarted < holdCall);
+  assert.match(bookingsSource.slice(holdCall, checkoutNotification), /if \(!hold\.acquired\)[\s\S]*status\(409\)[\s\S]*ROOM_UNAVAILABLE/);
+  assert.match(bookingsSource, /claim,\s*holdExpiresAt:\s*hold\.holdExpiresAt,\s*remaining:\s*hold\.remaining/);
+});
+
+test('admin booking mutations use capacity-safe inventory transitions', () => {
+  assert.match(bookingsSource, /b\.payment_status === 'paid'[\s\S]*settleBookingInventory\(sql, id\)/);
+  assert.match(bookingsSource, /payment_status = 'unpaid'[\s\S]*inventory_status = 'unreserved', hold_expires_at = NULL/);
+  assert.match(bookingsSource, /status = 'cancelled', cancelled_at = now\(\)[\s\S]*inventory_status = 'unreserved', hold_expires_at = NULL/);
+  assert.match(bookingsSource, /b\.status === 'active'[\s\S]*reactivateBooking\(sql, id\)[\s\S]*status\(409\)/);
+});
+
+test('inventory state is exposed to admins without exposing claim tokens', () => {
+  const adminGet = bookingsSource.slice(
+    bookingsSource.indexOf("if (req.method === 'GET')"),
+    bookingsSource.indexOf("if (req.method === 'PATCH')"),
+  );
+  assert.match(adminGet, /hold_expires_at/);
+  assert.match(adminGet, /inventory_status/);
+  assert.doesNotMatch(adminGet, /claim_token/);
 });
 
 test('room catalogue exposes Belvoir confirmed capacities', () => {

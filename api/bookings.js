@@ -2,6 +2,11 @@ const { neon } = require('@neondatabase/serverless');
 const { isAdminRequest } = require('./_auth');
 const crypto = require('crypto');
 const { notifyBooking } = require('./_notify');
+const {
+  acquireBookingHold,
+  settleBookingInventory,
+  reactivateBooking,
+} = require('./_inventory');
 
 let _sql = null;
 function db() {
@@ -11,8 +16,9 @@ function db() {
 
 
 const { ROOMS, priceStay } = require('./_rooms');
-const { takenRooms } = require('./availability');
 const { limit } = require('./_ratelimit');
+
+const ROOM_UNAVAILABLE = 'Sorry, that room has just become fully booked for those dates. Please choose another room or different dates.';
 
 module.exports = async (req, res) => {
   try {
@@ -68,30 +74,15 @@ module.exports = async (req, res) => {
         requests: clip(b.requests || '', 500),
       };
 
-      // Completing a booking that was already captured at the details step
-      // A room only stops being available once someone reaches checkout, so a
-      // browsing guest never blocks anyone. The exclusion constraint below is
-      // what actually enforces this; the lookup is here to give a useful
-      // message rather than a raw constraint error.
-      if (stage === 'checkout') {
-        const taken = await takenRooms(sql, fields.checkin, fields.checkout);
-        if (taken.has(fields.room_key)) {
-          const claimId = parseInt(b.id, 10);
-          // Its own earlier row must not count as a clash with itself
-          const selfHeld = claimId && (await sql`
-            SELECT 1 FROM bookings
-            WHERE id = ${claimId} AND room_key = ${fields.room_key}
-              AND status = 'active' AND stage = 'checkout'`).length;
-          if (!selfHeld) {
-            return res.status(409).json({
-              error: 'Sorry, that room has just been taken for those dates. Please choose another room or different dates.',
-              code: 'ROOM_UNAVAILABLE',
-            });
-          }
-        }
-      }
-
       const claimId = parseInt(b.id, 10);
+      let bookingId = null;
+      let reference = null;
+      let claim = null;
+      let created = false;
+
+      // A legitimate details-step upgrade keeps its original claim token. The
+      // row remains a non-consuming enquiry until the locked hold call below
+      // succeeds, so a failed capacity decision never leaves a phantom hold.
       if (stage === 'checkout' && claimId && b.claim) {
         const updated = await sql`
           UPDATE bookings SET
@@ -100,65 +91,76 @@ module.exports = async (req, res) => {
             nights = ${fields.nights}, guests = ${fields.guests},
             guest_name = ${fields.guest_name}, guest_email = ${fields.guest_email},
             guest_phone = ${fields.guest_phone}, requests = ${fields.requests},
-            payment_option = ${payment}, amount_due = ${amount}, total = ${total},
-            stage = 'checkout'
+            payment_option = ${payment}, amount_due = ${amount}, total = ${total}
           WHERE id = ${claimId} AND claim_token = ${String(b.claim)} AND stage = 'started'
           RETURNING id, reference`;
         if (updated.length) {
-          const ref = updated[0].reference || ('BLV-' + String(updated[0].id).padStart(5, '0'));
-          const full = { ...fields, payment_option: payment, amount_due: amount, total, reference: ref };
-          // Email must never block a saved booking, so each is caught separately
-          // The team hears about it now; the guest hears only once they pay.
-          try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
-          return res.status(200).json({ ok: true, id: updated[0].id, reference: ref });
+          bookingId = updated[0].id;
+          reference = updated[0].reference || null;
+          // Echo only the token this request already proved it owns. Never
+          // select another guest's claim back out of the database.
+          claim = String(b.claim);
         }
         // Token did not match (expired or tampered) — fall through and insert fresh
       }
 
-      const claim = stage === 'started' ? crypto.randomUUID() : null;
-      let rows;
-      try {
-        rows = await sql`
+      // Both a saved enquiry and a direct checkout start non-consuming and own
+      // a fresh claim. The token is returned only through this guest write path.
+      if (!bookingId) {
+        claim = crypto.randomUUID();
+        const rows = await sql`
           INSERT INTO bookings
             (room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email,
-             guest_phone, requests, payment_option, amount_due, total, stage, claim_token)
+             guest_phone, requests, payment_option, amount_due, total, stage, claim_token,
+             inventory_status, hold_expires_at)
           VALUES
             (${fields.room_key}, ${fields.room_name}, ${fields.checkin}, ${fields.checkout},
              ${fields.nights}, ${fields.guests}, ${fields.guest_name}, ${fields.guest_email},
              ${fields.guest_phone}, ${fields.requests}, ${payment}, ${amount}, ${total},
-             ${stage}, ${claim})
+             'started', ${claim}, 'unreserved', NULL)
           RETURNING id`;
-      } catch (err) {
-        // 23P01 is the exclusion constraint. Two guests raced for the same room
-        // and Postgres refused the second, which is exactly what should happen.
-        if (err && err.code === '23P01') {
-          return res.status(409).json({
-            error: 'Sorry, that room has just been taken for those dates. Please choose another room or different dates.',
-            code: 'ROOM_UNAVAILABLE',
-          });
-        }
-        throw err;
+        bookingId = rows[0].id;
+        created = true;
       }
 
       // Short reference the guest can quote to the front desk
-      const reference = 'BLV-' + String(rows[0].id).padStart(5, '0');
-      await sql`UPDATE bookings SET reference = ${reference}
-                WHERE id = ${rows[0].id} AND reference IS NULL`;
-
-      // Only tell anyone once the guest actually reaches checkout
-      if (stage === 'checkout') {
-        const full = { ...fields, payment_option: payment, amount_due: amount, total, reference };
-        // The team hears about it now; the guest hears only once they pay.
-        try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
+      if (!reference) {
+        reference = 'BLV-' + String(bookingId).padStart(5, '0');
+        await sql`UPDATE bookings SET reference = ${reference}
+                  WHERE id = ${bookingId} AND reference IS NULL`;
       }
 
-      return res.status(201).json({ ok: true, id: rows[0].id, claim, reference });
+      if (stage === 'started') {
+        return res.status(201).json({ ok: true, id: bookingId, claim, reference });
+      }
+
+      const hold = await acquireBookingHold(sql, bookingId, claim);
+      if (!hold.acquired) {
+        return res.status(409).json({
+          error: ROOM_UNAVAILABLE,
+          code: 'ROOM_UNAVAILABLE',
+        });
+      }
+
+      const full = { ...fields, payment_option: payment, amount_due: amount, total, reference };
+      // Email must never block a saved booking. The team hears about checkout;
+      // the guest hears only once they pay.
+      try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
+
+      return res.status(created ? 201 : 200).json({
+        ok: true,
+        id: bookingId,
+        reference,
+        claim,
+        holdExpiresAt: hold.holdExpiresAt,
+        remaining: hold.remaining,
+      });
     }
 
     if (req.method === 'GET') {
       if (limit(req, res, 'admin', 30, 60000)) return;
       if (!(await isAdminRequest(sql, req))) return res.status(401).json({ error: 'Unauthorized' });
-      const rows = await sql`SELECT id, created_at, room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email, guest_phone, requests, payment_option, amount_due, total, payment_status, notes, stage, status, reference, cancelled_at FROM bookings ORDER BY created_at DESC LIMIT 500`;
+      const rows = await sql`SELECT id, created_at, room_key, room_name, checkin, checkout, nights, guests, guest_name, guest_email, guest_phone, requests, payment_option, amount_due, total, payment_status, notes, stage, status, reference, cancelled_at, hold_expires_at, inventory_status FROM bookings ORDER BY created_at DESC LIMIT 500`;
       return res.status(200).json({ bookings: rows });
     }
 
@@ -175,19 +177,44 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Invalid booking status' });
       }
 
-      // Cancelling has to release the dates, which the exclusion constraint
-      // keys off, so the room becomes bookable again immediately.
+      if (b.payment_status === 'paid') {
+        await settleBookingInventory(sql, id);
+      } else if (b.payment_status === 'unpaid') {
+        await sql`
+          UPDATE bookings SET payment_status = 'unpaid',
+            inventory_status = 'unreserved', hold_expires_at = NULL
+          WHERE id = ${id}`;
+      }
+
+      // Cancellation releases inventory immediately. A restore is a new
+      // capacity decision, made under the same database room lock as holds.
+      if (b.status === 'cancelled') {
+        await sql`
+          UPDATE bookings SET status = 'cancelled', cancelled_at = now(),
+            inventory_status = 'unreserved', hold_expires_at = NULL
+          WHERE id = ${id}`;
+      } else if (b.status === 'active') {
+        const restored = await reactivateBooking(sql, id);
+        if (!restored.reactivated) {
+          const current = await sql`SELECT id, status FROM bookings WHERE id = ${id} LIMIT 1`;
+          if (!current.length) return res.status(404).json({ error: 'Not found' });
+          if (current[0].status === 'cancelled') {
+            return res.status(409).json({
+              error: ROOM_UNAVAILABLE,
+              code: 'ROOM_UNAVAILABLE',
+            });
+          }
+        }
+      }
+
+      if (b.notes !== undefined) {
+        await sql`UPDATE bookings SET notes = ${String(b.notes).slice(0, 500)} WHERE id = ${id}`;
+      }
+
       const rows = await sql`
-        UPDATE bookings SET
-          payment_status = COALESCE(${b.payment_status || null}, payment_status),
-          notes = COALESCE(${b.notes !== undefined ? String(b.notes).slice(0, 500) : null}, notes),
-          status = COALESCE(${b.status || null}, status),
-          cancelled_at = CASE
-            WHEN ${b.status || null} = 'cancelled' THEN now()
-            WHEN ${b.status || null} = 'active'    THEN NULL
-            ELSE cancelled_at END
-        WHERE id = ${id}
-        RETURNING id, payment_status, notes, status, cancelled_at`;
+        SELECT id, payment_status, notes, status, cancelled_at,
+          hold_expires_at, inventory_status
+        FROM bookings WHERE id = ${id} LIMIT 1`;
       if (!rows.length) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json({ ok: true, booking: rows[0] });
     }
