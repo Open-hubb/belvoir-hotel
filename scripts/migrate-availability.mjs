@@ -97,17 +97,6 @@ await step('seed room capacities', async () => {
   }
 });
 
-// Reruns intentionally touch only the legacy state. A current hold, conflict,
-// or reservation must never be rewritten by the migration.
-await step('backfill paid booking inventory', async () => {
-  await sql`
-    UPDATE bookings
-    SET inventory_status = 'reserved'
-    WHERE status = 'active'
-      AND payment_status = 'paid'
-      AND inventory_status = 'unreserved'`;
-});
-
 // Availability is evaluated per occupied night. Half-open dates allow a new
 // guest to check in on the date the previous guest checks out.
 await step('shared room availability function', async () => {
@@ -119,8 +108,10 @@ await step('shared room availability function', async () => {
       p_exclude_booking_id bigint DEFAULT NULL
     )
     RETURNS TABLE(room_key text, capacity integer, remaining integer)
-    LANGUAGE sql STABLE AS $$
-      WITH nights AS (
+    LANGUAGE sql VOLATILE AS $$
+      WITH wall_clock AS MATERIALIZED (
+        SELECT clock_timestamp() AS instant
+      ), nights AS (
         SELECT day::date AS night
         FROM generate_series(p_checkin, p_checkout - 1, interval '1 day') AS day
       ), nightly AS (
@@ -134,7 +125,8 @@ await step('shared room availability function', async () => {
               AND b.checkin <= n.night AND b.checkout > n.night
               AND (
                 b.inventory_status = 'reserved'
-                OR (b.inventory_status = 'held' AND b.hold_expires_at > now())
+                OR (b.inventory_status = 'held'
+                    AND b.hold_expires_at > wall_clock.instant)
               )
           ) + COALESCE((
             SELECT sum(rb.units)::integer
@@ -142,7 +134,7 @@ await step('shared room availability function', async () => {
             WHERE rb.room_key = i.room_key
               AND rb.starts <= n.night AND rb.ends > n.night
           ), 0) AS used
-        FROM room_inventory i CROSS JOIN nights n
+        FROM room_inventory i CROSS JOIN nights n CROSS JOIN wall_clock
         WHERE p_room_key IS NULL OR i.room_key = p_room_key
       )
       SELECT nightly.room_key, nightly.capacity,
@@ -169,7 +161,10 @@ await step('booking hold function', async () => {
     BEGIN
       SELECT * INTO v_booking FROM bookings WHERE id = p_booking_id FOR UPDATE;
       IF NOT FOUND OR v_booking.claim_token IS DISTINCT FROM p_claim_token
-         OR v_booking.status <> 'active' THEN
+         OR v_booking.status <> 'active'
+         OR v_booking.payment_status = 'paid'
+         OR v_booking.inventory_status IN ('reserved', 'conflict')
+         OR p_minutes IS DISTINCT FROM 15 THEN
         RETURN QUERY SELECT false, NULL::timestamptz, 0;
         RETURN;
       END IF;
@@ -185,7 +180,7 @@ await step('booking hold function', async () => {
         RETURN;
       END IF;
 
-      v_expires := now() + make_interval(mins => greatest(1, least(p_minutes, 15)));
+      v_expires := clock_timestamp() + interval '15 minutes';
       UPDATE bookings SET stage = 'checkout', inventory_status = 'held',
         hold_expires_at = v_expires WHERE id = p_booking_id;
       RETURN QUERY SELECT true, v_expires, greatest(0, v_remaining - 1);
@@ -221,7 +216,7 @@ await step('booking settlement function', async () => {
         v_booking.checkin, v_booking.checkout, v_booking.room_key, v_booking.id
       ) a;
       v_has_live_hold := v_booking.inventory_status = 'held'
-        AND v_booking.hold_expires_at > now();
+        AND v_booking.hold_expires_at > clock_timestamp();
 
       IF v_has_live_hold OR COALESCE(v_remaining, 0) >= 1 THEN
         UPDATE bookings
@@ -328,6 +323,67 @@ await step('booking reactivation function', async () => {
       END IF;
     END;
     $$`;
+});
+
+// Process only legacy paid checkout rows that have never entered a live
+// inventory state. Each candidate takes locks in the same booking-row then
+// room-key order as runtime writes. A separate transaction per candidate keeps
+// room locks from accumulating across the ordered backfill, while the shared
+// availability calculation assigns overflow rows to the conflict state.
+await step('backfill paid booking inventory', async () => {
+  await sql`
+    CREATE OR REPLACE FUNCTION belvoir_backfill_paid_booking(p_booking_id bigint)
+    RETURNS void
+    LANGUAGE plpgsql VOLATILE AS $$
+    DECLARE
+      v_booking bookings%ROWTYPE;
+      v_remaining integer;
+    BEGIN
+      SELECT * INTO v_booking
+      FROM bookings
+      WHERE id = p_booking_id
+      FOR UPDATE;
+
+      IF NOT FOUND OR v_booking.status IS DISTINCT FROM 'active'
+         OR v_booking.payment_status IS DISTINCT FROM 'paid'
+         OR v_booking.stage IS DISTINCT FROM 'checkout'
+         OR v_booking.inventory_status IS DISTINCT FROM 'unreserved' THEN
+        RETURN;
+      END IF;
+
+      PERFORM pg_advisory_xact_lock(hashtextextended(v_booking.room_key, 0));
+      SELECT a.remaining INTO v_remaining
+      FROM belvoir_room_availability(
+        v_booking.checkin, v_booking.checkout, v_booking.room_key, v_booking.id
+      ) a;
+
+      IF COALESCE(v_remaining, 0) >= 1 THEN
+        UPDATE bookings
+        SET inventory_status = 'reserved', hold_expires_at = NULL
+        WHERE id = v_booking.id;
+      ELSE
+        UPDATE bookings
+        SET inventory_status = 'conflict', hold_expires_at = NULL
+        WHERE id = v_booking.id;
+      END IF;
+    END;
+    $$`;
+
+  try {
+    const candidates = await sql`
+      SELECT b.id
+      FROM bookings b
+      WHERE b.status = 'active'
+        AND b.payment_status = 'paid'
+        AND b.stage = 'checkout'
+        AND b.inventory_status = 'unreserved'
+      ORDER BY b.room_key, b.id`;
+    for (const candidate of candidates) {
+      await sql`SELECT belvoir_backfill_paid_booking(${candidate.id}::bigint)`;
+    }
+  } finally {
+    await sql`DROP FUNCTION IF EXISTS belvoir_backfill_paid_booking(bigint)`;
+  }
 });
 
 await step('inventory indexes', async () => {
