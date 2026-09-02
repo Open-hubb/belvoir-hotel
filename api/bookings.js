@@ -3,6 +3,7 @@ const { isAdminRequest } = require('./_auth');
 const crypto = require('crypto');
 const { notifyBooking } = require('./_notify');
 const {
+  HOLD_MINUTES,
   acquireBookingHold,
   settleBookingInventory,
   reactivateBooking,
@@ -19,6 +20,21 @@ const { ROOMS, priceStay } = require('./_rooms');
 const { limit } = require('./_ratelimit');
 
 const ROOM_UNAVAILABLE = 'Sorry, that room has just become fully booked for those dates. Please choose another room or different dates.';
+
+function normalizedHold(row) {
+  return {
+    acquired: row && row.acquired === true,
+    holdExpiresAt: (row && row.hold_expires_at) || null,
+    remaining: Math.max(0, Number((row && row.remaining) || 0)),
+  };
+}
+
+function unavailable(res) {
+  return res.status(409).json({
+    error: ROOM_UNAVAILABLE,
+    code: 'ROOM_UNAVAILABLE',
+  });
+}
 
 module.exports = async (req, res) => {
   try {
@@ -79,29 +95,57 @@ module.exports = async (req, res) => {
       let reference = null;
       let claim = null;
       let created = false;
+      let heldBooking = null;
+      let hold = null;
+      let notifyNewCheckout = false;
 
-      // A legitimate details-step upgrade keeps its original claim token. The
-      // row remains a non-consuming enquiry until the locked hold call below
-      // succeeds, so a failed capacity decision never leaves a phantom hold.
+      // Serialize a legitimate details-step upgrade across its field write and
+      // the database-locked hold decision. The first transaction that changes
+      // started -> checkout owns the notification. Later valid retries skip the
+      // field write, refresh this same booking's hold, and stay silent.
       if (stage === 'checkout' && claimId && b.claim) {
-        const updated = await sql`
-          UPDATE bookings SET
-            room_key = ${fields.room_key}, room_name = ${fields.room_name},
-            checkin = ${fields.checkin}, checkout = ${fields.checkout},
-            nights = ${fields.nights}, guests = ${fields.guests},
-            guest_name = ${fields.guest_name}, guest_email = ${fields.guest_email},
-            guest_phone = ${fields.guest_phone}, requests = ${fields.requests},
-            payment_option = ${payment}, amount_due = ${amount}, total = ${total}
-          WHERE id = ${claimId} AND claim_token = ${String(b.claim)} AND stage = 'started'
-          RETURNING id, reference`;
-        if (updated.length) {
-          bookingId = updated[0].id;
-          reference = updated[0].reference || null;
+        const suppliedClaim = String(b.claim);
+        const [updated, holdRows, matched] = await sql.transaction((txn) => [
+          txn`
+            UPDATE bookings SET
+              room_key = ${fields.room_key}, room_name = ${fields.room_name},
+              checkin = ${fields.checkin}, checkout = ${fields.checkout},
+              nights = ${fields.nights}, guests = ${fields.guests},
+              guest_name = ${fields.guest_name}, guest_email = ${fields.guest_email},
+              guest_phone = ${fields.guest_phone}, requests = ${fields.requests},
+              payment_option = ${payment}, amount_due = ${amount}, total = ${total}
+            WHERE id = ${claimId} AND claim_token = ${suppliedClaim}
+              AND stage = 'started' AND status = 'active'
+            RETURNING id`,
+          txn`
+            SELECT * FROM belvoir_acquire_booking_hold(
+              ${claimId}::bigint, ${suppliedClaim}, ${HOLD_MINUTES}::integer
+            )`,
+          txn`
+            SELECT id, reference, room_key, room_name, checkin, checkout, nights,
+              guests, guest_name, guest_email, guest_phone, requests,
+              payment_option, amount_due, total, stage, status,
+              hold_expires_at, inventory_status
+            FROM bookings
+            WHERE id = ${claimId} AND claim_token = ${suppliedClaim}
+            LIMIT 1`,
+        ]);
+
+        // A match proves this request owns the existing row. A failed hold is a
+        // final capacity answer; it must never fall through to a duplicate.
+        if (matched.length) {
+          heldBooking = matched[0];
+          bookingId = heldBooking.id;
+          reference = heldBooking.reference || null;
           // Echo only the token this request already proved it owns. Never
           // select another guest's claim back out of the database.
-          claim = String(b.claim);
+          claim = suppliedClaim;
+          hold = normalizedHold(holdRows[0]);
+          notifyNewCheckout = updated.length > 0 && hold.acquired;
+          if (!hold.acquired) return unavailable(res);
         }
-        // Token did not match (expired or tampered) — fall through and insert fresh
+        // A missing/tampered token is non-authoritative. It cannot read or alter
+        // the named booking and falls through to create an independent row.
       }
 
       // Both a saved enquiry and a direct checkout start non-consuming and own
@@ -134,18 +178,28 @@ module.exports = async (req, res) => {
         return res.status(201).json({ ok: true, id: bookingId, claim, reference });
       }
 
-      const hold = await acquireBookingHold(sql, bookingId, claim);
-      if (!hold.acquired) {
-        return res.status(409).json({
-          error: ROOM_UNAVAILABLE,
-          code: 'ROOM_UNAVAILABLE',
-        });
+      if (!hold) {
+        hold = await acquireBookingHold(sql, bookingId, claim);
+        if (!hold.acquired) return unavailable(res);
+        notifyNewCheckout = true;
+        const rows = await sql`
+          SELECT id, reference, room_key, room_name, checkin, checkout, nights,
+            guests, guest_name, guest_email, guest_phone, requests,
+            payment_option, amount_due, total, stage, status,
+            hold_expires_at, inventory_status
+          FROM bookings
+          WHERE id = ${bookingId} AND claim_token = ${claim}
+          LIMIT 1`;
+        if (!rows.length) throw new Error('Held booking could not be read back');
+        heldBooking = rows[0];
       }
 
-      const full = { ...fields, payment_option: payment, amount_due: amount, total, reference };
-      // Email must never block a saved booking. The team hears about checkout;
-      // the guest hears only once they pay.
-      try { await notifyBooking(full); } catch (err) { console.error('team notification failed:', err.message); }
+      if (notifyNewCheckout) {
+        // Build the notification from the row read after the hold decision, not
+        // request-local fields that may have lost a concurrent transition.
+        heldBooking.reference = reference;
+        try { await notifyBooking(heldBooking); } catch (err) { console.error('team notification failed:', err.message); }
+      }
 
       return res.status(created ? 201 : 200).json({
         ok: true,
