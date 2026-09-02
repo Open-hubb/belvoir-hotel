@@ -3,6 +3,7 @@ node_modules/
 
 # Dev artifacts
 temporary screenshots/
+.worktrees/
 
 # OS
 .DS_Store
