@@ -96,9 +96,29 @@ await step('payment attempt identity', async () => {
 
 await step('durable payment notification outbox', async () => {
   await sql`
+    ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS payment_generation integer NOT NULL DEFAULT 0`;
+  await sql`
+    ALTER TABLE bookings
+    ALTER COLUMN payment_generation SET DEFAULT 0`;
+  await sql`
+    UPDATE bookings SET payment_generation = 0
+    WHERE payment_generation IS NULL`;
+  await sql`
+    ALTER TABLE bookings
+    ALTER COLUMN payment_generation SET NOT NULL`;
+  await sql`
+    ALTER TABLE bookings
+    DROP CONSTRAINT IF EXISTS bookings_payment_generation_nonnegative`;
+  await sql`
+    ALTER TABLE bookings
+    ADD CONSTRAINT bookings_payment_generation_nonnegative
+    CHECK (payment_generation >= 0)`;
+  await sql`
     CREATE TABLE IF NOT EXISTS payment_notification_outbox (
       id bigserial PRIMARY KEY,
       booking_id bigint NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      payment_generation integer NOT NULL DEFAULT 0,
       outcome text NOT NULL CHECK (outcome IN ('reserved', 'conflict')),
       channel text NOT NULL CHECK (
         channel IN ('guest-email', 'team-email', 'whatsapp-payment', 'whatsapp-conflict')
@@ -113,11 +133,52 @@ await step('durable payment notification outbox', async () => {
       obsolete_reason text,
       last_error text,
       created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-      updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-      UNIQUE (booking_id, outcome, channel)
+      updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
     )`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    ADD COLUMN IF NOT EXISTS payment_generation integer`;
   await sql`ALTER TABLE payment_notification_outbox ADD COLUMN IF NOT EXISTS obsolete_at timestamptz`;
   await sql`ALTER TABLE payment_notification_outbox ADD COLUMN IF NOT EXISTS obsolete_reason text`;
+  // Existing rows represent at least one historical payment generation. Keep
+  // them as audit history while allowing a later unpaid -> paid transition to
+  // advance the booking and create a fresh generation.
+  await sql`
+    UPDATE bookings AS booking
+    SET payment_generation = 1
+    WHERE booking.payment_generation = 0
+      AND (
+        booking.payment_status = 'paid'
+        OR EXISTS (
+          SELECT 1 FROM payment_notification_outbox notification
+          WHERE notification.booking_id = booking.id
+        )
+      )`;
+  await sql`
+    UPDATE payment_notification_outbox AS notification
+    SET payment_generation = booking.payment_generation
+    FROM bookings AS booking
+    WHERE notification.booking_id = booking.id
+      AND (notification.payment_generation IS NULL OR notification.payment_generation = 0)`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    ALTER COLUMN payment_generation SET DEFAULT 0`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    ALTER COLUMN payment_generation SET NOT NULL`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    DROP CONSTRAINT IF EXISTS payment_notification_outbox_booking_id_outcome_channel_key`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    DROP CONSTRAINT IF EXISTS payment_notification_outbox_payment_generation_nonnegative`;
+  await sql`
+    ALTER TABLE payment_notification_outbox
+    ADD CONSTRAINT payment_notification_outbox_payment_generation_nonnegative
+    CHECK (payment_generation >= 0)`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS payment_notification_outbox_generation_channel
+    ON payment_notification_outbox (booking_id, payment_generation, outcome, channel)`;
   await sql`
     CREATE INDEX IF NOT EXISTS payment_notification_outbox_claimable
     ON payment_notification_outbox (available_at, lease_expires_at, id)
@@ -243,6 +304,7 @@ await step('booking settlement function', async () => {
       v_booking bookings%ROWTYPE;
       v_remaining integer;
       v_has_live_hold boolean;
+      v_generation integer;
     BEGIN
       SELECT * INTO v_booking FROM bookings WHERE id = p_booking_id FOR UPDATE;
       IF NOT FOUND THEN
@@ -257,20 +319,24 @@ await step('booking settlement function', async () => {
         RETURN;
       END IF;
 
+      v_generation := COALESCE(v_booking.payment_generation, 0) + 1;
+
       -- A cancellation is final for inventory. Money can still arrive late,
       -- but it must become a conflict and can never resurrect or consume a
       -- unit, nor enqueue the ordinary confirmation emails.
       IF v_booking.status IS DISTINCT FROM 'active' THEN
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
-            inventory_status = 'conflict', hold_expires_at = NULL
+            inventory_status = 'conflict', hold_expires_at = NULL,
+            payment_generation = v_generation
         WHERE id = p_booking_id;
         INSERT INTO payment_notification_outbox
-          (booking_id, outcome, channel, dedupe_key)
+          (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
-          (p_booking_id, 'conflict', 'whatsapp-conflict',
-           'belvoir:booking:' || p_booking_id::text || ':conflict:whatsapp-conflict')
-        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
+          (p_booking_id, v_generation, 'conflict', 'whatsapp-conflict',
+           'belvoir:booking:' || p_booking_id::text || ':payment:' ||
+             v_generation::text || ':conflict:whatsapp-conflict')
+        ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
         RETURN QUERY SELECT true, false, 'conflict'::text;
         RETURN;
       END IF;
@@ -285,30 +351,36 @@ await step('booking settlement function', async () => {
       IF v_has_live_hold OR COALESCE(v_remaining, 0) >= 1 THEN
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
-            inventory_status = 'reserved', hold_expires_at = NULL
+            inventory_status = 'reserved', hold_expires_at = NULL,
+            payment_generation = v_generation
         WHERE id = p_booking_id;
         INSERT INTO payment_notification_outbox
-          (booking_id, outcome, channel, dedupe_key)
+          (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
-          (p_booking_id, 'reserved', 'guest-email',
-           'belvoir:booking:' || p_booking_id::text || ':reserved:guest-email'),
-          (p_booking_id, 'reserved', 'team-email',
-           'belvoir:booking:' || p_booking_id::text || ':reserved:team-email'),
-          (p_booking_id, 'reserved', 'whatsapp-payment',
-           'belvoir:booking:' || p_booking_id::text || ':reserved:whatsapp-payment')
-        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
+          (p_booking_id, v_generation, 'reserved', 'guest-email',
+           'belvoir:booking:' || p_booking_id::text || ':payment:' ||
+             v_generation::text || ':reserved:guest-email'),
+          (p_booking_id, v_generation, 'reserved', 'team-email',
+           'belvoir:booking:' || p_booking_id::text || ':payment:' ||
+             v_generation::text || ':reserved:team-email'),
+          (p_booking_id, v_generation, 'reserved', 'whatsapp-payment',
+           'belvoir:booking:' || p_booking_id::text || ':payment:' ||
+             v_generation::text || ':reserved:whatsapp-payment')
+        ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
         RETURN QUERY SELECT true, false, 'reserved'::text;
       ELSE
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
-            inventory_status = 'conflict', hold_expires_at = NULL
+            inventory_status = 'conflict', hold_expires_at = NULL,
+            payment_generation = v_generation
         WHERE id = p_booking_id;
         INSERT INTO payment_notification_outbox
-          (booking_id, outcome, channel, dedupe_key)
+          (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
-          (p_booking_id, 'conflict', 'whatsapp-conflict',
-           'belvoir:booking:' || p_booking_id::text || ':conflict:whatsapp-conflict')
-        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
+          (p_booking_id, v_generation, 'conflict', 'whatsapp-conflict',
+           'belvoir:booking:' || p_booking_id::text || ':payment:' ||
+             v_generation::text || ':conflict:whatsapp-conflict')
+        ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
         RETURN QUERY SELECT true, false, 'conflict'::text;
       END IF;
     END;

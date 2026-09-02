@@ -23,6 +23,10 @@ const indexSource = readFileSync(
   new URL('../index.html', import.meta.url),
   'utf8',
 );
+const adminSource = readFileSync(
+  new URL('../admin.html', import.meta.url),
+  'utf8',
+);
 const migration = readFileSync(
   new URL('../scripts/migrate-availability.mjs', import.meta.url),
   'utf8',
@@ -228,7 +232,9 @@ function durablePaidHarness({
   initialInventoryStatus = 'held',
   initialReservedOutbox = false,
   initialConflictOutbox = false,
+  initialPaymentGeneration = null,
   noteError = false,
+  pauseGuestSend = false,
 } = {}) {
   const booking = {
     id: 91,
@@ -247,30 +253,42 @@ function durablePaidHarness({
     amount_due: 140,
     total: 140,
     payment_status: initialPaymentStatus,
+    payment_generation: initialPaymentGeneration == null
+      ? (initialPaymentStatus === 'paid' ? 1 : 0)
+      : initialPaymentGeneration,
     inventory_status: initialInventoryStatus,
     status: bookingStatus,
   };
   const outbox = [];
   const calls = { guest: [], team: [], whatsapp: [], logs: [], claimLeases: [] };
+  let observeFirstClaim;
+  const claimObserved = new Promise((resolve) => { observeFirstClaim = resolve; });
+  let resumeGuestSend;
+  const guestSendGate = pauseGuestSend
+    ? new Promise((resolve) => { resumeGuestSend = resolve; })
+    : Promise.resolve();
   let claimFailureRemaining = failClaimOnce ? 1 : 0;
   let teamFailureRemaining = failTeamOnce ? 1 : 0;
   let whatsappFailureRemaining = failWhatsappOnce ? 1 : 0;
 
-  function seedOutbox(seedOutcome = outcome) {
+  function seedOutbox(seedOutcome = outcome, generation = booking.payment_generation) {
     const channels = seedOutcome === 'conflict'
       ? ['whatsapp-conflict']
       : ['guest-email', 'team-email', 'whatsapp-payment'];
     for (const channel of channels) {
-      if (outbox.some((row) => row.outcome === seedOutcome && row.channel === channel)) continue;
+      if (outbox.some((row) => row.payment_generation === generation &&
+        row.outcome === seedOutcome && row.channel === channel)) continue;
       outbox.push({
         id: outbox.length + 1,
         booking_id: booking.id,
+        payment_generation: generation,
         outcome: seedOutcome,
         channel,
-        dedupe_key: `belvoir:booking:${booking.id}:${seedOutcome}:${channel}`,
+        dedupe_key: `belvoir:booking:${booking.id}:payment:${generation}:${seedOutcome}:${channel}`,
         delivered: false,
         leased: false,
         obsolete: false,
+        claimedCount: 0,
       });
     }
   }
@@ -285,7 +303,12 @@ function durablePaidHarness({
       return [{ ...booking }];
     }
     if (/SELECT \* FROM bookings/.test(text)) return [{ ...booking }];
-    if (/WITH changed AS/.test(text) && /payment_notification_outbox/.test(text)) {
+    if (/WITH target AS MATERIALIZED/.test(text) && /payment_notification_outbox/.test(text)) {
+      const liveReservedLease = outbox.some((row) => row.outcome === 'reserved' &&
+        !row.delivered && !row.obsolete && row.leased);
+      if (liveReservedLease) {
+        return [{ id: booking.id, notification_in_flight: true, changed: false }];
+      }
       if (/payment_status = 'unpaid'/.test(text)) {
         booking.payment_status = 'unpaid';
         booking.inventory_status = 'unreserved';
@@ -302,7 +325,7 @@ function durablePaidHarness({
           row.leased = false;
         }
       }
-      return [];
+      return [{ id: booking.id, notification_in_flight: false, changed: true }];
     }
     if (/SELECT id, payment_status/.test(text)) return [{ ...booking }];
     if (/WITH claimable/.test(text) && /payment_notification_outbox/.test(text)) {
@@ -315,23 +338,32 @@ function durablePaidHarness({
         /b\.inventory_status = 'reserved'/.test(text) &&
         /obsolete_at/.test(text);
       const matchesState = (row) => !stateAware || (row.outcome === 'reserved'
-        ? booking.status === 'active' && booking.payment_status === 'paid' && booking.inventory_status === 'reserved'
-        : booking.payment_status === 'paid' && booking.inventory_status === 'conflict');
+        ? booking.status === 'active' && booking.payment_status === 'paid' &&
+          booking.inventory_status === 'reserved' && row.payment_generation === booking.payment_generation
+        : booking.payment_status === 'paid' && booking.inventory_status === 'conflict' &&
+          row.payment_generation === booking.payment_generation);
       if (stateAware) {
         for (const row of outbox) {
           if (!row.delivered && !row.obsolete && !matchesState(row)) row.obsolete = true;
         }
       }
-      const numericValues = values.filter((value) => Number.isFinite(Number(value)));
-      const cursor = Number(numericValues[2] || 0);
+      const cursorIndex = strings.findIndex((part) => /n\.id >\s*$/.test(part));
+      const cursor = Number(values[cursorIndex] || 0);
       const claimed = outbox
         .filter((row) => !row.delivered && !row.leased && !row.obsolete &&
           row.id > cursor && matchesState(row))
         .sort((a, b) => a.id - b.id)
         .slice(0, 1);
       const leaseToken = values.find((value) => typeof value === 'string' && /^[0-9a-f-]{30,}$/i.test(value));
-      claimed.forEach((row) => { row.leased = true; row.leaseToken = leaseToken; });
-      if (claimed.length) calls.claimLeases.push(leaseToken);
+      claimed.forEach((row) => {
+        row.leased = true;
+        row.leaseToken = leaseToken;
+        row.claimedCount += 1;
+      });
+      if (claimed.length) {
+        calls.claimLeases.push(leaseToken);
+        observeFirstClaim();
+      }
       return claimed.map((row) => ({ ...row }));
     }
     if (/SET delivered_at = clock_timestamp\(\)/.test(text)) {
@@ -356,6 +388,7 @@ function durablePaidHarness({
           return { settled: false, alreadyPaid: true, inventoryStatus: booking.inventory_status };
         }
         const settledOutcome = booking.status === 'active' ? outcome : 'conflict';
+        booking.payment_generation += 1;
         booking.payment_status = 'paid';
         booking.inventory_status = settledOutcome;
         seedOutbox(settledOutcome);
@@ -364,6 +397,7 @@ function durablePaidHarness({
     },
     './_notify': {
       confirmBooking: async (_booking, options) => {
+        await guestSendGate;
         calls.guest.push(options);
         return { id: 'guest-message' };
       },
@@ -416,6 +450,8 @@ function durablePaidHarness({
     settleBooking: paid.settleBooking,
     deliverPendingPaymentNotifications: paid.deliverPendingPaymentNotifications,
     adminPatch,
+    claimObserved,
+    releaseGuestSend: () => { if (resumeGuestSend) resumeGuestSend(); },
     sql,
   };
 }
@@ -973,8 +1009,8 @@ test('durable outbox retries a failed channel without resending delivered channe
   assert.equal(harness.calls.guest.length, 1);
   assert.equal(harness.calls.team.length, 2);
   assert.deepEqual(harness.calls.whatsapp, ['payment-received']);
-  assert.equal(harness.calls.guest[0].idempotencyKey, 'belvoir:booking:91:reserved:guest-email');
-  assert.equal(harness.calls.team[1].idempotencyKey, 'belvoir:booking:91:reserved:team-email');
+  assert.equal(harness.calls.guest[0].idempotencyKey, 'belvoir:booking:91:payment:1:reserved:guest-email');
+  assert.equal(harness.calls.team[1].idempotencyKey, 'belvoir:booking:91:payment:1:reserved:team-email');
 });
 
 test('outbox survives failure after settlement and a later listener drains it', async () => {
@@ -1048,6 +1084,110 @@ test('admin cancellation atomically obsoletes pending reserved notification work
   assert.equal(harness.booking.inventory_status, 'unreserved');
   assert.equal(harness.outbox.every((row) => row.obsolete), true);
   assert.equal(harness.outbox.every((row) => !row.delivered), true);
+});
+
+test('admin unpaid and cancellation retry while a reserved notification is in flight', async () => {
+  for (const transition of [
+    { payment_status: 'unpaid' },
+    { status: 'cancelled' },
+  ]) {
+    const harness = durablePaidHarness({ pauseGuestSend: true });
+    const delivery = harness.settleBooking(harness.sql, 91, 'attempt-91', 'webhook');
+    await harness.claimObserved;
+
+    const blocked = await harness.adminPatch(transition);
+    const stateWhileBlocked = {
+      paymentStatus: harness.booking.payment_status,
+      status: harness.booking.status,
+      inventoryStatus: harness.booking.inventory_status,
+      guestDeliveries: harness.calls.guest.length,
+    };
+    harness.releaseGuestSend();
+    assert.equal(blocked.statusCode, 409);
+    assert.equal(blocked.body.code, 'NOTIFICATION_IN_FLIGHT');
+    assert.deepEqual(stateWhileBlocked, {
+      paymentStatus: 'paid',
+      status: 'active',
+      inventoryStatus: 'reserved',
+      guestDeliveries: 0,
+    });
+
+    await delivery;
+    const deliveredBeforeSuccessfulTransition = {
+      guest: harness.calls.guest.length,
+      team: harness.calls.team.length,
+      whatsapp: harness.calls.whatsapp.length,
+    };
+
+    const retried = await harness.adminPatch(transition);
+    assert.equal(retried.statusCode, 200);
+    await harness.deliverPendingPaymentNotifications(harness.sql, 91, harness.booking);
+    assert.deepEqual({
+      guest: harness.calls.guest.length,
+      team: harness.calls.team.length,
+      whatsapp: harness.calls.whatsapp.length,
+    }, deliveredBeforeSuccessfulTransition);
+  }
+});
+
+test('a new reserved payment generation creates fresh work without reviving obsolete rows', async () => {
+  const harness = durablePaidHarness({ failClaimOnce: true });
+
+  await assert.rejects(
+    harness.settleBooking(harness.sql, 91, 'first-attempt', 'webhook'),
+    /outbox temporarily unavailable/,
+  );
+  assert.equal(harness.booking.payment_generation, 1);
+  assert.equal((await harness.adminPatch({ payment_status: 'unpaid' })).statusCode, 200);
+  assert.equal(harness.outbox.every((row) => row.obsolete), true);
+
+  const second = await harness.settleBooking(harness.sql, 91, 'second-attempt', 'webhook');
+  assert.equal(second.settled, true);
+  assert.equal(harness.booking.payment_generation, 2);
+  assert.equal(harness.calls.guest.length, 1);
+  assert.equal(harness.calls.team.length, 1);
+  assert.deepEqual(harness.calls.whatsapp, ['payment-received']);
+  assert.deepEqual(
+    [...new Set(harness.outbox.map((row) => row.payment_generation))],
+    [1, 2],
+  );
+  assert.equal(
+    harness.outbox.filter((row) => row.payment_generation === 1)
+      .every((row) => row.obsolete && !row.delivered && row.claimedCount === 0),
+    true,
+  );
+  assert.equal(
+    harness.outbox.filter((row) => row.payment_generation === 2)
+      .every((row) => row.delivered && !row.obsolete && row.claimedCount === 1),
+    true,
+  );
+});
+
+test('a reset conflict payment generation sends one fresh alert and preserves old audit work', async () => {
+  const harness = durablePaidHarness({
+    outcome: 'conflict',
+    bookingStatus: 'cancelled',
+    failClaimOnce: true,
+  });
+
+  await assert.rejects(
+    harness.settleBooking(harness.sql, 91, 'first-late-attempt', 'webhook'),
+    /outbox temporarily unavailable/,
+  );
+  assert.equal((await harness.adminPatch({ payment_status: 'unpaid' })).statusCode, 200);
+
+  const second = await harness.settleBooking(harness.sql, 91, 'second-late-attempt', 'webhook');
+  assert.equal(second.conflict, true);
+  assert.equal(harness.booking.payment_generation, 2);
+  assert.deepEqual(harness.calls.whatsapp, ['payment-conflict']);
+  assert.equal(harness.calls.guest.length, 0);
+  assert.equal(harness.calls.team.length, 0);
+  const firstGeneration = harness.outbox.find((row) => row.payment_generation === 1);
+  const secondGeneration = harness.outbox.find((row) => row.payment_generation === 2);
+  assert.equal(firstGeneration.obsolete, true);
+  assert.equal(firstGeneration.claimedCount, 0);
+  assert.equal(secondGeneration.delivered, true);
+  assert.equal(secondGeneration.claimedCount, 1);
 });
 
 test('sequential admin reset and cancellation cannot send stale success beside a late conflict', async () => {
@@ -1615,10 +1755,23 @@ test('failed checkout holds remain non-consuming enquiries and return a final co
 
 test('admin booking mutations use capacity-safe inventory transitions', () => {
   assert.match(bookingsSource, /b\.payment_status === 'paid'[\s\S]*settleBooking\(sql, id, 'manual', 'admin'\)/);
-  assert.match(bookingsSource, /WITH changed AS[\s\S]*payment_status = 'unpaid'[\s\S]*payment_notification_outbox/);
-  assert.match(bookingsSource, /WITH changed AS[\s\S]*status = 'cancelled', cancelled_at = now\(\)[\s\S]*payment_notification_outbox/);
+  assert.match(bookingsSource, /WITH target AS MATERIALIZED[\s\S]*payment_status = 'unpaid'[\s\S]*payment_notification_outbox/);
+  assert.match(bookingsSource, /WITH target AS MATERIALIZED[\s\S]*status = 'cancelled', cancelled_at = now\(\)[\s\S]*payment_notification_outbox/);
+  assert.match(bookingsSource, /lease_token IS NOT NULL[\s\S]*lease_expires_at > clock_timestamp\(\)/);
+  assert.match(bookingsSource, /NOTIFICATION_IN_FLIGHT/);
   assert.match(bookingsSource, /outcome = 'reserved'[\s\S]*delivered_at IS NULL[\s\S]*obsolete_at IS NULL/);
   assert.match(bookingsSource, /b\.status === 'active'[\s\S]*reactivateBooking\(sql, id\)[\s\S]*status\(409\)/);
+});
+
+test('admin payment and booking-status actions surface safe retryable API errors', () => {
+  const toggleStart = adminSource.indexOf('async function toggle(id, status)');
+  const bookingStatusStart = adminSource.indexOf('async function setBookingStatus(id, status)');
+  const firstRunStart = adminSource.indexOf('// ── first run', bookingStatusStart);
+  const toggleSource = adminSource.slice(toggleStart, bookingStatusStart);
+  const bookingStatusSource = adminSource.slice(bookingStatusStart, firstRunStart);
+
+  assert.match(toggleSource, /catch \(e\)[\s\S]*alert\(e\.message \|\| 'Could not update/);
+  assert.match(bookingStatusSource, /catch \(e\)[\s\S]*alert\(e\.message \|\| 'Could not update/);
 });
 
 test('inventory state is exposed to admins without exposing claim tokens', () => {
@@ -1800,17 +1953,22 @@ test('settlement atomically conflicts cancelled payments and seeds the matching 
   assert.match(settlement, /'team-email'/);
   assert.match(settlement, /'whatsapp-payment'/);
   assert.match(settlement, /'whatsapp-conflict'/);
-  assert.match(settlement, /ON CONFLICT \(booking_id, outcome, channel\) DO NOTHING/);
+  assert.match(settlement, /payment_generation = v_generation/);
+  assert.match(settlement, /':payment:' \|\|[\s\S]*v_generation::text/);
+  assert.match(settlement, /ON CONFLICT \(booking_id, payment_generation, outcome, channel\) DO NOTHING/);
 });
 
 test('notification outbox has deterministic uniqueness and concurrency-safe leases', () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS payment_notification_outbox/);
-  assert.match(migration, /UNIQUE \(booking_id, outcome, channel\)/);
+  assert.match(migration, /ALTER TABLE bookings\s+ADD COLUMN IF NOT EXISTS payment_generation integer/);
+  assert.match(migration, /ALTER TABLE payment_notification_outbox\s+ADD COLUMN IF NOT EXISTS payment_generation integer/);
+  assert.match(migration, /ON payment_notification_outbox \(booking_id, payment_generation, outcome, channel\)/);
   assert.match(migration, /dedupe_key text NOT NULL UNIQUE/);
   assert.match(migration, /obsolete_at timestamptz/);
   assert.match(paidSource, /WITH claimable AS/);
-  assert.match(paidSource, /FOR UPDATE(?: OF n)? SKIP LOCKED/);
+  assert.match(paidSource, /FOR UPDATE OF n, b SKIP LOCKED/);
   assert.match(paidSource, /JOIN bookings b ON b\.id = n\.booking_id/);
+  assert.match(paidSource, /n\.payment_generation = b\.payment_generation/);
   assert.match(paidSource, /b\.status = 'active'[\s\S]*b\.payment_status = 'paid'[\s\S]*b\.inventory_status = 'reserved'/);
   assert.match(paidSource, /obsolete_at = clock_timestamp\(\)/);
   assert.match(paidSource, /LIMIT 1/);

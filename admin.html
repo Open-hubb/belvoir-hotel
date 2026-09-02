@@ -929,7 +929,7 @@
         render();
       } catch (e) {
         if (card) card.style.opacity = '1';
-        alert('Could not update. Please refresh and try again.');
+        alert(e.message || 'Could not update. Please refresh and try again.');
       }
     }
 
@@ -948,7 +948,7 @@
         render();
       } catch (e) {
         if (card) card.style.opacity = '1';
-        alert('Could not update. Please refresh and try again.');
+        alert(e.message || 'Could not update. Please refresh and try again.');
       }
     }
 

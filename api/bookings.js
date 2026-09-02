@@ -20,6 +20,7 @@ const { ROOMS, priceStay } = require('./_rooms');
 const { limit } = require('./_ratelimit');
 
 const ROOM_UNAVAILABLE = 'Sorry, that room has just become fully booked for those dates. Please choose another room or different dates.';
+const NOTIFICATION_IN_FLIGHT = 'A booking confirmation is currently being delivered. Please retry this change shortly.';
 
 function normalizedHold(row) {
   return {
@@ -34,6 +35,15 @@ function unavailable(res) {
     error: ROOM_UNAVAILABLE,
     code: 'ROOM_UNAVAILABLE',
   });
+}
+
+function rejectNotificationInFlight(res, rows) {
+  if (!rows.length || rows[0].notification_in_flight !== true) return false;
+  res.status(409).json({
+    error: NOTIFICATION_IN_FLIGHT,
+    code: 'NOTIFICATION_IN_FLIGHT',
+  });
+  return true;
 }
 
 module.exports = async (req, res) => {
@@ -240,45 +250,93 @@ module.exports = async (req, res) => {
       if (b.payment_status === 'paid') {
         paymentSettlement = await settleBooking(sql, id, 'manual', 'admin');
       } else if (b.payment_status === 'unpaid') {
-        await sql`
-          WITH changed AS (
-            UPDATE bookings SET payment_status = 'unpaid',
+        const mutation = await sql`
+          WITH target AS MATERIALIZED (
+            SELECT booking.id
+            FROM bookings AS booking
+            WHERE booking.id = ${id}
+            FOR UPDATE
+          ), active_delivery AS MATERIALIZED (
+            SELECT 1
+            FROM payment_notification_outbox AS notification
+            JOIN target ON target.id = notification.booking_id
+            WHERE notification.outcome = 'reserved'
+              AND notification.delivered_at IS NULL
+              AND notification.obsolete_at IS NULL
+              AND notification.lease_token IS NOT NULL
+              AND notification.lease_expires_at > clock_timestamp()
+            LIMIT 1
+          ), changed AS (
+            UPDATE bookings AS booking SET payment_status = 'unpaid',
               inventory_status = 'unreserved', hold_expires_at = NULL
-            WHERE id = ${id}
-            RETURNING id
+            FROM target
+            WHERE booking.id = target.id
+              AND NOT EXISTS (SELECT 1 FROM active_delivery)
+            RETURNING booking.id
+          ), obsolete AS (
+            UPDATE payment_notification_outbox AS notification
+            SET obsolete_at = clock_timestamp(),
+                obsolete_reason = 'booking-marked-unpaid',
+                lease_token = NULL, lease_expires_at = NULL,
+                updated_at = clock_timestamp()
+            FROM changed
+            WHERE notification.booking_id = changed.id
+              AND notification.outcome = 'reserved'
+              AND notification.delivered_at IS NULL
+              AND notification.obsolete_at IS NULL
+            RETURNING notification.id
           )
-          UPDATE payment_notification_outbox AS notification
-          SET obsolete_at = clock_timestamp(),
-              obsolete_reason = 'booking-marked-unpaid',
-              lease_token = NULL, lease_expires_at = NULL,
-              updated_at = clock_timestamp()
-          FROM changed
-          WHERE notification.booking_id = changed.id
-            AND notification.outcome = 'reserved'
-            AND notification.delivered_at IS NULL
-            AND notification.obsolete_at IS NULL`;
+          SELECT target.id,
+            EXISTS (SELECT 1 FROM active_delivery) AS notification_in_flight,
+            EXISTS (SELECT 1 FROM changed) AS changed
+          FROM target`;
+        if (rejectNotificationInFlight(res, mutation)) return;
       }
 
       // Cancellation releases inventory immediately. A restore is a new
       // capacity decision, made under the same database room lock as holds.
       if (b.status === 'cancelled') {
-        await sql`
-          WITH changed AS (
-            UPDATE bookings SET status = 'cancelled', cancelled_at = now(),
+        const mutation = await sql`
+          WITH target AS MATERIALIZED (
+            SELECT booking.id
+            FROM bookings AS booking
+            WHERE booking.id = ${id}
+            FOR UPDATE
+          ), active_delivery AS MATERIALIZED (
+            SELECT 1
+            FROM payment_notification_outbox AS notification
+            JOIN target ON target.id = notification.booking_id
+            WHERE notification.outcome = 'reserved'
+              AND notification.delivered_at IS NULL
+              AND notification.obsolete_at IS NULL
+              AND notification.lease_token IS NOT NULL
+              AND notification.lease_expires_at > clock_timestamp()
+            LIMIT 1
+          ), changed AS (
+            UPDATE bookings AS booking SET status = 'cancelled', cancelled_at = now(),
               inventory_status = 'unreserved', hold_expires_at = NULL
-            WHERE id = ${id}
-            RETURNING id
+            FROM target
+            WHERE booking.id = target.id
+              AND NOT EXISTS (SELECT 1 FROM active_delivery)
+            RETURNING booking.id
+          ), obsolete AS (
+            UPDATE payment_notification_outbox AS notification
+            SET obsolete_at = clock_timestamp(),
+                obsolete_reason = 'booking-cancelled',
+                lease_token = NULL, lease_expires_at = NULL,
+                updated_at = clock_timestamp()
+            FROM changed
+            WHERE notification.booking_id = changed.id
+              AND notification.outcome = 'reserved'
+              AND notification.delivered_at IS NULL
+              AND notification.obsolete_at IS NULL
+            RETURNING notification.id
           )
-          UPDATE payment_notification_outbox AS notification
-          SET obsolete_at = clock_timestamp(),
-              obsolete_reason = 'booking-cancelled',
-              lease_token = NULL, lease_expires_at = NULL,
-              updated_at = clock_timestamp()
-          FROM changed
-          WHERE notification.booking_id = changed.id
-            AND notification.outcome = 'reserved'
-            AND notification.delivered_at IS NULL
-            AND notification.obsolete_at IS NULL`;
+          SELECT target.id,
+            EXISTS (SELECT 1 FROM active_delivery) AS notification_in_flight,
+            EXISTS (SELECT 1 FROM changed) AS changed
+          FROM target`;
+        if (rejectNotificationInFlight(res, mutation)) return;
       } else if (b.status === 'active') {
         const restored = await reactivateBooking(sql, id);
         if (!restored.reactivated) {

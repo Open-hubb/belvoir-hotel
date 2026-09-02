@@ -71,6 +71,7 @@ async function deliverPendingPaymentNotifications(sql, bookingId = null, supplie
           AND (n.lease_expires_at IS NULL OR n.lease_expires_at <= clock_timestamp())
           AND (${id}::bigint IS NULL OR n.booking_id = ${id})
           AND n.id > ${cursor}
+          AND n.payment_generation = b.payment_generation
           AND (
             (n.outcome = 'reserved'
              AND b.status = 'active'
@@ -83,7 +84,7 @@ async function deliverPendingPaymentNotifications(sql, bookingId = null, supplie
           )
         ORDER BY n.id
         LIMIT 1
-        FOR UPDATE OF n SKIP LOCKED
+        FOR UPDATE OF n, b SKIP LOCKED
       ), obsolete AS (
         UPDATE payment_notification_outbox n
         SET obsolete_at = clock_timestamp(),
@@ -96,14 +97,17 @@ async function deliverPendingPaymentNotifications(sql, bookingId = null, supplie
           AND n.obsolete_at IS NULL
           AND (${id}::bigint IS NULL OR n.booking_id = ${id})
           AND NOT (
-            (n.outcome = 'reserved'
-             AND b.status = 'active'
-             AND b.payment_status = 'paid'
-             AND b.inventory_status = 'reserved')
-            OR
-            (n.outcome = 'conflict'
-             AND b.payment_status = 'paid'
-             AND b.inventory_status = 'conflict')
+            n.payment_generation = b.payment_generation
+            AND (
+              (n.outcome = 'reserved'
+               AND b.status = 'active'
+               AND b.payment_status = 'paid'
+               AND b.inventory_status = 'reserved')
+              OR
+              (n.outcome = 'conflict'
+               AND b.payment_status = 'paid'
+               AND b.inventory_status = 'conflict')
+            )
           )
         RETURNING n.id
       )
@@ -115,7 +119,7 @@ async function deliverPendingPaymentNotifications(sql, bookingId = null, supplie
       FROM claimable
       WHERE notification.id = claimable.id
       RETURNING notification.id, notification.booking_id, notification.outcome,
-        notification.channel, notification.dedupe_key`;
+        notification.payment_generation, notification.channel, notification.dedupe_key`;
     if (!claimed.length) break;
 
     const row = claimed[0];
