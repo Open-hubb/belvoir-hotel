@@ -101,13 +101,14 @@ module.exports = async (req, res) => {
     const recorded = await sql`
       INSERT INTO payments
         (booking_id, reference, payer_name, payer_email, amount, currency,
-         status, provider_ref, matched, raw)
+         status, provider_ref, matched, raw, provider_raw, completed_at)
       VALUES
         (${booking ? booking.id : null}, ${orderId},
          ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
          ${booking ? booking.amount_due : null}, ${'SLE'},
          ${status}, ${flotRequestId},
-         ${Boolean(booking && completed)}, ${JSON.stringify(body)})
+         ${Boolean(booking && completed)}, ${JSON.stringify(body)}, ${JSON.stringify(body)},
+         CASE WHEN ${completed} THEN clock_timestamp() ELSE NULL END)
       ON CONFLICT (reference, provider_ref) WHERE provider_ref IS NOT NULL
       DO UPDATE SET
         booking_id = COALESCE(payments.booking_id, EXCLUDED.booking_id),
@@ -117,7 +118,13 @@ module.exports = async (req, res) => {
         currency = COALESCE(payments.currency, EXCLUDED.currency),
         status = EXCLUDED.status,
         matched = COALESCE(payments.matched, false) OR EXCLUDED.matched,
-        raw = EXCLUDED.raw
+        raw = EXCLUDED.raw,
+        provider_raw = EXCLUDED.provider_raw,
+        completed_at = CASE
+          WHEN EXCLUDED.status = 'completed'
+            THEN COALESCE(payments.completed_at, EXCLUDED.completed_at)
+          ELSE payments.completed_at
+        END
       WHERE payments.status IS DISTINCT FROM 'completed'
       RETURNING id, status`;
     const duplicate = recorded.length === 0;

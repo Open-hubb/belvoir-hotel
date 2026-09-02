@@ -60,7 +60,8 @@ async function fetchStatus(orderId, attemptId) {
   });
   const json = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`flot ${r.status}`);
-  return String(((json && json.data) || {}).status || 'created');
+  const data = (json && json.data) || {};
+  return { status: String(data.status || 'created'), data };
 }
 
 module.exports = async (req, res) => {
@@ -101,10 +102,10 @@ module.exports = async (req, res) => {
     let completed = 0, failed = 0, unchanged = 0, errored = 0, inventoryConflicts = 0;
 
     for (const p of open) {
-      let status = p.status === 'completed' ? 'completed' : null;
-      if (!status) {
+      let observed = p.status === 'completed' ? { status: 'completed', data: null } : null;
+      if (!observed) {
         try {
-          status = await fetchStatus(p.reference, p.provider_ref);
+          observed = await fetchStatus(p.reference, p.provider_ref);
         } catch (err) {
           // A provider blip must not abort the batch; it gets picked up next run.
           errored++;
@@ -112,6 +113,8 @@ module.exports = async (req, res) => {
           continue;
         }
       }
+      const status = observed.status;
+      const providerRaw = observed.data == null ? null : JSON.stringify(observed.data);
 
       if (status === 'completed') {
         let settlement = null;
@@ -121,7 +124,11 @@ module.exports = async (req, res) => {
           settlement = await settleBooking(sql, p.booking_id, p.provider_ref, 'reconciled');
           if (settlement.conflict) inventoryConflicts++;
         }
-        await sql`UPDATE payments SET status = 'completed' WHERE id = ${p.id}`;
+        await sql`
+          UPDATE payments SET status = 'completed',
+            provider_raw = COALESCE(${providerRaw}, provider_raw),
+            completed_at = COALESCE(completed_at, clock_timestamp())
+          WHERE id = ${p.id}`;
         completed++;
         F.log('CRON_PAYMENT_COMPLETED', {
           orderId: p.reference,
@@ -130,9 +137,14 @@ module.exports = async (req, res) => {
         });
       } else if (status === 'failed') {
         // The guest can still retry, so only the attempt is closed off.
-        await sql`UPDATE payments SET status = 'failed' WHERE id = ${p.id}`;
+        await sql`
+          UPDATE payments SET status = 'failed', provider_raw = ${providerRaw}
+          WHERE id = ${p.id}`;
         failed++;
       } else {
+        await sql`
+          UPDATE payments SET status = ${status}, provider_raw = ${providerRaw}
+          WHERE id = ${p.id}`;
         unchanged++;
       }
     }

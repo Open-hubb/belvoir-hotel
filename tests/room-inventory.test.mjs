@@ -224,6 +224,10 @@ function durablePaidHarness({
   failTeamOnce = false,
   failWhatsappOnce = false,
   bookingStatus = 'active',
+  initialPaymentStatus = 'unpaid',
+  initialInventoryStatus = 'held',
+  initialReservedOutbox = false,
+  initialConflictOutbox = false,
   noteError = false,
 } = {}) {
   const booking = {
@@ -242,32 +246,37 @@ function durablePaidHarness({
     payment_option: 'full',
     amount_due: 140,
     total: 140,
-    payment_status: 'unpaid',
-    inventory_status: 'held',
+    payment_status: initialPaymentStatus,
+    inventory_status: initialInventoryStatus,
     status: bookingStatus,
   };
   const outbox = [];
-  const calls = { guest: [], team: [], whatsapp: [], logs: [] };
+  const calls = { guest: [], team: [], whatsapp: [], logs: [], claimLeases: [] };
   let claimFailureRemaining = failClaimOnce ? 1 : 0;
   let teamFailureRemaining = failTeamOnce ? 1 : 0;
   let whatsappFailureRemaining = failWhatsappOnce ? 1 : 0;
 
-  function seedOutbox() {
-    const channels = outcome === 'conflict'
+  function seedOutbox(seedOutcome = outcome) {
+    const channels = seedOutcome === 'conflict'
       ? ['whatsapp-conflict']
       : ['guest-email', 'team-email', 'whatsapp-payment'];
     for (const channel of channels) {
+      if (outbox.some((row) => row.outcome === seedOutcome && row.channel === channel)) continue;
       outbox.push({
         id: outbox.length + 1,
         booking_id: booking.id,
-        outcome,
+        outcome: seedOutcome,
         channel,
-        dedupe_key: `belvoir:booking:${booking.id}:${outcome}:${channel}`,
+        dedupe_key: `belvoir:booking:${booking.id}:${seedOutcome}:${channel}`,
         delivered: false,
         leased: false,
+        obsolete: false,
       });
     }
   }
+
+  if (initialReservedOutbox) seedOutbox('reserved');
+  if (initialConflictOutbox) seedOutbox('conflict');
 
   const sql = async (strings, ...values) => {
     const text = strings.join(' ');
@@ -276,13 +285,53 @@ function durablePaidHarness({
       return [{ ...booking }];
     }
     if (/SELECT \* FROM bookings/.test(text)) return [{ ...booking }];
+    if (/WITH changed AS/.test(text) && /payment_notification_outbox/.test(text)) {
+      if (/payment_status = 'unpaid'/.test(text)) {
+        booking.payment_status = 'unpaid';
+        booking.inventory_status = 'unreserved';
+        booking.hold_expires_at = null;
+      }
+      if (/status = 'cancelled'/.test(text)) {
+        booking.status = 'cancelled';
+        booking.inventory_status = 'unreserved';
+        booking.hold_expires_at = null;
+      }
+      for (const row of outbox) {
+        if (row.outcome === 'reserved' && !row.delivered) {
+          row.obsolete = true;
+          row.leased = false;
+        }
+      }
+      return [];
+    }
+    if (/SELECT id, payment_status/.test(text)) return [{ ...booking }];
     if (/WITH claimable/.test(text) && /payment_notification_outbox/.test(text)) {
       if (claimFailureRemaining > 0) {
         claimFailureRemaining -= 1;
         throw new Error('outbox temporarily unavailable');
       }
-      const claimed = outbox.filter((row) => !row.delivered && !row.leased);
-      claimed.forEach((row) => { row.leased = true; });
+      const stateAware = /b\.status = 'active'/.test(text) &&
+        /b\.payment_status = 'paid'/.test(text) &&
+        /b\.inventory_status = 'reserved'/.test(text) &&
+        /obsolete_at/.test(text);
+      const matchesState = (row) => !stateAware || (row.outcome === 'reserved'
+        ? booking.status === 'active' && booking.payment_status === 'paid' && booking.inventory_status === 'reserved'
+        : booking.payment_status === 'paid' && booking.inventory_status === 'conflict');
+      if (stateAware) {
+        for (const row of outbox) {
+          if (!row.delivered && !row.obsolete && !matchesState(row)) row.obsolete = true;
+        }
+      }
+      const numericValues = values.filter((value) => Number.isFinite(Number(value)));
+      const cursor = Number(numericValues[2] || 0);
+      const claimed = outbox
+        .filter((row) => !row.delivered && !row.leased && !row.obsolete &&
+          row.id > cursor && matchesState(row))
+        .sort((a, b) => a.id - b.id)
+        .slice(0, 1);
+      const leaseToken = values.find((value) => typeof value === 'string' && /^[0-9a-f-]{30,}$/i.test(value));
+      claimed.forEach((row) => { row.leased = true; row.leaseToken = leaseToken; });
+      if (claimed.length) calls.claimLeases.push(leaseToken);
       return claimed.map((row) => ({ ...row }));
     }
     if (/SET delivered_at = clock_timestamp\(\)/.test(text)) {
@@ -300,16 +349,17 @@ function durablePaidHarness({
     throw new Error(`Unexpected durable settlement query: ${text}`);
   };
 
-  const settleBooking = loadCommonJsWithMocks('../api/_paid.js', {
+  const paid = loadCommonJsWithMocks('../api/_paid.js', {
     './_inventory': {
       settleBookingInventory: async () => {
         if (booking.payment_status === 'paid') {
           return { settled: false, alreadyPaid: true, inventoryStatus: booking.inventory_status };
         }
+        const settledOutcome = booking.status === 'active' ? outcome : 'conflict';
         booking.payment_status = 'paid';
-        booking.inventory_status = outcome;
-        seedOutbox();
-        return { settled: true, alreadyPaid: false, inventoryStatus: outcome };
+        booking.inventory_status = settledOutcome;
+        seedOutbox(settledOutcome);
+        return { settled: true, alreadyPaid: false, inventoryStatus: settledOutcome };
       },
     },
     './_notify': {
@@ -339,9 +389,35 @@ function durablePaidHarness({
     './_flot': {
       log: (event, data) => { calls.logs.push({ event, data }); },
     },
-  }).settleBooking;
+  });
 
-  return { booking, outbox, calls, settleBooking, sql };
+  const adminRoute = loadCommonJsWithMocks('../api/bookings.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_auth': { isAdminRequest: async () => true },
+    './_notify': { notifyBooking: async () => {} },
+    './_ratelimit': { limit: () => false },
+    './_inventory': {
+      HOLD_MINUTES: 15,
+      acquireBookingHold: async () => ({ acquired: true }),
+      reactivateBooking: async () => ({ reactivated: true }),
+    },
+    './_paid': paid,
+  });
+  const adminPatch = async (body) => {
+    const res = responseRecorder();
+    await adminRoute({ method: 'PATCH', body: { id: booking.id, ...body } }, res);
+    return res;
+  };
+
+  return {
+    booking,
+    outbox,
+    calls,
+    settleBooking: paid.settleBooking,
+    deliverPendingPaymentNotifications: paid.deliverPendingPaymentNotifications,
+    adminPatch,
+    sql,
+  };
 }
 
 function checkoutBody(overrides = {}) {
@@ -760,6 +836,9 @@ test('completed payment polling propagates an inventory conflict to the browser'
     providerRef: 'attempt-91',
     source: 'browser',
   }]);
+  const completionWrite = harness.updates.find((update) => /status = 'completed'/.test(update.text));
+  assert.match(completionWrite.text, /provider_raw/);
+  assert.match(completionWrite.text, /completed_at = COALESCE\(completed_at, clock_timestamp\(\)\)/);
 });
 
 test('polling keeps attempt identity when another attempt already paid the booking', async () => {
@@ -834,6 +913,8 @@ test('reserved settlement sends each success notification exactly once', async (
   assert.equal(harness.calls.team.length, 1);
   assert.deepEqual(harness.calls.whatsapp, ['payment-received']);
   assert.equal(harness.outbox.every((row) => row.delivered), true);
+  assert.equal(harness.calls.claimLeases.length, 3);
+  assert.equal(new Set(harness.calls.claimLeases).size, 3);
 });
 
 test('conflict settlement withholds confirmation and sends only the urgent conflict alert', async () => {
@@ -937,6 +1018,84 @@ test('cancelled late payment queues and retries only the durable conflict alert'
   assert.deepEqual(harness.calls.whatsapp, ['payment-conflict', 'payment-conflict']);
 });
 
+test('admin unpaid atomically obsoletes pending reserved notification work', async () => {
+  const harness = durablePaidHarness({
+    initialPaymentStatus: 'paid',
+    initialInventoryStatus: 'reserved',
+    initialReservedOutbox: true,
+  });
+
+  const res = await harness.adminPatch({ payment_status: 'unpaid' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(harness.booking.payment_status, 'unpaid');
+  assert.equal(harness.booking.inventory_status, 'unreserved');
+  assert.equal(harness.outbox.every((row) => row.obsolete), true);
+  assert.equal(harness.outbox.every((row) => !row.delivered), true);
+});
+
+test('admin cancellation atomically obsoletes pending reserved notification work', async () => {
+  const harness = durablePaidHarness({
+    initialPaymentStatus: 'paid',
+    initialInventoryStatus: 'reserved',
+    initialReservedOutbox: true,
+  });
+
+  const res = await harness.adminPatch({ status: 'cancelled' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(harness.booking.status, 'cancelled');
+  assert.equal(harness.booking.inventory_status, 'unreserved');
+  assert.equal(harness.outbox.every((row) => row.obsolete), true);
+  assert.equal(harness.outbox.every((row) => !row.delivered), true);
+});
+
+test('sequential admin reset and cancellation cannot send stale success beside a late conflict', async () => {
+  const harness = durablePaidHarness({
+    initialPaymentStatus: 'paid',
+    initialInventoryStatus: 'reserved',
+    initialReservedOutbox: true,
+  });
+
+  assert.equal((await harness.adminPatch({ payment_status: 'unpaid' })).statusCode, 200);
+  assert.equal((await harness.adminPatch({ status: 'cancelled' })).statusCode, 200);
+  const settlement = await harness.settleBooking(harness.sql, 91, 'late-attempt', 'webhook');
+
+  assert.equal(settlement.conflict, true);
+  assert.equal(harness.calls.guest.length, 0);
+  assert.equal(harness.calls.team.length, 0);
+  assert.deepEqual(harness.calls.whatsapp, ['payment-conflict']);
+  assert.equal(
+    harness.outbox.filter((row) => row.outcome === 'reserved').every((row) => row.obsolete && !row.delivered),
+    true,
+  );
+  assert.equal(
+    harness.outbox.find((row) => row.outcome === 'conflict').delivered,
+    true,
+  );
+});
+
+test('outbox drainer durably obsoletes mismatched work and sends only the current outcome', async () => {
+  const harness = durablePaidHarness({
+    bookingStatus: 'cancelled',
+    initialPaymentStatus: 'paid',
+    initialInventoryStatus: 'conflict',
+    initialReservedOutbox: true,
+    initialConflictOutbox: true,
+  });
+
+  const result = await harness.deliverPendingPaymentNotifications(harness.sql, 91, harness.booking);
+
+  assert.equal(result.delivered, 1);
+  assert.equal(harness.calls.guest.length, 0);
+  assert.equal(harness.calls.team.length, 0);
+  assert.deepEqual(harness.calls.whatsapp, ['payment-conflict']);
+  assert.equal(
+    harness.outbox.filter((row) => row.outcome === 'reserved').every((row) => row.obsolete && !row.delivered),
+    true,
+  );
+});
+
 test('pending webhook attempts are atomically completed and settled instead of treated as duplicates', async () => {
   const queries = [];
   const settlements = [];
@@ -992,6 +1151,8 @@ test('pending webhook attempts are atomically completed and settled instead of t
   assert.ok(write);
   assert.match(write.text, /ON CONFLICT \(reference, provider_ref\)/);
   assert.match(write.text, /DO UPDATE/);
+  assert.match(write.text, /provider_raw/);
+  assert.match(write.text, /completed_at/);
   assert.equal(queries.some((query) => /SELECT id, status FROM payments/.test(query.text)), false);
 });
 
@@ -1454,8 +1615,9 @@ test('failed checkout holds remain non-consuming enquiries and return a final co
 
 test('admin booking mutations use capacity-safe inventory transitions', () => {
   assert.match(bookingsSource, /b\.payment_status === 'paid'[\s\S]*settleBooking\(sql, id, 'manual', 'admin'\)/);
-  assert.match(bookingsSource, /payment_status = 'unpaid'[\s\S]*inventory_status = 'unreserved', hold_expires_at = NULL/);
-  assert.match(bookingsSource, /status = 'cancelled', cancelled_at = now\(\)[\s\S]*inventory_status = 'unreserved', hold_expires_at = NULL/);
+  assert.match(bookingsSource, /WITH changed AS[\s\S]*payment_status = 'unpaid'[\s\S]*payment_notification_outbox/);
+  assert.match(bookingsSource, /WITH changed AS[\s\S]*status = 'cancelled', cancelled_at = now\(\)[\s\S]*payment_notification_outbox/);
+  assert.match(bookingsSource, /outcome = 'reserved'[\s\S]*delivered_at IS NULL[\s\S]*obsolete_at IS NULL/);
   assert.match(bookingsSource, /b\.status === 'active'[\s\S]*reactivateBooking\(sql, id\)[\s\S]*status\(409\)/);
 });
 
@@ -1645,8 +1807,13 @@ test('notification outbox has deterministic uniqueness and concurrency-safe leas
   assert.match(migration, /CREATE TABLE IF NOT EXISTS payment_notification_outbox/);
   assert.match(migration, /UNIQUE \(booking_id, outcome, channel\)/);
   assert.match(migration, /dedupe_key text NOT NULL UNIQUE/);
+  assert.match(migration, /obsolete_at timestamptz/);
   assert.match(paidSource, /WITH claimable AS/);
-  assert.match(paidSource, /FOR UPDATE SKIP LOCKED/);
+  assert.match(paidSource, /FOR UPDATE(?: OF n)? SKIP LOCKED/);
+  assert.match(paidSource, /JOIN bookings b ON b\.id = n\.booking_id/);
+  assert.match(paidSource, /b\.status = 'active'[\s\S]*b\.payment_status = 'paid'[\s\S]*b\.inventory_status = 'reserved'/);
+  assert.match(paidSource, /obsolete_at = clock_timestamp\(\)/);
+  assert.match(paidSource, /LIMIT 1/);
   assert.match(paidSource, /lease_expires_at/);
   assert.match(paidSource, /SET delivered_at = clock_timestamp\(\)/);
   assert.match(paidSource, /SET lease_token = NULL/);
@@ -1654,12 +1821,98 @@ test('notification outbox has deterministic uniqueness and concurrency-safe leas
 
 test('payment migrations safely deduplicate and uniquely constrain provider attempts', () => {
   for (const source of [migration, paylinkMigration]) {
-    assert.match(source, /row_number\(\) OVER[\s\S]*PARTITION BY reference, provider_ref/);
-    assert.match(source, /DELETE FROM payments/);
+    assert.match(source, /ADD COLUMN IF NOT EXISTS provider_raw text/);
+    assert.match(source, /ADD COLUMN IF NOT EXISTS completed_at timestamptz/);
+    assert.match(source, /deduplicatePaymentAttempts\(sql\)/);
     assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_attempt_unique/);
     assert.match(source, /ON payments \(reference, provider_ref\)/);
     assert.match(source, /WHERE provider_ref IS NOT NULL/);
   }
+});
+
+test('payment dedupe retains link metadata and completed provider evidence before deleting duplicates', async () => {
+  const { deduplicatePaymentAttempts } = await import(
+    `../scripts/payment-attempt-dedupe.mjs?fixture=${Date.now()}`
+  );
+  const rows = [
+    {
+      id: 11,
+      reference: 'belvoir-91',
+      provider_ref: 'attempt-91',
+      booking_id: 91,
+      status: 'created',
+      matched: true,
+      raw: { type: 'card', link: 'https://pay.example/attempt-91' },
+      provider_raw: null,
+      short_code: 'Ab12Cd34',
+      pay_link: 'https://pay.example/attempt-91',
+      completed_at: null,
+      received_at: '2027-10-10T12:00:00.000Z',
+    },
+    {
+      id: 12,
+      reference: 'belvoir-91',
+      provider_ref: 'attempt-91',
+      booking_id: 91,
+      status: 'completed',
+      matched: true,
+      raw: { orderId: 'belvoir-91', flotRequestId: 'attempt-91', status: 'completed' },
+      provider_raw: null,
+      short_code: null,
+      pay_link: null,
+      completed_at: null,
+      received_at: '2027-10-10T12:04:05.000Z',
+    },
+  ];
+  const events = [];
+  const sql = async (strings) => {
+    assert.match(strings.join(' '), /SELECT id, reference, provider_ref/);
+    return rows.map((row) => ({ ...row }));
+  };
+  sql.transaction = async (build) => {
+    const txn = async (strings, ...values) => {
+      const text = strings.join(' ');
+      if (/UPDATE payments/.test(text)) {
+        events.push('merge');
+        const [status, matched, providerRaw, completedAt, canonicalId] = values;
+        const row = rows.find((item) => item.id === canonicalId);
+        Object.assign(row, {
+          status,
+          matched,
+          provider_raw: providerRaw,
+          completed_at: completedAt,
+        });
+        return [row];
+      }
+      if (/DELETE FROM payments/.test(text)) {
+        events.push('delete');
+        const [reference, providerRef, canonicalId] = values;
+        for (let index = rows.length - 1; index >= 0; index -= 1) {
+          if (rows[index].reference === reference && rows[index].provider_ref === providerRef &&
+              rows[index].id !== canonicalId) rows.splice(index, 1);
+        }
+        return [];
+      }
+      throw new Error(`Unexpected dedupe fixture query: ${text}`);
+    };
+    return Promise.all(build(txn));
+  };
+
+  await deduplicatePaymentAttempts(sql);
+
+  assert.deepEqual(events, ['merge', 'delete']);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, 11);
+  assert.equal(rows[0].short_code, 'Ab12Cd34');
+  assert.equal(rows[0].pay_link, 'https://pay.example/attempt-91');
+  assert.deepEqual(rows[0].raw, { type: 'card', link: 'https://pay.example/attempt-91' });
+  assert.equal(rows[0].status, 'completed');
+  assert.deepEqual(JSON.parse(rows[0].provider_raw), {
+    orderId: 'belvoir-91',
+    flotRequestId: 'attempt-91',
+    status: 'completed',
+  });
+  assert.equal(rows[0].completed_at, '2027-10-10T12:04:05.000Z');
 });
 
 test('hold acquisition cannot demote paid or consuming booking states', () => {

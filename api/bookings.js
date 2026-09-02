@@ -241,18 +241,44 @@ module.exports = async (req, res) => {
         paymentSettlement = await settleBooking(sql, id, 'manual', 'admin');
       } else if (b.payment_status === 'unpaid') {
         await sql`
-          UPDATE bookings SET payment_status = 'unpaid',
-            inventory_status = 'unreserved', hold_expires_at = NULL
-          WHERE id = ${id}`;
+          WITH changed AS (
+            UPDATE bookings SET payment_status = 'unpaid',
+              inventory_status = 'unreserved', hold_expires_at = NULL
+            WHERE id = ${id}
+            RETURNING id
+          )
+          UPDATE payment_notification_outbox AS notification
+          SET obsolete_at = clock_timestamp(),
+              obsolete_reason = 'booking-marked-unpaid',
+              lease_token = NULL, lease_expires_at = NULL,
+              updated_at = clock_timestamp()
+          FROM changed
+          WHERE notification.booking_id = changed.id
+            AND notification.outcome = 'reserved'
+            AND notification.delivered_at IS NULL
+            AND notification.obsolete_at IS NULL`;
       }
 
       // Cancellation releases inventory immediately. A restore is a new
       // capacity decision, made under the same database room lock as holds.
       if (b.status === 'cancelled') {
         await sql`
-          UPDATE bookings SET status = 'cancelled', cancelled_at = now(),
-            inventory_status = 'unreserved', hold_expires_at = NULL
-          WHERE id = ${id}`;
+          WITH changed AS (
+            UPDATE bookings SET status = 'cancelled', cancelled_at = now(),
+              inventory_status = 'unreserved', hold_expires_at = NULL
+            WHERE id = ${id}
+            RETURNING id
+          )
+          UPDATE payment_notification_outbox AS notification
+          SET obsolete_at = clock_timestamp(),
+              obsolete_reason = 'booking-cancelled',
+              lease_token = NULL, lease_expires_at = NULL,
+              updated_at = clock_timestamp()
+          FROM changed
+          WHERE notification.booking_id = changed.id
+            AND notification.outcome = 'reserved'
+            AND notification.delivered_at IS NULL
+            AND notification.obsolete_at IS NULL`;
       } else if (b.status === 'active') {
         const restored = await reactivateBooking(sql, id);
         if (!restored.reactivated) {

@@ -8,6 +8,7 @@
 
 import { neon } from '@neondatabase/serverless';
 import { createRequire } from 'node:module';
+import { deduplicatePaymentAttempts } from './payment-attempt-dedupe.mjs';
 
 const require = createRequire(import.meta.url);
 const { ROOMS } = require('../api/_rooms.js');
@@ -84,38 +85,9 @@ await step('inventory constraints', async () => {
 await step('payment attempt identity', async () => {
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS short_code text`;
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS pay_link text`;
-  await sql`
-    WITH ranked AS MATERIALIZED (
-      SELECT p.id,
-        row_number() OVER (
-          PARTITION BY reference, provider_ref
-          ORDER BY
-            (p.short_code IS NOT NULL OR p.pay_link IS NOT NULL) DESC,
-            (p.booking_id IS NOT NULL) DESC,
-            (p.status = 'completed') DESC,
-            p.received_at DESC NULLS LAST,
-            p.id DESC
-        ) AS duplicate_rank,
-        bool_or(p.status = 'completed') OVER (
-          PARTITION BY reference, provider_ref
-        ) AS any_completed,
-        bool_or(COALESCE(p.matched, false)) OVER (
-          PARTITION BY reference, provider_ref
-        ) AS any_matched
-      FROM payments p
-      WHERE p.provider_ref IS NOT NULL
-    ), merged AS (
-      UPDATE payments p
-      SET status = CASE WHEN r.any_completed THEN 'completed' ELSE p.status END,
-          matched = r.any_matched
-      FROM ranked r
-      WHERE p.id = r.id AND r.duplicate_rank = 1
-      RETURNING p.id
-    )
-    DELETE FROM payments p
-    USING ranked r
-    WHERE p.id = r.id AND r.duplicate_rank > 1
-      AND (SELECT count(*) FROM merged) >= 0`;
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_raw text`;
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS completed_at timestamptz`;
+  await deduplicatePaymentAttempts(sql);
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_attempt_unique
     ON payments (reference, provider_ref)
@@ -137,15 +109,19 @@ await step('durable payment notification outbox', async () => {
       lease_token text,
       lease_expires_at timestamptz,
       delivered_at timestamptz,
+      obsolete_at timestamptz,
+      obsolete_reason text,
       last_error text,
       created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
       updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
       UNIQUE (booking_id, outcome, channel)
     )`;
+  await sql`ALTER TABLE payment_notification_outbox ADD COLUMN IF NOT EXISTS obsolete_at timestamptz`;
+  await sql`ALTER TABLE payment_notification_outbox ADD COLUMN IF NOT EXISTS obsolete_reason text`;
   await sql`
-    CREATE INDEX IF NOT EXISTS payment_notification_outbox_pending
+    CREATE INDEX IF NOT EXISTS payment_notification_outbox_claimable
     ON payment_notification_outbox (available_at, lease_expires_at, id)
-    WHERE delivered_at IS NULL`;
+    WHERE delivered_at IS NULL AND obsolete_at IS NULL`;
 });
 
 // Exclusion constraints model a capacity of one and must not survive the

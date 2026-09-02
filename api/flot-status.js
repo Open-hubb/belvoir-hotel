@@ -95,7 +95,12 @@ module.exports = async (req, res) => {
       // later poll can retry; if another listener won, settlement is a no-op.
       settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
       await sql`
-        UPDATE payments SET status = 'completed', matched = true
+        UPDATE payments SET status = 'completed', matched = true,
+          provider_raw = CASE
+            WHEN ${payment.attempt_status !== 'completed'} THEN ${JSON.stringify(data)}
+            ELSE provider_raw
+          END,
+          completed_at = COALESCE(completed_at, clock_timestamp())
         WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
       F.log('PAYMENT_COMPLETED', {
         orderId,
@@ -137,11 +142,11 @@ module.exports = async (req, res) => {
         });
       }
       await sql`
-        UPDATE payments SET status = ${status}
+        UPDATE payments SET status = ${status}, provider_raw = ${JSON.stringify(data)}
         WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
     } else if (status === 'failed') {
       await sql`
-        UPDATE payments SET status = 'failed'
+        UPDATE payments SET status = 'failed', provider_raw = ${JSON.stringify(data)}
         WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
       const bookings = await sql`
         SELECT payment_status, inventory_status
