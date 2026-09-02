@@ -92,47 +92,41 @@ module.exports = async (req, res) => {
       if (rows.length) booking = rows[0];
     }
 
-    // A payment-link row normally already exists in created/pending state. Only
-    // a completed row proves this exact attempt was already reconciled.
-    const seen = await sql`
-      SELECT id, status FROM payments
-      WHERE reference = ${orderId} AND provider_ref = ${flotRequestId}
-      LIMIT 1`;
-    if (seen.length && seen[0].status === 'completed') {
-      return res.status(200).json({
-        ok: true,
-        duplicate: true,
-        inventoryConflict: booking ? booking.inventory_status === 'conflict' : false,
-      });
-    }
-
     const completed = status === 'completed';
     let settlement = null;
 
-    // "failed" means the guest can still retry, so leave the booking pending
-    if (booking && completed) {
-      // Settles the booking and, if the webhook is the first route to see the
-      // payment, sends the guest their receipt.
-      settlement = await settleBooking(sql, booking.id, flotRequestId, 'webhook');
-    }
+    // One statement handles link-before-webhook, webhook-before-link, retries,
+    // and concurrent deliveries. The partial unique index identifies a real
+    // provider attempt; an already-completed row cannot be downgraded.
+    const recorded = await sql`
+      INSERT INTO payments
+        (booking_id, reference, payer_name, payer_email, amount, currency,
+         status, provider_ref, matched, raw)
+      VALUES
+        (${booking ? booking.id : null}, ${orderId},
+         ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
+         ${booking ? booking.amount_due : null}, ${'SLE'},
+         ${status}, ${flotRequestId},
+         ${Boolean(booking && completed)}, ${JSON.stringify(body)})
+      ON CONFLICT (reference, provider_ref) WHERE provider_ref IS NOT NULL
+      DO UPDATE SET
+        booking_id = COALESCE(payments.booking_id, EXCLUDED.booking_id),
+        payer_name = COALESCE(payments.payer_name, EXCLUDED.payer_name),
+        payer_email = COALESCE(payments.payer_email, EXCLUDED.payer_email),
+        amount = COALESCE(payments.amount, EXCLUDED.amount),
+        currency = COALESCE(payments.currency, EXCLUDED.currency),
+        status = EXCLUDED.status,
+        matched = COALESCE(payments.matched, false) OR EXCLUDED.matched,
+        raw = EXCLUDED.raw
+      WHERE payments.status IS DISTINCT FROM 'completed'
+      RETURNING id, status`;
+    const duplicate = recorded.length === 0;
 
-    if (seen.length) {
-      await sql`
-        UPDATE payments
-        SET status = ${status}, matched = ${Boolean(booking && completed)},
-            raw = ${JSON.stringify(body)}
-        WHERE id = ${seen[0].id}`;
-    } else {
-      await sql`
-        INSERT INTO payments
-          (booking_id, reference, payer_name, payer_email, amount, currency,
-           status, provider_ref, matched, raw)
-        VALUES
-          (${booking ? booking.id : null}, ${orderId},
-           ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
-           ${booking ? booking.amount_due : null}, ${'SLE'},
-           ${status}, ${flotRequestId},
-           ${Boolean(booking && completed)}, ${JSON.stringify(body)})`;
+    // "failed" means the guest can still retry, so leave the booking pending.
+    // Completed duplicates still enter the shared path to drain any durable
+    // notification work left by an earlier process failure.
+    if (booking && completed) {
+      settlement = await settleBooking(sql, booking.id, flotRequestId, 'webhook');
     }
 
     if (!booking) {
@@ -143,6 +137,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
+      duplicate,
       matched: Boolean(booking),
       bookingId: booking ? booking.id : null,
       markedPaid: Boolean(booking && completed),

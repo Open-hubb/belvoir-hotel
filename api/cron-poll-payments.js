@@ -16,7 +16,10 @@
 const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 const F = require('./_flot');
-const { settleBooking } = require('./_paid');
+const paid = require('./_paid');
+const { settleBooking } = paid;
+const deliverPendingPaymentNotifications = paid.deliverPendingPaymentNotifications ||
+  (async () => ({ claimed: 0, delivered: 0, pending: 0 }));
 const { sweepRateLimits } = require('./_ratelimit');
 
 let _sql = null;
@@ -83,25 +86,31 @@ module.exports = async (req, res) => {
     const sql = db();
 
     const open = await sql`
-      SELECT p.id, p.reference, p.provider_ref, p.booking_id
+      SELECT p.id, p.reference, p.provider_ref, p.booking_id, p.status
       FROM payments p
-      WHERE p.status IN ('created', 'pending')
+      LEFT JOIN bookings b ON b.id = p.booking_id
+      WHERE (
+          (p.status IN ('created', 'pending')
+           AND p.received_at > now() - (${STALE_AFTER_HOURS} || ' hours')::interval)
+          OR (p.status = 'completed' AND b.payment_status IS DISTINCT FROM 'paid')
+        )
         AND p.provider_ref IS NOT NULL
-        AND p.received_at > now() - (${STALE_AFTER_HOURS} || ' hours')::interval
       ORDER BY p.received_at ASC
       LIMIT ${BATCH}`;
 
     let completed = 0, failed = 0, unchanged = 0, errored = 0, inventoryConflicts = 0;
 
     for (const p of open) {
-      let status;
-      try {
-        status = await fetchStatus(p.reference, p.provider_ref);
-      } catch (err) {
-        // A provider blip must not abort the batch; it gets picked up next run.
-        errored++;
-        F.log('CRON_LOOKUP_FAILED', { orderId: p.reference, message: String(err && err.message) });
-        continue;
+      let status = p.status === 'completed' ? 'completed' : null;
+      if (!status) {
+        try {
+          status = await fetchStatus(p.reference, p.provider_ref);
+        } catch (err) {
+          // A provider blip must not abort the batch; it gets picked up next run.
+          errored++;
+          F.log('CRON_LOOKUP_FAILED', { orderId: p.reference, message: String(err && err.message) });
+          continue;
+        }
       }
 
       if (status === 'completed') {
@@ -139,6 +148,16 @@ module.exports = async (req, res) => {
     let sweptLimits = 0;
     try { sweptLimits = await sweepRateLimits(sql); } catch (e) {}
 
+    // Also retry notification work whose settlement committed before a sender
+    // failed or the observing process stopped. Channel acknowledgements make
+    // this safe to run every time, including when there are no open attempts.
+    let notifications = { claimed: 0, delivered: 0, pending: 0 };
+    try {
+      notifications = await deliverPendingPaymentNotifications(sql, null);
+    } catch (err) {
+      F.log('CRON_NOTIFICATION_DRAIN_FAILED', { message: String(err && err.message) });
+    }
+
     const result = {
       ok: true,
       checked: open.length,
@@ -149,6 +168,7 @@ module.exports = async (req, res) => {
       errored,
       inventoryConflict: inventoryConflicts > 0,
       inventoryConflicts,
+      notifications,
       expired: expired.length,
       ms: Date.now() - started,
     };

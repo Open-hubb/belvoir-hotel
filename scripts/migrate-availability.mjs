@@ -78,6 +78,76 @@ await step('inventory constraints', async () => {
     CHECK (units > 0)`;
 });
 
+// A webhook may arrive before the payment-link request finishes recording its
+// local row. Collapse any historical duplicate provider pairs before adding
+// the constraint used by the two atomic upsert paths.
+await step('payment attempt identity', async () => {
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS short_code text`;
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS pay_link text`;
+  await sql`
+    WITH ranked AS MATERIALIZED (
+      SELECT p.id,
+        row_number() OVER (
+          PARTITION BY reference, provider_ref
+          ORDER BY
+            (p.short_code IS NOT NULL OR p.pay_link IS NOT NULL) DESC,
+            (p.booking_id IS NOT NULL) DESC,
+            (p.status = 'completed') DESC,
+            p.received_at DESC NULLS LAST,
+            p.id DESC
+        ) AS duplicate_rank,
+        bool_or(p.status = 'completed') OVER (
+          PARTITION BY reference, provider_ref
+        ) AS any_completed,
+        bool_or(COALESCE(p.matched, false)) OVER (
+          PARTITION BY reference, provider_ref
+        ) AS any_matched
+      FROM payments p
+      WHERE p.provider_ref IS NOT NULL
+    ), merged AS (
+      UPDATE payments p
+      SET status = CASE WHEN r.any_completed THEN 'completed' ELSE p.status END,
+          matched = r.any_matched
+      FROM ranked r
+      WHERE p.id = r.id AND r.duplicate_rank = 1
+      RETURNING p.id
+    )
+    DELETE FROM payments p
+    USING ranked r
+    WHERE p.id = r.id AND r.duplicate_rank > 1
+      AND (SELECT count(*) FROM merged) >= 0`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_attempt_unique
+    ON payments (reference, provider_ref)
+    WHERE provider_ref IS NOT NULL`;
+});
+
+await step('durable payment notification outbox', async () => {
+  await sql`
+    CREATE TABLE IF NOT EXISTS payment_notification_outbox (
+      id bigserial PRIMARY KEY,
+      booking_id bigint NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      outcome text NOT NULL CHECK (outcome IN ('reserved', 'conflict')),
+      channel text NOT NULL CHECK (
+        channel IN ('guest-email', 'team-email', 'whatsapp-payment', 'whatsapp-conflict')
+      ),
+      dedupe_key text NOT NULL UNIQUE,
+      attempts integer NOT NULL DEFAULT 0,
+      available_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      lease_token text,
+      lease_expires_at timestamptz,
+      delivered_at timestamptz,
+      last_error text,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      UNIQUE (booking_id, outcome, channel)
+    )`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS payment_notification_outbox_pending
+    ON payment_notification_outbox (available_at, lease_expires_at, id)
+    WHERE delivered_at IS NULL`;
+});
+
 // Exclusion constraints model a capacity of one and must not survive the
 // migration to quantity-based inventory.
 await step('remove one-unit overlap constraints', async () => {
@@ -211,6 +281,24 @@ await step('booking settlement function', async () => {
         RETURN;
       END IF;
 
+      -- A cancellation is final for inventory. Money can still arrive late,
+      -- but it must become a conflict and can never resurrect or consume a
+      -- unit, nor enqueue the ordinary confirmation emails.
+      IF v_booking.status IS DISTINCT FROM 'active' THEN
+        UPDATE bookings
+        SET payment_status = 'paid', stage = 'checkout',
+            inventory_status = 'conflict', hold_expires_at = NULL
+        WHERE id = p_booking_id;
+        INSERT INTO payment_notification_outbox
+          (booking_id, outcome, channel, dedupe_key)
+        VALUES
+          (p_booking_id, 'conflict', 'whatsapp-conflict',
+           'belvoir:booking:' || p_booking_id::text || ':conflict:whatsapp-conflict')
+        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
+        RETURN QUERY SELECT true, false, 'conflict'::text;
+        RETURN;
+      END IF;
+
       SELECT a.remaining INTO v_remaining
       FROM belvoir_room_availability(
         v_booking.checkin, v_booking.checkout, v_booking.room_key, v_booking.id
@@ -223,12 +311,28 @@ await step('booking settlement function', async () => {
         SET payment_status = 'paid', stage = 'checkout',
             inventory_status = 'reserved', hold_expires_at = NULL
         WHERE id = p_booking_id;
+        INSERT INTO payment_notification_outbox
+          (booking_id, outcome, channel, dedupe_key)
+        VALUES
+          (p_booking_id, 'reserved', 'guest-email',
+           'belvoir:booking:' || p_booking_id::text || ':reserved:guest-email'),
+          (p_booking_id, 'reserved', 'team-email',
+           'belvoir:booking:' || p_booking_id::text || ':reserved:team-email'),
+          (p_booking_id, 'reserved', 'whatsapp-payment',
+           'belvoir:booking:' || p_booking_id::text || ':reserved:whatsapp-payment')
+        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
         RETURN QUERY SELECT true, false, 'reserved'::text;
       ELSE
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
             inventory_status = 'conflict', hold_expires_at = NULL
         WHERE id = p_booking_id;
+        INSERT INTO payment_notification_outbox
+          (booking_id, outcome, channel, dedupe_key)
+        VALUES
+          (p_booking_id, 'conflict', 'whatsapp-conflict',
+           'belvoir:booking:' || p_booking_id::text || ':conflict:whatsapp-conflict')
+        ON CONFLICT (booking_id, outcome, channel) DO NOTHING;
         RETURN QUERY SELECT true, false, 'conflict'::text;
       END IF;
     END;

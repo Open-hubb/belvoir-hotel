@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     }
 
     let data;
-    if (payment.attempt_status === 'completed' || payment.payment_status === 'paid') {
+    if (payment.attempt_status === 'completed') {
       data = {
         status: 'completed',
         amount: payment.amount,
@@ -88,6 +88,7 @@ module.exports = async (req, res) => {
 
     const status = String(data.status || 'created');
     let settlement = null;
+    let finalBookingState = null;
 
     if (status === 'completed') {
       // Settle before closing the attempt row. If the database call fails, a
@@ -105,6 +106,31 @@ module.exports = async (req, res) => {
     } else if (status === 'created' || status === 'pending') {
       const hold = await acquireBookingHold(sql, payment.booking_id, claim);
       if (!hold.acquired) {
+        // Another listener or another attempt may have paid the booking between
+        // the provider lookup and this hold refresh. Re-read under that reality
+        // instead of showing a false expiry or claiming this attempt completed.
+        const bookings = await sql`
+          SELECT payment_status, inventory_status
+          FROM bookings WHERE id = ${payment.booking_id} LIMIT 1`;
+        const current = bookings[0] || null;
+        if (current && current.payment_status === 'paid') {
+          settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+          return res.status(200).json({
+            status,
+            attemptStatus: status,
+            bookingFinal: true,
+            bookingPaymentStatus: 'paid',
+            bookingInventoryStatus: current.inventory_status || null,
+            receiptAvailable: false,
+            amount: null,
+            currency: null,
+            attemptId,
+            orderId,
+            updatedAt: data.updatedAt,
+            testMode: F.TEST_MODE,
+            inventoryConflict: settlement.conflict === true || current.inventory_status === 'conflict',
+          });
+        }
         return res.status(409).json({
           error: 'Your room hold has expired. Please check availability again before paying.',
           code: 'HOLD_EXPIRED',
@@ -117,18 +143,39 @@ module.exports = async (req, res) => {
       await sql`
         UPDATE payments SET status = 'failed'
         WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
+      const bookings = await sql`
+        SELECT payment_status, inventory_status
+        FROM bookings WHERE id = ${payment.booking_id} LIMIT 1`;
+      finalBookingState = bookings[0] || null;
+      if (finalBookingState && finalBookingState.payment_status === 'paid') {
+        settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+      }
     }
 
     // "failed" is a card error, so the order stays open and the guest can retry
+    const bookingFinal = status === 'completed' ||
+      Boolean(finalBookingState && finalBookingState.payment_status === 'paid');
+    const bookingInventoryStatus = finalBookingState
+      ? finalBookingState.inventory_status
+      : (settlement && settlement.booking
+        ? settlement.booking.inventory_status
+        : payment.inventory_status);
     return res.status(200).json({
       status,
+      attemptStatus: status,
+      bookingFinal,
+      bookingPaymentStatus: bookingFinal ? 'paid' : payment.payment_status,
+      bookingInventoryStatus,
+      receiptAvailable: status === 'completed',
       amount: data.amount ?? payment.amount,
       currency: data.currency ?? payment.currency,
       attemptId,
       orderId,
       updatedAt: data.updatedAt,
       testMode: F.TEST_MODE,
-      inventoryConflict: settlement ? settlement.conflict === true : false,
+      inventoryConflict: settlement
+        ? settlement.conflict === true
+        : bookingInventoryStatus === 'conflict',
     });
   } catch (err) {
     F.log('STATUS_ERROR', { orderId, attemptId, message: String(err && err.message) });

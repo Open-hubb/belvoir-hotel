@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const { adminGroupId, buildAdminMessage, notifyAdmins } = require('../api/_whapi.js');
+const { confirmBooking, notifyPaid } = require('../api/_notify.js');
 
 const booking = {
   id: 75,
@@ -120,4 +121,27 @@ test('Whapi is a safe no-op until its token and admin group are configured', asy
 
   assert.deepEqual(result, { sent: 0, failed: 0, skipped: true });
   assert.equal(fetchCalls, 0);
+});
+
+test('payment email helpers propagate deterministic Resend idempotency keys', async () => {
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = 'resend-test-key';
+  globalThis.fetch = async (_url, options) => {
+    calls.push(options);
+    return { ok: true, status: 200, json: async () => ({ id: 'email-id' }) };
+  };
+  try {
+    await confirmBooking(booking, { idempotencyKey: 'belvoir:booking:75:reserved:guest-email' });
+    await notifyPaid(booking, { idempotencyKey: 'belvoir:booking:75:reserved:team-email' });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalKey;
+  }
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].headers['Idempotency-Key'], 'belvoir:booking:75:reserved:guest-email');
+  assert.equal(calls[1].headers['Idempotency-Key'], 'belvoir:booking:75:reserved:team-email');
 });

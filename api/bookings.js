@@ -224,6 +224,11 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       const id = parseInt(b.id, 10);
       if (!id) return res.status(400).json({ error: 'Missing id' });
+      if (b.payment_status && b.status) {
+        return res.status(400).json({
+          error: 'Update payment and booking status as separate actions.',
+        });
+      }
       if (b.payment_status && !['paid', 'unpaid'].includes(b.payment_status)) {
         return res.status(400).json({ error: 'Invalid status' });
       }

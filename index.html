@@ -8594,9 +8594,13 @@
             return fcResult('failed', data.error);
           }
           if (!res.ok) return; // transient, keep polling
-          if (data.status === 'completed') {
+          if (data.bookingFinal || data.status === 'completed') {
             fcStopPolling();
-            fcResult(data.inventoryConflict ? 'conflict' : 'completed', null, data);
+            const hasAttemptReceipt = data.status === 'completed' && data.receiptAvailable !== false;
+            const finalKind = data.inventoryConflict
+              ? 'conflict'
+              : (hasAttemptReceipt ? 'completed' : 'booking-final');
+            fcResult(finalKind, null, data);
           } else if (data.status === 'failed') {
             // A card error only. The booking stays open so the guest can retry.
             fcStopPolling();
@@ -8630,6 +8634,13 @@
         document.getElementById('fcRcRef').textContent = fcState.attemptId || '—';
         document.getElementById('fcRcDate').textContent = new Date().toLocaleString('en-GB');
         receipt.hidden = false;
+        btn.textContent = 'Done';
+        btn.onclick = fcDismiss;
+      } else if (kind === 'booking-final') {
+        mark.className = 'fc__result-mark fc__result-mark--ok';
+        mark.innerHTML = '<i data-lucide="check"></i>';
+        title.textContent = 'Booking payment confirmed';
+        text.textContent = 'A payment for this booking was already confirmed through another payment attempt. No receipt is shown for this attempt.';
         btn.textContent = 'Done';
         btn.onclick = fcDismiss;
       } else if (kind === 'conflict') {

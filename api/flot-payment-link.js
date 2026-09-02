@@ -58,6 +58,11 @@ module.exports = async (req, res) => {
       return res.status(409).json({ error: 'This booking has already been paid.' });
     }
 
+    // Validate the immutable server-side amount before extending inventory.
+    // A malformed booking must not occupy a room for another 15 minutes.
+    const usd = Number(booking.amount_due || booking.total || 0);
+    if (!(usd > 0)) return res.status(400).json({ error: 'This booking has no amount due.' });
+
     // The provider must never receive a request unless this guest still owns
     // a live unit. This also refreshes the checkout window to 15 minutes.
     const hold = await acquireBookingHold(sql, booking.id, claim);
@@ -67,9 +72,6 @@ module.exports = async (req, res) => {
         code: 'HOLD_EXPIRED',
       });
     }
-
-    const usd = Number(booking.amount_due || booking.total || 0);
-    if (!(usd > 0)) return res.status(400).json({ error: 'This booking has no amount due.' });
 
     const { amount, currency } = F.amountFor(usd, currencyChoice);
     const orderId = F.orderIdFor(bookingId);
@@ -152,7 +154,22 @@ module.exports = async (req, res) => {
         (${bookingId}, ${orderId}, ${booking.guest_name || null}, ${booking.guest_email || null},
          ${amount}, ${currency}, 'created', ${data.id || null}, true,
          ${JSON.stringify({ type, testMode: F.TEST_MODE, link: data.link || null, code: data.code || null })},
-         ${shortCode}, ${data.link || null})`;
+         ${shortCode}, ${data.link || null})
+      ON CONFLICT (reference, provider_ref) WHERE provider_ref IS NOT NULL
+      DO UPDATE SET
+        booking_id = COALESCE(payments.booking_id, EXCLUDED.booking_id),
+        payer_name = COALESCE(payments.payer_name, EXCLUDED.payer_name),
+        payer_email = COALESCE(payments.payer_email, EXCLUDED.payer_email),
+        amount = COALESCE(EXCLUDED.amount, payments.amount),
+        currency = COALESCE(EXCLUDED.currency, payments.currency),
+        status = CASE
+          WHEN payments.status IN ('completed', 'failed') THEN payments.status
+          ELSE EXCLUDED.status
+        END,
+        matched = COALESCE(payments.matched, false) OR EXCLUDED.matched,
+        raw = CASE WHEN payments.status = 'completed' THEN payments.raw ELSE EXCLUDED.raw END,
+        short_code = COALESCE(payments.short_code, EXCLUDED.short_code),
+        pay_link = COALESCE(payments.pay_link, EXCLUDED.pay_link)`;
 
     return res.status(200).json({
       orderId,
