@@ -2,10 +2,10 @@ const { neon } = require('@neondatabase/serverless');
 const { isAdminRequest } = require('./_auth');
 const crypto = require('crypto');
 const { notifyBooking } = require('./_notify');
+const { settleBooking } = require('./_paid');
 const {
   HOLD_MINUTES,
   acquireBookingHold,
-  settleBookingInventory,
   reactivateBooking,
 } = require('./_inventory');
 
@@ -231,8 +231,9 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Invalid booking status' });
       }
 
+      let paymentSettlement = null;
       if (b.payment_status === 'paid') {
-        await settleBookingInventory(sql, id);
+        paymentSettlement = await settleBooking(sql, id, 'manual', 'admin');
       } else if (b.payment_status === 'unpaid') {
         await sql`
           UPDATE bookings SET payment_status = 'unpaid',
@@ -270,7 +271,11 @@ module.exports = async (req, res) => {
           hold_expires_at, inventory_status
         FROM bookings WHERE id = ${id} LIMIT 1`;
       if (!rows.length) return res.status(404).json({ error: 'Not found' });
-      return res.status(200).json({ ok: true, booking: rows[0] });
+      return res.status(200).json({
+        ok: true,
+        booking: rows[0],
+        inventoryConflict: paymentSettlement ? paymentSettlement.conflict === true : false,
+      });
     }
 
     res.setHeader('Allow', 'GET, POST, PATCH');

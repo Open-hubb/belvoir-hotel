@@ -61,18 +61,32 @@ function buildAdminMessage(event, record, env = process.env) {
     ].join('\n');
   }
 
-  // Payments arrive through multiple channels, but api/_paid.js invokes this
-  // branch only for the database caller that first marks the booking paid.
-  if (event !== 'payment-received') {
-    throw new Error(`Unsupported WhatsApp alert event: ${event}`);
-  }
-
   const booking = record;
   const reference = booking.reference || (booking.id ? `BLV-${String(booking.id).padStart(5, '0')}` : 'Unavailable');
   const nights = Number(booking.nights);
   const stay = `${day(booking.checkin)} to ${day(booking.checkout)}${
     Number.isFinite(nights) && nights > 0 ? ` (${nights} night${nights === 1 ? '' : 's'})` : ''
   }`;
+
+  if (event === 'payment-conflict') {
+    return [
+      '*Belvoir · URGENT payment conflict*',
+      `Reference: ${reference}`,
+      `Guest: ${booking.guest_name || 'Name unavailable'}`,
+      `Room: ${booking.room_name || 'Room unavailable'}`,
+      `Stay: ${stay}`,
+      'Payment received, but the room is no longer available for these dates.',
+      'Action: Reassign the guest or arrange a refund immediately.',
+      `Dashboard: ${dashboardUrl(env)}`,
+    ].join('\n');
+  }
+
+  // Payments arrive through multiple channels, but api/_paid.js invokes this
+  // branch only for the database caller that first marks the booking paid.
+  if (event !== 'payment-received') {
+    throw new Error(`Unsupported WhatsApp alert event: ${event}`);
+  }
+
   const deposit = booking.payment_option === 'deposit';
   return [
     `*Belvoir · Payment received — booking confirmed*`,

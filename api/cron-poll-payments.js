@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
       ORDER BY p.received_at ASC
       LIMIT ${BATCH}`;
 
-    let completed = 0, failed = 0, unchanged = 0, errored = 0;
+    let completed = 0, failed = 0, unchanged = 0, errored = 0, inventoryConflicts = 0;
 
     for (const p of open) {
       let status;
@@ -105,14 +105,20 @@ module.exports = async (req, res) => {
       }
 
       if (status === 'completed') {
-        await sql`UPDATE payments SET status = 'completed' WHERE id = ${p.id}`;
+        let settlement = null;
         if (p.booking_id) {
           // Settles the booking and, if the guest closed the tab before the
           // browser could poll, this is what finally sends their receipt.
-          await settleBooking(sql, p.booking_id, p.provider_ref, 'reconciled');
+          settlement = await settleBooking(sql, p.booking_id, p.provider_ref, 'reconciled');
+          if (settlement.conflict) inventoryConflicts++;
         }
+        await sql`UPDATE payments SET status = 'completed' WHERE id = ${p.id}`;
         completed++;
-        F.log('CRON_PAYMENT_COMPLETED', { orderId: p.reference, bookingId: p.booking_id });
+        F.log('CRON_PAYMENT_COMPLETED', {
+          orderId: p.reference,
+          bookingId: p.booking_id,
+          inventoryConflict: settlement ? settlement.conflict === true : false,
+        });
       } else if (status === 'failed') {
         // The guest can still retry, so only the attempt is closed off.
         await sql`UPDATE payments SET status = 'failed' WHERE id = ${p.id}`;
@@ -141,6 +147,8 @@ module.exports = async (req, res) => {
       failed,
       unchanged,
       errored,
+      inventoryConflict: inventoryConflicts > 0,
+      inventoryConflicts,
       expired: expired.length,
       ms: Date.now() - started,
     };

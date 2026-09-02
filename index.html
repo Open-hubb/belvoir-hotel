@@ -8585,13 +8585,18 @@
 
         try {
           const url = '/api/flot-status?orderId=' + encodeURIComponent(fcState.orderId) +
-                      '&attemptId=' + encodeURIComponent(fcState.attemptId);
+                      '&attemptId=' + encodeURIComponent(fcState.attemptId) +
+                      '&claim=' + encodeURIComponent(fcState.claim);
           const res = await fetch(url);
-          if (!res.ok) return; // transient, keep polling
           const data = await res.json();
+          if (res.status === 409 && data.code === 'HOLD_EXPIRED') {
+            fcStopPolling();
+            return fcResult('failed', data.error);
+          }
+          if (!res.ok) return; // transient, keep polling
           if (data.status === 'completed') {
             fcStopPolling();
-            fcResult('completed', null, data);
+            fcResult(data.inventoryConflict ? 'conflict' : 'completed', null, data);
           } else if (data.status === 'failed') {
             // A card error only. The booking stays open so the guest can retry.
             fcStopPolling();
@@ -8626,6 +8631,13 @@
         document.getElementById('fcRcDate').textContent = new Date().toLocaleString('en-GB');
         receipt.hidden = false;
         btn.textContent = 'Done';
+        btn.onclick = fcDismiss;
+      } else if (kind === 'conflict') {
+        mark.className = 'fc__result-mark fc__result-mark--warn';
+        mark.innerHTML = '<i data-lucide="alert-triangle"></i>';
+        title.textContent = 'Payment received — action required';
+        text.textContent = 'We received your payment, but this room is no longer available for the selected dates. Our team has been alerted and will contact you to arrange another room or a refund.';
+        btn.textContent = 'Close';
         btn.onclick = fcDismiss;
       } else if (kind === 'timeout') {
         mark.className = 'fc__result-mark fc__result-mark--warn';

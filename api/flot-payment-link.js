@@ -11,6 +11,7 @@ const QRCode = require('qrcode');
 const crypto = require('crypto');
 const F = require('./_flot');
 const { limit } = require('./_ratelimit');
+const { acquireBookingHold } = require('./_inventory');
 
 let _sql = null;
 function db() {
@@ -47,16 +48,24 @@ module.exports = async (req, res) => {
       SELECT id, amount_due, total, payment_status, claim_token, guest_name, guest_email
       FROM bookings WHERE id = ${bookingId} LIMIT 1`;
 
-    if (!rows.length) return res.status(404).json({ error: 'Booking not found.' });
-    const booking = rows[0];
-
-    if (booking.claim_token && booking.claim_token !== claim) {
+    const booking = rows[0] || null;
+    if (!booking || !claim || booking.claim_token !== claim) {
       F.log('PAYMENT_LINK_DENIED', { bookingId, reason: 'claim token mismatch' });
       return res.status(403).json({ error: 'This booking cannot be paid from here.' });
     }
 
     if (booking.payment_status === 'paid') {
       return res.status(409).json({ error: 'This booking has already been paid.' });
+    }
+
+    // The provider must never receive a request unless this guest still owns
+    // a live unit. This also refreshes the checkout window to 15 minutes.
+    const hold = await acquireBookingHold(sql, booking.id, claim);
+    if (!hold.acquired) {
+      return res.status(409).json({
+        error: 'Your room hold has expired. Please check availability again before paying.',
+        code: 'HOLD_EXPIRED',
+      });
     }
 
     const usd = Number(booking.amount_due || booking.total || 0);

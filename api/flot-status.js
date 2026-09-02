@@ -1,4 +1,4 @@
-// GET /api/flot-status?orderId=belvoir-19&attemptId=<flot payment attempt id>
+// GET /api/flot-status?orderId=belvoir-19&attemptId=<id>&claim=<booking claim>
 //
 // Polled by the payment modal. This is the path that does not depend on Flot's
 // webhook configuration: when Flot reports the attempt completed, the booking
@@ -9,16 +9,12 @@ const { neon } = require('@neondatabase/serverless');
 const F = require('./_flot');
 const { limit } = require('./_ratelimit');
 const { settleBooking } = require('./_paid');
+const { acquireBookingHold } = require('./_inventory');
 
 let _sql = null;
 function db() {
   if (!_sql) _sql = neon(process.env.DATABASE_URL);
   return _sql;
-}
-
-function bookingIdFromOrderId(orderId) {
-  const m = String(orderId || '').match(/(\d+)\s*$/);
-  return m ? parseInt(m[1], 10) : null;
 }
 
 function query(req) {
@@ -37,15 +33,39 @@ module.exports = async (req, res) => {
   const q = query(req);
   const orderId = String(q.orderId || '');
   const attemptId = String(q.attemptId || '');
-  if (!orderId || !attemptId) {
-    return res.status(400).json({ error: 'orderId and attemptId are required.' });
+  const claim = String(q.claim || '');
+  if (!orderId || !attemptId || !claim) {
+    return res.status(400).json({ error: 'orderId, attemptId and claim are required.' });
   }
 
   const path = `/merchants/private/v1/external-orders/${encodeURIComponent(orderId)}/payment-attempts/${encodeURIComponent(attemptId)}`;
 
   try {
+    const sql = db();
+    // Authenticate against the exact payment attempt, not an id parsed from a
+    // caller-controlled order string. A miss and a bad claim deliberately have
+    // the same response so this route cannot be used to enumerate bookings.
+    const matches = await sql`
+      SELECT b.id AS booking_id, b.claim_token, b.payment_status,
+        b.inventory_status, p.status AS attempt_status, p.amount, p.currency
+      FROM payments p
+      JOIN bookings b ON b.id = p.booking_id
+      WHERE p.reference = ${orderId} AND p.provider_ref = ${attemptId}
+      LIMIT 1`;
+    const payment = matches[0] || null;
+    if (!payment || payment.claim_token !== claim) {
+      F.log('STATUS_DENIED', { orderId, attemptId, reason: 'claim token mismatch' });
+      return res.status(403).json({ error: 'This payment cannot be checked from here.' });
+    }
+
     let data;
-    if (F.TEST_MODE) {
+    if (payment.attempt_status === 'completed' || payment.payment_status === 'paid') {
+      data = {
+        status: 'completed',
+        amount: payment.amount,
+        currency: payment.currency,
+      };
+    } else if (F.TEST_MODE) {
       data = F.mockStatus(orderId, attemptId);
       F.log('TEST_MODE', { note: 'mock status', orderId, attemptId, status: data.status });
     } else {
@@ -67,41 +87,48 @@ module.exports = async (req, res) => {
     }
 
     const status = String(data.status || 'created');
-    const sql = db();
+    let settlement = null;
 
     if (status === 'completed') {
-      const bookingId = bookingIdFromOrderId(orderId);
-
-      // Idempotent: only the first completion writes, so repeated polls and a
-      // webhook arriving for the same attempt cannot double-apply.
-      const already = await sql`
-        SELECT id FROM payments
-        WHERE reference = ${orderId} AND provider_ref = ${attemptId} AND status = 'completed'
-        LIMIT 1`;
-
-      if (!already.length) {
-        await sql`
-          UPDATE payments SET status = 'completed'
-          WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
-
-        if (bookingId) {
-          // Settles the booking and, if this is the first route to see the
-          // payment, sends the guest their receipt.
-          await settleBooking(sql, bookingId, attemptId, 'browser');
-        }
-        F.log('PAYMENT_COMPLETED', { orderId, attemptId, bookingId });
+      // Settle before closing the attempt row. If the database call fails, a
+      // later poll can retry; if another listener won, settlement is a no-op.
+      settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+      await sql`
+        UPDATE payments SET status = 'completed', matched = true
+        WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
+      F.log('PAYMENT_COMPLETED', {
+        orderId,
+        attemptId,
+        bookingId: payment.booking_id,
+        inventoryConflict: settlement.conflict === true,
+      });
+    } else if (status === 'created' || status === 'pending') {
+      const hold = await acquireBookingHold(sql, payment.booking_id, claim);
+      if (!hold.acquired) {
+        return res.status(409).json({
+          error: 'Your room hold has expired. Please check availability again before paying.',
+          code: 'HOLD_EXPIRED',
+        });
       }
+      await sql`
+        UPDATE payments SET status = ${status}
+        WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
+    } else if (status === 'failed') {
+      await sql`
+        UPDATE payments SET status = 'failed'
+        WHERE reference = ${orderId} AND provider_ref = ${attemptId}`;
     }
 
     // "failed" is a card error, so the order stays open and the guest can retry
     return res.status(200).json({
       status,
-      amount: data.amount,
-      currency: data.currency,
+      amount: data.amount ?? payment.amount,
+      currency: data.currency ?? payment.currency,
       attemptId,
       orderId,
       updatedAt: data.updatedAt,
       testMode: F.TEST_MODE,
+      inventoryConflict: settlement ? settlement.conflict === true : false,
     });
   } catch (err) {
     F.log('STATUS_ERROR', { orderId, attemptId, message: String(err && err.message) });

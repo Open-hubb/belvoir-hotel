@@ -85,15 +85,6 @@ module.exports = async (req, res) => {
   try {
     const sql = db();
 
-    // Idempotency: the same orderId + flotRequestId must not be applied twice
-    const seen = await sql`
-      SELECT id FROM payments
-      WHERE reference = ${orderId} AND provider_ref = ${flotRequestId}
-      LIMIT 1`;
-    if (seen.length) {
-      return res.status(200).json({ ok: true, duplicate: true });
-    }
-
     const bookingId = bookingIdFromOrderId(orderId);
     let booking = null;
     if (bookingId) {
@@ -101,25 +92,48 @@ module.exports = async (req, res) => {
       if (rows.length) booking = rows[0];
     }
 
+    // A payment-link row normally already exists in created/pending state. Only
+    // a completed row proves this exact attempt was already reconciled.
+    const seen = await sql`
+      SELECT id, status FROM payments
+      WHERE reference = ${orderId} AND provider_ref = ${flotRequestId}
+      LIMIT 1`;
+    if (seen.length && seen[0].status === 'completed') {
+      return res.status(200).json({
+        ok: true,
+        duplicate: true,
+        inventoryConflict: booking ? booking.inventory_status === 'conflict' : false,
+      });
+    }
+
     const completed = status === 'completed';
+    let settlement = null;
 
     // "failed" means the guest can still retry, so leave the booking pending
     if (booking && completed) {
       // Settles the booking and, if the webhook is the first route to see the
       // payment, sends the guest their receipt.
-      await settleBooking(sql, booking.id, flotRequestId, 'webhook');
+      settlement = await settleBooking(sql, booking.id, flotRequestId, 'webhook');
     }
 
-    await sql`
-      INSERT INTO payments
-        (booking_id, reference, payer_name, payer_email, amount, currency,
-         status, provider_ref, matched, raw)
-      VALUES
-        (${booking ? booking.id : null}, ${orderId},
-         ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
-         ${booking ? booking.amount_due : null}, ${'SLE'},
-         ${status}, ${flotRequestId},
-         ${Boolean(booking && completed)}, ${JSON.stringify(body)})`;
+    if (seen.length) {
+      await sql`
+        UPDATE payments
+        SET status = ${status}, matched = ${Boolean(booking && completed)},
+            raw = ${JSON.stringify(body)}
+        WHERE id = ${seen[0].id}`;
+    } else {
+      await sql`
+        INSERT INTO payments
+          (booking_id, reference, payer_name, payer_email, amount, currency,
+           status, provider_ref, matched, raw)
+        VALUES
+          (${booking ? booking.id : null}, ${orderId},
+           ${booking ? booking.guest_name : ''}, ${booking ? booking.guest_email : ''},
+           ${booking ? booking.amount_due : null}, ${'SLE'},
+           ${status}, ${flotRequestId},
+           ${Boolean(booking && completed)}, ${JSON.stringify(body)})`;
+    }
 
     if (!booking) {
       console.warn('flot webhook: no booking matched orderId', orderId);
@@ -132,6 +146,7 @@ module.exports = async (req, res) => {
       matched: Boolean(booking),
       bookingId: booking ? booking.id : null,
       markedPaid: Boolean(booking && completed),
+      inventoryConflict: settlement ? settlement.conflict === true : false,
     });
   } catch (e) {
     console.error('flot webhook error:', e);

@@ -45,6 +45,25 @@ test('WhatsApp payment alert includes the approved booking summary only', () => 
   assert.doesNotMatch(message, /guest@example\.com|777 063|Private transfer/);
 });
 
+test('payment conflict WhatsApp alert is urgent, actionable, and privacy-safe', () => {
+  const message = buildAdminMessage('payment-conflict', booking, {
+    PUBLIC_ORIGIN: 'https://hotel.example/',
+    WHAPI_TOKEN: 'must-not-appear',
+    WHAPI_ADMIN_GROUP_ID: '120363012345678901@g.us',
+  });
+
+  assert.match(message, /URGENT payment conflict/);
+  assert.match(message, /payment received/i);
+  assert.match(message, /room is no longer available/i);
+  assert.match(message, /BLV-00075/);
+  assert.match(message, /reassign the guest or arrange a refund immediately/i);
+  assert.match(message, /https:\/\/hotel\.example\/admin/);
+  assert.doesNotMatch(
+    message,
+    /guest@example\.com|777 063|Private transfer|must-not-appear|120363012345678901@g\.us/,
+  );
+});
+
 test('WhatsApp enquiry alert identifies the guest without relaying contact details', () => {
   const message = buildAdminMessage('new-enquiry', {
     id: 42,
