@@ -5,6 +5,11 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const { ROOMS, roomCapacity } = require('../api/_rooms.js');
+const inventory = require('../api/_inventory.js');
+const availabilitySource = readFileSync(
+  new URL('../api/availability.js', import.meta.url),
+  'utf8',
+);
 const migration = readFileSync(
   new URL('../scripts/migrate-availability.mjs', import.meta.url),
   'utf8',
@@ -17,6 +22,81 @@ function migrationBlock(marker) {
   assert.notEqual(end, -1, `unterminated migration block: ${marker}`);
   return migration.slice(start, end);
 }
+
+function taggedSql(rowsByCall) {
+  const calls = [];
+  const sql = async (strings, ...values) => {
+    calls.push({ strings: [...strings], values });
+    const rows = rowsByCall[calls.length - 1];
+    if (rows instanceof Error) throw rows;
+    return rows || [];
+  };
+  sql.calls = calls;
+  return sql;
+}
+
+test('inventory adapter normalizes Neon numeric and date values', async () => {
+  const sql = taggedSql([[
+    { room_key: 'standard', capacity: '2', remaining: '1' },
+    { room_key: 'comfort', capacity: 1, remaining: 0 },
+  ]]);
+  const result = await inventory.availabilityForStay(sql, '2026-10-10', '2026-10-12');
+  assert.deepEqual(result.get('standard'), { capacity: 2, remaining: 1 });
+  assert.deepEqual(result.get('comfort'), { capacity: 1, remaining: 0 });
+  assert.match(sql.calls[0].strings.join(' '), /belvoir_room_availability/);
+  assert.deepEqual(sql.calls[0].values, ['2026-10-10', '2026-10-12', null, null]);
+});
+
+test('inventory adapter normalizes hold, settlement, block, and reactivation contracts', async () => {
+  const sql = taggedSql([
+    [{ acquired: true, hold_expires_at: '2026-10-10T12:15:00.000Z', remaining: '-2' }],
+    [{ settled: true, already_paid: false, inventory_status: 'reserved' }],
+    [{ created: true, block_id: '42', remaining: '0' }],
+    [{ reactivated: true, inventory_status: 'unreserved' }],
+  ]);
+
+  assert.deepEqual(
+    await inventory.acquireBookingHold(sql, '7', 'claim-token'),
+    { acquired: true, holdExpiresAt: '2026-10-10T12:15:00.000Z', remaining: 0 },
+  );
+  assert.deepEqual(await inventory.settleBookingInventory(sql, '7'), {
+    settled: true, alreadyPaid: false, inventoryStatus: 'reserved',
+  });
+  assert.deepEqual(await inventory.createRoomBlock(sql, 'standard', '2026-10-10', '2026-10-12', '1', 'repair'), {
+    created: true, blockId: 42, remaining: 0,
+  });
+  assert.deepEqual(await inventory.reactivateBooking(sql, '7'), {
+    reactivated: true, inventoryStatus: 'unreserved',
+  });
+  assert.match(sql.calls[0].strings.join(' '), /belvoir_acquire_booking_hold/);
+  assert.deepEqual(sql.calls[0].values, ['7', 'claim-token', 15]);
+});
+
+test('inventory adapter uses strict safe defaults for missing SQL rows', async () => {
+  const sql = taggedSql([[], [], [], []]);
+  assert.deepEqual(await inventory.acquireBookingHold(sql, 1, 'x'), {
+    acquired: false, holdExpiresAt: null, remaining: 0,
+  });
+  assert.deepEqual(await inventory.settleBookingInventory(sql, 1), {
+    settled: false, alreadyPaid: false, inventoryStatus: null,
+  });
+  assert.deepEqual(await inventory.createRoomBlock(sql, 'standard', '2026-10-10', '2026-10-12', 1, 'x'), {
+    created: false, blockId: null, remaining: 0,
+  });
+  assert.deepEqual(await inventory.reactivateBooking(sql, 1), {
+    reactivated: false, inventoryStatus: null,
+  });
+});
+
+test('availability response source exposes count fields, filtering, and no-store caching', () => {
+  assert.match(availabilitySource, /availabilityForStay/);
+  assert.match(availabilitySource, /capacity/);
+  assert.match(availabilitySource, /remaining/);
+  assert.match(availabilitySource, /available:\s*live\.remaining\s*>\s*0/);
+  assert.match(availabilitySource, /!q\.room\s*\|\|\s*key\s*===\s*q\.room/);
+  assert.match(availabilitySource, /Cache-Control['"],\s*['"]no-store/);
+  for (const legacy of ['available', 'nights', 'total']) assert.match(availabilitySource, new RegExp(`\\b${legacy}\\b`));
+});
 
 test('room catalogue exposes Belvoir confirmed capacities', () => {
   assert.deepEqual(

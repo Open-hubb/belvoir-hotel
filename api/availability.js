@@ -1,8 +1,7 @@
 // GET /api/availability?checkin=YYYY-MM-DD&checkout=YYYY-MM-DD[&room=key]
 //
-// Which rooms are free for a stay. Belvoir holds one of each type, so a room is
-// free when no active checkout-stage booking and no maintenance block overlaps
-// the requested dates.
+// Which rooms have capacity for a stay. Availability is evaluated by the
+// database inventory function across active bookings and maintenance blocks.
 //
 // This is the friendly answer used to grey out rooms in the wizard. The hard
 // guarantee is the exclusion constraint in Postgres, which is what actually
@@ -10,6 +9,7 @@
 
 const { neon } = require('@neondatabase/serverless');
 const { ROOMS, priceStay } = require('./_rooms');
+const { availabilityForStay } = require('./_inventory');
 const { limit } = require('./_ratelimit');
 
 let _sql = null;
@@ -24,16 +24,18 @@ function query(req) {
   return Object.fromEntries(url.searchParams);
 }
 
-/** Rooms with a clash over the given dates. Shared with bookings.js. */
+/**
+ * Legacy compatibility helper shared with bookings.js.
+ *
+ * New callers should use availabilityForStay directly so they can account for
+ * multi-unit room capacity. A room is taken for the legacy Set when no units
+ * remain for the requested stay.
+ */
 async function takenRooms(sql, checkin, checkout) {
-  const booked = await sql`
-    SELECT DISTINCT room_key FROM bookings
-    WHERE status = 'active' AND stage = 'checkout'
-      AND daterange(checkin, checkout, '[)') && daterange(${checkin}::date, ${checkout}::date, '[)')`;
-  const blocked = await sql`
-    SELECT DISTINCT room_key FROM room_blocks
-    WHERE daterange(starts, ends, '[)') && daterange(${checkin}::date, ${checkout}::date, '[)')`;
-  return new Set([...booked, ...blocked].map(r => r.room_key));
+  const inventory = await availabilityForStay(sql, checkin, checkout);
+  return new Set([...inventory.entries()]
+    .filter(([, room]) => room.remaining <= 0)
+    .map(([roomKey]) => roomKey));
 }
 
 module.exports = async (req, res) => {
@@ -50,19 +52,29 @@ module.exports = async (req, res) => {
 
   try {
     const sql = db();
-    const taken = await takenRooms(sql, check.checkin, check.checkout);
+    const inventory = await availabilityForStay(
+      sql,
+      check.checkin,
+      check.checkout,
+      q.room || null,
+    );
 
-    const rooms = Object.entries(ROOMS).map(([key, r]) => {
-      const quote = priceStay(key, check.checkin, check.checkout, 'full');
-      return {
-        key,
-        name: r.name,
-        rate: r.rate,
-        available: !taken.has(key),
-        nights: quote.nights,
-        total: quote.total,
-      };
-    });
+    const rooms = Object.entries(ROOMS)
+      .filter(([key]) => !q.room || key === q.room)
+      .map(([key, r]) => {
+        const quote = priceStay(key, check.checkin, check.checkout, 'full');
+        const live = inventory.get(key) || { capacity: r.capacity, remaining: 0 };
+        return {
+          key,
+          name: r.name,
+          rate: r.rate,
+          capacity: live.capacity,
+          remaining: live.remaining,
+          available: live.remaining > 0,
+          nights: quote.nights,
+          total: quote.total,
+        };
+      });
 
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
