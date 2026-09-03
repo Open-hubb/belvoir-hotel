@@ -251,6 +251,25 @@ async function installFakeVercel(fixture) {
   await chmod(binary, 0o755);
 }
 
+async function installSignalTrappingFakeVercel(fixture) {
+  const binaryDirectory = join(fixture.repository, 'node_modules', '.bin');
+  await mkdir(binaryDirectory, { recursive: true });
+  const binary = join(binaryDirectory, 'vercel');
+  await writeFile(binary, [
+    '#!/usr/bin/env node',
+    "const { appendFileSync, writeFileSync } = require('node:fs');",
+    'const ready = process.env.BELVOIR_TEST_PROVIDER_READY;',
+    'const signals = process.env.BELVOIR_TEST_PROVIDER_SIGNALS;',
+    "for (const signal of ['SIGTERM', 'SIGINT']) {",
+    '  process.on(signal, () => appendFileSync(signals, `${signal}\\n`));',
+    '}',
+    "writeFileSync(ready, String(process.pid));",
+    'setInterval(() => {}, 1_000);',
+    '',
+  ].join('\n'));
+  await chmod(binary, 0o755);
+}
+
 function captureChild(child) {
   return new Promise((resolvePromise, rejectPromise) => {
     let stdout = '';
@@ -267,6 +286,20 @@ async function waitForCondition(condition, message, timeoutMs = 5_000) {
   while (!condition()) {
     if (Date.now() >= deadline) throw new Error(message);
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+  }
+}
+
+async function settleWithin(completion, timeoutMs) {
+  let timeout;
+  try {
+    return await Promise.race([
+      completion,
+      new Promise((resolvePromise) => {
+        timeout = setTimeout(() => resolvePromise(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -4029,6 +4062,89 @@ try {
     if (child && child.exitCode === null && child.signalCode === null) {
       try { process.kill(-child.pid, 'SIGKILL'); } catch {}
       await completion?.catch(() => {});
+    }
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('reviewed deploy helper escalates a signal-trapping provider and cleans its worktree', async () => {
+  const fixture = await reviewedDeployFixture();
+  let child;
+  let completion;
+  let providerPid = null;
+  try {
+    await installSignalTrappingFakeVercel(fixture);
+    const ready = join(fixture.fixtureRoot, 'provider-ready');
+    const signals = join(fixture.fixtureRoot, 'provider-signals');
+    const runner = join(fixture.fixtureRoot, 'provider-signal-runner.mjs');
+    const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+    await writeFile(runner, `
+import { pathToFileURL } from 'node:url';
+const [helperPath, repository, reviewedSha] = process.argv.slice(2);
+const { deployReviewedVercel } = await import(pathToFileURL(helperPath).href);
+try {
+  await deployReviewedVercel({
+    repository,
+    reviewedSha,
+    prod: true,
+    shutdownGraceMs: 250,
+  });
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = error.exitCode || 1;
+}
+`);
+    child = spawn(process.execPath, [runner, reviewedDeployHelperPath, fixture.repository, fixture.sha], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        TMPDIR: fixture.helperTmp,
+        BELVOIR_TEST_PROVIDER_READY: ready,
+        BELVOIR_TEST_PROVIDER_SIGNALS: signals,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    completion = captureChild(child);
+    await waitForCondition(() => existsSync(ready), 'fake provider did not start');
+    providerPid = Number(readFileSync(ready, 'utf8'));
+    assert.ok(Number.isSafeInteger(providerPid) && providerPid > 1);
+
+    const interruptedAt = Date.now();
+    process.kill(child.pid, 'SIGTERM');
+    await waitForCondition(
+      () => existsSync(signals) && readFileSync(signals, 'utf8').includes('SIGTERM\n'),
+      'helper did not forward SIGTERM to its provider',
+      1_000,
+    );
+    process.kill(child.pid, 'SIGINT');
+    await waitForCondition(
+      () => readFileSync(signals, 'utf8').includes('SIGINT\n'),
+      'helper did not forward the repeated SIGINT to its provider',
+      1_000,
+    );
+
+    const result = await settleWithin(completion, 2_000);
+    assert.ok(result, 'helper did not escalate and exit within its shutdown bound');
+    assert.ok(result.status !== 0 || result.signal, 'interrupted helper must not report success');
+    assert.ok(Date.now() - interruptedAt < 2_000, 'provider shutdown exceeded the test bound');
+    assert.deepEqual(readFileSync(signals, 'utf8').trim().split('\n'), ['SIGTERM', 'SIGINT']);
+    assert.throws(
+      () => process.kill(providerPid, 0),
+      (error) => error?.code === 'ESRCH',
+      'escalated provider process must be gone',
+    );
+    assert.deepEqual(await readdir(fixture.helperTmp), []);
+    assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+  } finally {
+    if (providerPid) {
+      try { process.kill(providerPid, 'SIGKILL'); } catch {}
+    }
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const settled = await settleWithin(completion, 1_000);
+      if (!settled) {
+        try { process.kill(child.pid, 'SIGKILL'); } catch {}
+        await completion?.catch(() => {});
+      }
     }
     await rm(fixture.fixtureRoot, { recursive: true, force: true });
   }

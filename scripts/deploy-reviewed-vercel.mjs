@@ -22,6 +22,7 @@ const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_PROJECT_METADATA_BYTES = 64 * 1024;
+const DEFAULT_SHUTDOWN_GRACE_MS = 5_000;
 const SAFE_READ_FLAGS = constants.O_RDONLY |
   (constants.O_NOFOLLOW || 0) |
   (constants.O_NONBLOCK || 0);
@@ -70,19 +71,66 @@ async function checkedOpen(lifecycle, file, flags) {
   }
 }
 
+function childIsRunning(record) {
+  return record?.child.exitCode === null && record.child.signalCode === null;
+}
+
+function clearChildShutdown(record) {
+  if (!record?.shutdownTimer) return;
+  clearTimeout(record.shutdownTimer);
+  record.shutdownTimer = null;
+}
+
+function signalOwnedChild(record, signal) {
+  if (!childIsRunning(record)) return false;
+  if (record.processGroup) {
+    try {
+      process.kill(-record.child.pid, signal);
+      return true;
+    } catch (error) {
+      if (error?.code !== 'ESRCH') {
+        try {
+          return record.child.kill(signal);
+        } catch {
+          return false;
+        }
+      }
+    }
+  }
+  try {
+    return record.child.kill(signal);
+  } catch {
+    return false;
+  }
+}
+
+function armChildShutdown(lifecycle, record) {
+  if (record.shutdownTimer || !childIsRunning(record)) return;
+  record.shutdownTimer = setTimeout(() => {
+    record.shutdownTimer = null;
+    if (!lifecycle.cleaning && lifecycle.child === record && childIsRunning(record)) {
+      signalOwnedChild(record, 'SIGKILL');
+    }
+  }, lifecycle.shutdownGraceMs);
+}
+
 function runProcess(command, args, {
   cwd,
   inherit = false,
   lifecycle,
   allowAborted = false,
+  ownedProcessGroup = false,
 } = {}) {
   if (lifecycle && !allowAborted) throwIfAborted(lifecycle);
   return new Promise((resolvePromise, rejectPromise) => {
+    const processGroup = ownedProcessGroup && process.platform !== 'win32';
     const child = spawn(command, args, {
       cwd,
+      detached: processGroup,
       stdio: inherit ? 'inherit' : ['ignore', 'pipe', 'pipe'],
     });
-    if (lifecycle) lifecycle.child = child;
+    const record = { child, processGroup, shutdownTimer: null };
+    if (lifecycle) lifecycle.child = record;
     let stdout = '';
     let stderr = '';
     let settled = false;
@@ -95,13 +143,15 @@ function runProcess(command, args, {
     child.once('error', (error) => {
       if (settled) return;
       settled = true;
-      if (lifecycle?.child === child) lifecycle.child = null;
+      clearChildShutdown(record);
+      if (lifecycle?.child === record) lifecycle.child = null;
       rejectPromise(error);
     });
     child.once('close', (status, signal) => {
       if (settled) return;
       settled = true;
-      if (lifecycle?.child === child) lifecycle.child = null;
+      clearChildShutdown(record);
+      if (lifecycle?.child === record) lifecycle.child = null;
       if (status === 0) {
         resolvePromise(stdout);
         return;
@@ -518,22 +568,28 @@ export async function deployReviewedVercel({
   reviewedSha,
   prod = false,
   onPhase = null,
+  shutdownGraceMs = DEFAULT_SHUTDOWN_GRACE_MS,
 }) {
   if (typeof reviewedSha !== 'string' || !FULL_COMMIT_SHA.test(reviewedSha)) {
     throw new Error('reviewedSha must be a full commit SHA');
+  }
+  if (!Number.isInteger(shutdownGraceMs) || shutdownGraceMs < 50 || shutdownGraceMs > 60_000) {
+    throw new Error('shutdownGraceMs must be an integer from 50 through 60000');
   }
   const normalizedSha = reviewedSha.toLowerCase();
   const lifecycle = {
     child: null,
     cleaning: false,
     controller: new AbortController(),
+    shutdownGraceMs,
     signal: null,
   };
   const recordSignal = (signal) => {
     lifecycle.signal ||= signal;
     if (!lifecycle.controller.signal.aborted) lifecycle.controller.abort();
-    if (!lifecycle.cleaning && lifecycle.child && !lifecycle.child.killed) {
-      lifecycle.child.kill(signal);
+    if (!lifecycle.cleaning && childIsRunning(lifecycle.child)) {
+      signalOwnedChild(lifecycle.child, signal);
+      armChildShutdown(lifecycle, lifecycle.child);
     }
   };
   const onSigint = () => recordSignal('SIGINT');
@@ -629,7 +685,12 @@ export async function deployReviewedVercel({
       await runProcess(
         vercelBinary,
         ['--cwd', checkout, '--prod', '--yes'],
-        { cwd: repositoryPath, inherit: true, lifecycle },
+        {
+          cwd: repositoryPath,
+          inherit: true,
+          lifecycle,
+          ownedProcessGroup: true,
+        },
       );
       throwIfAborted(lifecycle);
     }
