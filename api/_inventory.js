@@ -29,13 +29,20 @@ async function acquireBookingHold(sql, bookingId, claim) {
   };
 }
 
-async function settleBookingInventory(sql, bookingId) {
-  const rows = await sql`SELECT * FROM belvoir_settle_booking(${bookingId}::bigint)`;
+async function settleBookingInventory(sql, bookingId, settlementKey) {
+  const rows = await sql`
+    SELECT * FROM belvoir_settle_booking(
+      ${bookingId}::bigint, ${settlementKey}::text
+    )`;
   const row = rows[0] || {};
   return {
     settled: row.settled === true,
     alreadyPaid: row.already_paid === true,
+    alreadyProcessed: row.already_processed === true,
     inventoryStatus: row.inventory_status || null,
+    paymentGeneration: row.payment_generation == null
+      ? null
+      : Number(row.payment_generation),
   };
 }
 

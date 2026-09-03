@@ -52,7 +52,7 @@ function shell(kicker, heading, rowsHtml, note, cta) {
 </body>`;
 }
 
-async function send({ subject, html, replyTo, to, idempotencyKey }) {
+async function send({ subject, html, replyTo, to, idempotencyKey, signal }) {
   const key = process.env.RESEND_API_KEY;
   const recipients = to ? [].concat(to).filter(Boolean) : TO;
   if (!key || !recipients.length) return { skipped: true };
@@ -71,6 +71,7 @@ async function send({ subject, html, replyTo, to, idempotencyKey }) {
       html,
       ...(replyTo ? { reply_to: replyTo } : {}),
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -130,7 +131,7 @@ const day = (d) => {
  * be sent from the booking flow, only from a path that has seen Flot report the
  * payment completed. See api/_paid.js, which is the single caller.
  */
-async function confirmBooking(b, { idempotencyKey } = {}) {
+async function confirmBooking(b, { idempotencyKey, signal } = {}) {
   if (!b.guest_email) return { skipped: true };
   const deposit = b.payment_option === 'deposit';
   const balance = Number(b.total) - Number(b.amount_due);
@@ -148,6 +149,7 @@ async function confirmBooking(b, { idempotencyKey } = {}) {
 
   return send({
     idempotencyKey,
+    signal,
     to: b.guest_email,
     subject: `Payment received · your Belvoir booking is confirmed ${b.reference || ''}`.trim(),
     replyTo: TO[0],
@@ -168,7 +170,7 @@ async function confirmBooking(b, { idempotencyKey } = {}) {
 }
 
 /** Tells the hotel the money landed, as distinct from a booking being started. */
-async function notifyPaid(b, { idempotencyKey } = {}) {
+async function notifyPaid(b, { idempotencyKey, signal } = {}) {
   const deposit = b.payment_option === 'deposit';
   const rows =
     row('Reference', b.reference) +
@@ -187,6 +189,7 @@ async function notifyPaid(b, { idempotencyKey } = {}) {
 
   return send({
     idempotencyKey,
+    signal,
     subject: `PAID: ${b.room_name} for ${b.guest_name} · ${b.reference || ''}`.trim(),
     replyTo: b.guest_email,
     html: shell(

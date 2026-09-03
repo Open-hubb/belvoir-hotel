@@ -101,9 +101,14 @@ function buildAdminMessage(event, record, env = process.env) {
   ].join('\n');
 }
 
-async function sendText(fetchImpl, token, to, body) {
+async function sendText(fetchImpl, token, to, body, { signal, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  }
+  const timeout = setTimeout(abort, Math.max(1, Math.min(REQUEST_TIMEOUT_MS, timeoutMs)));
   try {
     const response = await fetchImpl(WHAPI_TEXT_ENDPOINT, {
       method: 'POST',
@@ -117,6 +122,7 @@ async function sendText(fetchImpl, token, to, body) {
     return { ok: Boolean(response && response.ok), status: response ? response.status : 0 };
   } finally {
     clearTimeout(timeout);
+    if (signal) signal.removeEventListener('abort', abort);
   }
 }
 
@@ -129,6 +135,8 @@ async function notifyAdmins(event, booking, {
   env = process.env,
   fetchImpl = globalThis.fetch,
   logger = console,
+  signal,
+  timeoutMs = REQUEST_TIMEOUT_MS,
 } = {}) {
   const token = String(env.WHAPI_TOKEN || '').trim();
   const groupId = adminGroupId(env.WHAPI_ADMIN_GROUP_ID);
@@ -141,7 +149,7 @@ async function notifyAdmins(event, booking, {
   const body = buildAdminMessage(event, booking, env);
   let attempt;
   try {
-    attempt = await sendText(fetchImpl, token, groupId, body);
+    attempt = await sendText(fetchImpl, token, groupId, body, { signal, timeoutMs });
   } catch {
     attempt = { ok: false, status: 0 };
   }

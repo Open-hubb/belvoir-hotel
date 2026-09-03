@@ -248,30 +248,34 @@ module.exports = async (req, res) => {
 
       let paymentSettlement = null;
       if (b.payment_status === 'paid') {
-        paymentSettlement = await settleBooking(sql, id, 'manual', 'admin');
+        paymentSettlement = await settleBooking(
+          sql,
+          id,
+          `admin-payment:${crypto.randomUUID()}`,
+          'admin',
+          'manual',
+        );
       } else if (b.payment_status === 'unpaid') {
         const mutation = await sql`
           WITH target AS MATERIALIZED (
-            SELECT booking.id
+            SELECT booking.id, booking.notification_delivery_token,
+              booking.notification_delivery_expires_at,
+              booking.notification_delivery_outbox_id
             FROM bookings AS booking
             WHERE booking.id = ${id}
             FOR UPDATE
-          ), active_delivery AS MATERIALIZED (
-            SELECT 1
-            FROM payment_notification_outbox AS notification
-            JOIN target ON target.id = notification.booking_id
-            WHERE notification.outcome = 'reserved'
-              AND notification.delivered_at IS NULL
-              AND notification.obsolete_at IS NULL
-              AND notification.lease_token IS NOT NULL
-              AND notification.lease_expires_at > clock_timestamp()
-            LIMIT 1
           ), changed AS (
             UPDATE bookings AS booking SET payment_status = 'unpaid',
-              inventory_status = 'unreserved', hold_expires_at = NULL
+              inventory_status = 'unreserved', hold_expires_at = NULL,
+              notification_delivery_token = NULL,
+              notification_delivery_expires_at = NULL,
+              notification_delivery_outbox_id = NULL
             FROM target
             WHERE booking.id = target.id
-              AND NOT EXISTS (SELECT 1 FROM active_delivery)
+              AND NOT (
+                target.notification_delivery_token IS NOT NULL
+                AND target.notification_delivery_expires_at > clock_timestamp()
+              )
             RETURNING booking.id
           ), obsolete AS (
             UPDATE payment_notification_outbox AS notification
@@ -287,7 +291,9 @@ module.exports = async (req, res) => {
             RETURNING notification.id
           )
           SELECT target.id,
-            EXISTS (SELECT 1 FROM active_delivery) AS notification_in_flight,
+            (target.notification_delivery_token IS NOT NULL
+              AND target.notification_delivery_expires_at > clock_timestamp())
+              AS notification_in_flight,
             EXISTS (SELECT 1 FROM changed) AS changed
           FROM target`;
         if (rejectNotificationInFlight(res, mutation)) return;
@@ -298,26 +304,24 @@ module.exports = async (req, res) => {
       if (b.status === 'cancelled') {
         const mutation = await sql`
           WITH target AS MATERIALIZED (
-            SELECT booking.id
+            SELECT booking.id, booking.notification_delivery_token,
+              booking.notification_delivery_expires_at,
+              booking.notification_delivery_outbox_id
             FROM bookings AS booking
             WHERE booking.id = ${id}
             FOR UPDATE
-          ), active_delivery AS MATERIALIZED (
-            SELECT 1
-            FROM payment_notification_outbox AS notification
-            JOIN target ON target.id = notification.booking_id
-            WHERE notification.outcome = 'reserved'
-              AND notification.delivered_at IS NULL
-              AND notification.obsolete_at IS NULL
-              AND notification.lease_token IS NOT NULL
-              AND notification.lease_expires_at > clock_timestamp()
-            LIMIT 1
           ), changed AS (
             UPDATE bookings AS booking SET status = 'cancelled', cancelled_at = now(),
-              inventory_status = 'unreserved', hold_expires_at = NULL
+              inventory_status = 'unreserved', hold_expires_at = NULL,
+              notification_delivery_token = NULL,
+              notification_delivery_expires_at = NULL,
+              notification_delivery_outbox_id = NULL
             FROM target
             WHERE booking.id = target.id
-              AND NOT EXISTS (SELECT 1 FROM active_delivery)
+              AND NOT (
+                target.notification_delivery_token IS NOT NULL
+                AND target.notification_delivery_expires_at > clock_timestamp()
+              )
             RETURNING booking.id
           ), obsolete AS (
             UPDATE payment_notification_outbox AS notification
@@ -333,7 +337,9 @@ module.exports = async (req, res) => {
             RETURNING notification.id
           )
           SELECT target.id,
-            EXISTS (SELECT 1 FROM active_delivery) AS notification_in_flight,
+            (target.notification_delivery_token IS NOT NULL
+              AND target.notification_delivery_expires_at > clock_timestamp())
+              AS notification_in_flight,
             EXISTS (SELECT 1 FROM changed) AS changed
           FROM target`;
         if (rejectNotificationInFlight(res, mutation)) return;

@@ -126,14 +126,25 @@ module.exports = async (req, res) => {
           ELSE payments.completed_at
         END
       WHERE payments.status IS DISTINCT FROM 'completed'
-      RETURNING id, status`;
+      RETURNING id, status, booking_id`;
     const duplicate = recorded.length === 0;
+    const attempt = recorded[0] || (await sql`
+      SELECT id, status, booking_id
+      FROM payments
+      WHERE reference = ${orderId} AND provider_ref = ${flotRequestId}
+      LIMIT 1`)[0] || null;
 
     // "failed" means the guest can still retry, so leave the booking pending.
     // Completed duplicates still enter the shared path to drain any durable
     // notification work left by an earlier process failure.
-    if (booking && completed) {
-      settlement = await settleBooking(sql, booking.id, flotRequestId, 'webhook');
+    if (booking && completed && attempt) {
+      settlement = await settleBooking(
+        sql,
+        booking.id,
+        `flot-payment:${attempt.id}`,
+        'webhook',
+        flotRequestId,
+      );
     }
 
     if (!booking) {
@@ -147,7 +158,14 @@ module.exports = async (req, res) => {
       duplicate,
       matched: Boolean(booking),
       bookingId: booking ? booking.id : null,
-      markedPaid: Boolean(booking && completed),
+      paymentReceived: completed,
+      markedPaid: Boolean(
+        settlement && (
+          settlement.settled || settlement.alreadyPaid ||
+          (settlement.booking && settlement.booking.payment_status === 'paid')
+        )
+      ),
+      settlementAlreadyProcessed: settlement ? settlement.alreadyProcessed === true : false,
       inventoryConflict: settlement ? settlement.conflict === true : false,
     });
   } catch (e) {

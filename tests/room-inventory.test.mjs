@@ -19,6 +19,18 @@ const paidSource = readFileSync(
   new URL('../api/_paid.js', import.meta.url),
   'utf8',
 );
+const statusSource = readFileSync(
+  new URL('../api/flot-status.js', import.meta.url),
+  'utf8',
+);
+const webhookSource = readFileSync(
+  new URL('../api/payment-webhook.js', import.meta.url),
+  'utf8',
+);
+const cronSource = readFileSync(
+  new URL('../api/cron-poll-payments.js', import.meta.url),
+  'utf8',
+);
 const indexSource = readFileSync(
   new URL('../index.html', import.meta.url),
   'utf8',
@@ -151,6 +163,7 @@ function paymentStatusHarness({
   const events = [];
   const updates = [];
   const paymentRow = {
+    payment_id: 501,
     booking_id: 91,
     claim_token: 'status-claim',
     payment_status: 'unpaid',
@@ -193,10 +206,11 @@ function paymentStatusHarness({
       },
     },
     './_paid': {
-      settleBooking: async (_sql, bookingId, providerRef, source) => {
-        settlements.push({ bookingId, providerRef, source });
+      settleBooking: async (_sql, bookingId, settlementKey, source, providerRef) => {
+        settlements.push({ bookingId, settlementKey, source, providerRef });
         return settlement;
       },
+      deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
     },
   });
   const request = (claim = 'status-claim') => ({
@@ -235,6 +249,8 @@ function durablePaidHarness({
   initialPaymentGeneration = null,
   noteError = false,
   pauseGuestSend = false,
+  pauseClaimCommit = false,
+  pauseRevalidationUntilExpired = false,
 } = {}) {
   const booking = {
     id: 91,
@@ -258,14 +274,40 @@ function durablePaidHarness({
       : initialPaymentGeneration,
     inventory_status: initialInventoryStatus,
     status: bookingStatus,
+    notification_delivery_token: null,
+    notification_delivery_expires_at: null,
+    notification_delivery_outbox_id: null,
   };
   const outbox = [];
-  const calls = { guest: [], team: [], whatsapp: [], logs: [], claimLeases: [] };
+  const settlementEvents = new Map();
+  const calls = {
+    guest: [],
+    team: [],
+    whatsapp: [],
+    whatsappOptions: [],
+    logs: [],
+    claimLeases: [],
+  };
   let observeFirstClaim;
   const claimObserved = new Promise((resolve) => { observeFirstClaim = resolve; });
   let resumeGuestSend;
   const guestSendGate = pauseGuestSend
     ? new Promise((resolve) => { resumeGuestSend = resolve; })
+    : Promise.resolve();
+  let observeClaimLock;
+  const claimLocked = new Promise((resolve) => { observeClaimLock = resolve; });
+  let releaseClaimCommit;
+  const claimCommitGate = pauseClaimCommit
+    ? new Promise((resolve) => { releaseClaimCommit = resolve; })
+    : Promise.resolve();
+  let observeClaimCommit;
+  const claimCommitted = new Promise((resolve) => { observeClaimCommit = resolve; });
+  let claimInProgress = false;
+  let observeRevalidation;
+  const revalidationObserved = new Promise((resolve) => { observeRevalidation = resolve; });
+  let expireRevalidation;
+  const revalidationGate = pauseRevalidationUntilExpired
+    ? new Promise((resolve) => { expireRevalidation = resolve; })
     : Promise.resolve();
   let claimFailureRemaining = failClaimOnce ? 1 : 0;
   let teamFailureRemaining = failTeamOnce ? 1 : 0;
@@ -302,10 +344,29 @@ function durablePaidHarness({
       if (noteError) throw new Error('note write unavailable');
       return [{ ...booking }];
     }
+    if (/lease_remaining_ms/.test(text) && /notification_delivery_token/.test(text)) {
+      observeRevalidation();
+      await revalidationGate;
+      if (pauseRevalidationUntilExpired) return [];
+      const row = outbox.find((item) => item.id === booking.notification_delivery_outbox_id);
+      if (!row || !row.leased || row.leaseToken !== booking.notification_delivery_token) return [];
+      return [{
+        ...booking,
+        notification_id: row.id,
+        channel: row.channel,
+        dedupe_key: row.dedupe_key,
+        lease_remaining_ms: 60_000,
+      }];
+    }
     if (/SELECT \* FROM bookings/.test(text)) return [{ ...booking }];
     if (/WITH target AS MATERIALIZED/.test(text) && /payment_notification_outbox/.test(text)) {
-      const liveReservedLease = outbox.some((row) => row.outcome === 'reserved' &&
+      const outboxLeaseVisibleAtCommandStart = !claimInProgress && outbox.some((row) => row.outcome === 'reserved' &&
         !row.delivered && !row.obsolete && row.leased);
+      if (claimInProgress) await claimCommitted;
+      const bookingTupleGuard = /SELECT booking\.id,\s*booking\.notification_delivery_token/.test(text);
+      const liveReservedLease = bookingTupleGuard
+        ? Boolean(booking.notification_delivery_token)
+        : outboxLeaseVisibleAtCommandStart;
       if (liveReservedLease) {
         return [{ id: booking.id, notification_in_flight: true, changed: false }];
       }
@@ -313,11 +374,17 @@ function durablePaidHarness({
         booking.payment_status = 'unpaid';
         booking.inventory_status = 'unreserved';
         booking.hold_expires_at = null;
+        booking.notification_delivery_token = null;
+        booking.notification_delivery_expires_at = null;
+        booking.notification_delivery_outbox_id = null;
       }
       if (/status = 'cancelled'/.test(text)) {
         booking.status = 'cancelled';
         booking.inventory_status = 'unreserved';
         booking.hold_expires_at = null;
+        booking.notification_delivery_token = null;
+        booking.notification_delivery_expires_at = null;
+        booking.notification_delivery_outbox_id = null;
       }
       for (const row of outbox) {
         if (row.outcome === 'reserved' && !row.delivered) {
@@ -355,12 +422,24 @@ function durablePaidHarness({
         .sort((a, b) => a.id - b.id)
         .slice(0, 1);
       const leaseToken = values.find((value) => typeof value === 'string' && /^[0-9a-f-]{30,}$/i.test(value));
+      if (claimed.length && pauseClaimCommit) {
+        claimInProgress = true;
+        observeClaimLock();
+        await claimCommitGate;
+      }
       claimed.forEach((row) => {
         row.leased = true;
         row.leaseToken = leaseToken;
         row.claimedCount += 1;
       });
       if (claimed.length) {
+        if (/notification_delivery_token/.test(text)) {
+          booking.notification_delivery_token = leaseToken;
+          booking.notification_delivery_expires_at = '2099-01-01T00:00:00.000Z';
+          booking.notification_delivery_outbox_id = claimed[0].id;
+        }
+        claimInProgress = false;
+        observeClaimCommit();
         calls.claimLeases.push(leaseToken);
         observeFirstClaim();
       }
@@ -369,13 +448,28 @@ function durablePaidHarness({
     if (/SET delivered_at = clock_timestamp\(\)/.test(text)) {
       const id = Number(values.find((value) => Number(value) > 0 && Number(value) < 100));
       const row = outbox.find((item) => item.id === id);
-      if (row) { row.delivered = true; row.leased = false; }
+      if (row) {
+        row.delivered = true;
+        row.leased = false;
+        if (booking.notification_delivery_token === row.leaseToken) {
+          booking.notification_delivery_token = null;
+          booking.notification_delivery_expires_at = null;
+          booking.notification_delivery_outbox_id = null;
+        }
+      }
       return row ? [{ id: row.id }] : [];
     }
     if (/SET lease_token = NULL/.test(text)) {
       const id = Number(values.find((value) => Number(value) > 0 && Number(value) < 100));
       const row = outbox.find((item) => item.id === id);
-      if (row) row.leased = false;
+      if (row) {
+        row.leased = false;
+        if (booking.notification_delivery_token === row.leaseToken) {
+          booking.notification_delivery_token = null;
+          booking.notification_delivery_expires_at = null;
+          booking.notification_delivery_outbox_id = null;
+        }
+      }
       return [];
     }
     throw new Error(`Unexpected durable settlement query: ${text}`);
@@ -383,16 +477,42 @@ function durablePaidHarness({
 
   const paid = loadCommonJsWithMocks('../api/_paid.js', {
     './_inventory': {
-      settleBookingInventory: async () => {
+      settleBookingInventory: async (_sql, _bookingId, settlementKey) => {
+        const prior = settlementEvents.get(settlementKey);
+        if (prior) {
+          return {
+            settled: false,
+            alreadyPaid: booking.payment_status === 'paid',
+            alreadyProcessed: true,
+            inventoryStatus: prior.outcome,
+            paymentGeneration: prior.generation,
+          };
+        }
         if (booking.payment_status === 'paid') {
-          return { settled: false, alreadyPaid: true, inventoryStatus: booking.inventory_status };
+          return {
+            settled: false,
+            alreadyPaid: true,
+            alreadyProcessed: false,
+            inventoryStatus: booking.inventory_status,
+            paymentGeneration: booking.payment_generation,
+          };
         }
         const settledOutcome = booking.status === 'active' ? outcome : 'conflict';
         booking.payment_generation += 1;
         booking.payment_status = 'paid';
         booking.inventory_status = settledOutcome;
+        settlementEvents.set(settlementKey, {
+          generation: booking.payment_generation,
+          outcome: settledOutcome,
+        });
         seedOutbox(settledOutcome);
-        return { settled: true, alreadyPaid: false, inventoryStatus: settledOutcome };
+        return {
+          settled: true,
+          alreadyPaid: false,
+          alreadyProcessed: false,
+          inventoryStatus: settledOutcome,
+          paymentGeneration: booking.payment_generation,
+        };
       },
     },
     './_notify': {
@@ -411,8 +531,9 @@ function durablePaidHarness({
       },
     },
     './_whapi': {
-      notifyAdmins: async (event) => {
+      notifyAdmins: async (event, _booking, options) => {
         calls.whatsapp.push(event);
+        calls.whatsappOptions.push(options);
         if (whatsappFailureRemaining > 0) {
           whatsappFailureRemaining -= 1;
           return { sent: 0, failed: 1, skipped: false };
@@ -451,7 +572,12 @@ function durablePaidHarness({
     deliverPendingPaymentNotifications: paid.deliverPendingPaymentNotifications,
     adminPatch,
     claimObserved,
+    claimLocked,
+    releaseClaimCommit: () => { if (releaseClaimCommit) releaseClaimCommit(); },
+    revalidationObserved,
+    expireRevalidation: () => { if (expireRevalidation) expireRevalidation(); },
     releaseGuestSend: () => { if (resumeGuestSend) resumeGuestSend(); },
+    settlementEvents,
     sql,
   };
 }
@@ -831,11 +957,7 @@ test('failed attempt polling keeps its identity while reporting an already-paid 
   assert.equal(res.body.receiptAvailable, false);
   assert.equal(res.body.attemptId, 'attempt-91');
   assert.deepEqual(harness.holds, []);
-  assert.deepEqual(harness.settlements, [{
-    bookingId: 91,
-    providerRef: 'attempt-91',
-    source: 'browser',
-  }]);
+  assert.deepEqual(harness.settlements, []);
   assert.equal(harness.updates.some((update) => /status = 'completed'/.test(update.text)), false);
 });
 
@@ -869,12 +991,55 @@ test('completed payment polling propagates an inventory conflict to the browser'
   assert.equal(res.body.inventoryConflict, true);
   assert.deepEqual(harness.settlements, [{
     bookingId: 91,
-    providerRef: 'attempt-91',
+    settlementKey: 'flot-payment:501',
     source: 'browser',
+    providerRef: 'attempt-91',
   }]);
   const completionWrite = harness.updates.find((update) => /status = 'completed'/.test(update.text));
   assert.match(completionWrite.text, /provider_raw/);
   assert.match(completionWrite.text, /completed_at = COALESCE\(completed_at, clock_timestamp\(\)\)/);
+});
+
+test('completed polling reports a processed attempt without repaying an admin-reset booking', async () => {
+  const harness = paymentStatusHarness({
+    providerStatus: 'completed',
+    payment: {
+      payment_status: 'unpaid',
+      inventory_status: 'unreserved',
+      attempt_status: 'completed',
+    },
+    settlement: {
+      settled: false,
+      alreadyPaid: false,
+      alreadyProcessed: true,
+      conflict: false,
+      settlementOutcome: 'reserved',
+      booking: {
+        id: 91,
+        payment_status: 'unpaid',
+        inventory_status: 'unreserved',
+      },
+    },
+  });
+  const res = responseRecorder();
+
+  await withFetch(harness.providerFetch, () => harness.route(harness.request(), res));
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, 'completed');
+  assert.equal(res.body.attemptStatus, 'completed');
+  assert.equal(res.body.receiptAvailable, true);
+  assert.equal(res.body.bookingFinal, false);
+  assert.equal(res.body.bookingPaymentStatus, 'unpaid');
+  assert.equal(res.body.bookingInventoryStatus, 'unreserved');
+  assert.equal(res.body.bookingSettled, false);
+  assert.equal(res.body.settlementAlreadyProcessed, true);
+  assert.deepEqual(harness.settlements, [{
+    bookingId: 91,
+    settlementKey: 'flot-payment:501',
+    source: 'browser',
+    providerRef: 'attempt-91',
+  }]);
 });
 
 test('polling keeps attempt identity when another attempt already paid the booking', async () => {
@@ -929,11 +1094,7 @@ test('polling re-reads booking state after settlement wins the hold-refresh race
   assert.equal(res.body.receiptAvailable, false);
   assert.equal(res.body.inventoryConflict, false);
   assert.equal(res.body.attemptId, 'attempt-91');
-  assert.deepEqual(harness.settlements, [{
-    bookingId: 91,
-    providerRef: 'attempt-91',
-    source: 'browser',
-  }]);
+  assert.deepEqual(harness.settlements, []);
   assert.equal(harness.updates.some((update) => /status = 'completed'/.test(update.text)), false);
 });
 
@@ -951,6 +1112,10 @@ test('reserved settlement sends each success notification exactly once', async (
   assert.equal(harness.outbox.every((row) => row.delivered), true);
   assert.equal(harness.calls.claimLeases.length, 3);
   assert.equal(new Set(harness.calls.claimLeases).size, 3);
+  assert.equal(harness.calls.guest[0].signal instanceof AbortSignal, true);
+  assert.equal(harness.calls.team[0].signal instanceof AbortSignal, true);
+  assert.equal(harness.calls.whatsappOptions[0].signal instanceof AbortSignal, true);
+  assert.ok(harness.calls.whatsappOptions[0].timeoutMs <= 5_000);
 });
 
 test('conflict settlement withholds confirmation and sends only the urgent conflict alert', async () => {
@@ -1130,6 +1295,61 @@ test('admin unpaid and cancellation retry while a reserved notification is in fl
   }
 });
 
+test('an admin snapshot started before claim commit observes the booking delivery token', async () => {
+  const harness = durablePaidHarness({
+    pauseClaimCommit: true,
+    pauseGuestSend: true,
+  });
+  const delivery = harness.settleBooking(
+    harness.sql,
+    91,
+    'flot-payment:501',
+    'webhook',
+    'attempt-91',
+  );
+  await harness.claimLocked;
+
+  const adminMutation = harness.adminPatch({ payment_status: 'unpaid' });
+  harness.releaseClaimCommit();
+  const blocked = await adminMutation;
+  const stateAtAdminResponse = {
+    paymentStatus: harness.booking.payment_status,
+    inventoryStatus: harness.booking.inventory_status,
+  };
+  harness.releaseGuestSend();
+  await delivery;
+
+  assert.equal(blocked.statusCode, 409);
+  assert.equal(blocked.body.code, 'NOTIFICATION_IN_FLIGHT');
+  assert.deepEqual(stateAtAdminResponse, {
+    paymentStatus: 'paid',
+    inventoryStatus: 'reserved',
+  });
+});
+
+test('an expired delivery lease is revalidated before any provider send begins', async () => {
+  const harness = durablePaidHarness({ pauseRevalidationUntilExpired: true });
+  const delivery = harness.settleBooking(
+    harness.sql,
+    91,
+    'flot-payment:501',
+    'webhook',
+    'attempt-91',
+  );
+  const revalidationStarted = await Promise.race([
+    harness.revalidationObserved.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), 25)),
+  ]);
+  harness.expireRevalidation();
+  await delivery;
+
+  assert.equal(revalidationStarted, true);
+  assert.equal(harness.calls.guest.length, 0);
+  assert.equal(harness.calls.team.length, 0);
+  assert.equal(harness.calls.whatsapp.length, 0);
+  assert.equal(harness.outbox.some((row) => row.delivered), false);
+});
+
 test('a new reserved payment generation creates fresh work without reviving obsolete rows', async () => {
   const harness = durablePaidHarness({ failClaimOnce: true });
 
@@ -1188,6 +1408,68 @@ test('a reset conflict payment generation sends one fresh alert and preserves ol
   assert.equal(firstGeneration.claimedCount, 0);
   assert.equal(secondGeneration.delivered, true);
   assert.equal(secondGeneration.claimedCount, 1);
+});
+
+test('the same settlement attempt cannot repay a reset booking but a distinct attempt can', async () => {
+  const harness = durablePaidHarness();
+  const attemptA = 'flot-payment:501';
+  const attemptB = 'flot-payment:502';
+
+  const first = await harness.settleBooking(harness.sql, 91, attemptA, 'webhook', 'attempt-a');
+  assert.equal(first.settled, true);
+  assert.equal(harness.booking.payment_generation, 1);
+  assert.equal((await harness.adminPatch({ payment_status: 'unpaid' })).statusCode, 200);
+
+  const notificationCounts = {
+    guest: harness.calls.guest.length,
+    team: harness.calls.team.length,
+    whatsapp: harness.calls.whatsapp.length,
+  };
+  const replay = await harness.settleBooking(harness.sql, 91, attemptA, 'reconciled', 'attempt-a');
+  assert.equal(replay.settled, false);
+  assert.equal(replay.alreadyProcessed, true);
+  assert.equal(harness.booking.payment_status, 'unpaid');
+  assert.equal(harness.booking.inventory_status, 'unreserved');
+  assert.equal(harness.booking.payment_generation, 1);
+  assert.deepEqual({
+    guest: harness.calls.guest.length,
+    team: harness.calls.team.length,
+    whatsapp: harness.calls.whatsapp.length,
+  }, notificationCounts);
+
+  const newPayment = await harness.settleBooking(harness.sql, 91, attemptB, 'webhook', 'attempt-b');
+  assert.equal(newPayment.settled, true);
+  assert.equal(newPayment.alreadyProcessed, false);
+  assert.equal(harness.booking.payment_generation, 2);
+  assert.equal(harness.settlementEvents.size, 2);
+});
+
+test('manual paid actions use fresh keys while a paid double-submit stays a no-op', async () => {
+  const harness = durablePaidHarness();
+  const first = await harness.settleBooking(
+    harness.sql,
+    91,
+    'admin-payment:11111111-1111-4111-8111-111111111111',
+    'admin',
+    'manual',
+  );
+  const repeated = await harness.settleBooking(
+    harness.sql,
+    91,
+    'admin-payment:22222222-2222-4222-8222-222222222222',
+    'admin',
+    'manual',
+  );
+
+  assert.equal(first.settled, true);
+  assert.equal(repeated.settled, false);
+  assert.equal(repeated.alreadyPaid, true);
+  assert.equal(repeated.alreadyProcessed, false);
+  assert.equal(harness.booking.payment_generation, 1);
+  assert.equal(harness.settlementEvents.size, 1);
+  assert.equal(harness.calls.guest.length, 1);
+  assert.equal(harness.calls.team.length, 1);
+  assert.deepEqual(harness.calls.whatsapp, ['payment-received']);
 });
 
 test('sequential admin reset and cancellation cannot send stale success beside a late conflict', async () => {
@@ -1258,8 +1540,8 @@ test('pending webhook attempts are atomically completed and settled instead of t
     '@neondatabase/serverless': { neon: () => sql },
     './_ratelimit': { limit: () => false },
     './_paid': {
-      settleBooking: async (_sql, bookingId, providerRef, source) => {
-        settlements.push({ bookingId, providerRef, source });
+      settleBooking: async (_sql, bookingId, settlementKey, source, providerRef) => {
+        settlements.push({ bookingId, settlementKey, source, providerRef });
         return { settled: true, alreadyPaid: false, conflict: true, booking };
       },
     },
@@ -1286,7 +1568,12 @@ test('pending webhook attempts are atomically completed and settled instead of t
   assert.notEqual(res.body.duplicate, true);
   assert.equal(res.body.markedPaid, true);
   assert.equal(res.body.inventoryConflict, true);
-  assert.deepEqual(settlements, [{ bookingId: 91, providerRef: 'attempt-91', source: 'webhook' }]);
+  assert.deepEqual(settlements, [{
+    bookingId: 91,
+    settlementKey: 'flot-payment:501',
+    source: 'webhook',
+    providerRef: 'attempt-91',
+  }]);
   const write = queries.find((query) => /INSERT INTO payments/.test(query.text));
   assert.ok(write);
   assert.match(write.text, /ON CONFLICT \(reference, provider_ref\)/);
@@ -1294,6 +1581,73 @@ test('pending webhook attempts are atomically completed and settled instead of t
   assert.match(write.text, /provider_raw/);
   assert.match(write.text, /completed_at/);
   assert.equal(queries.some((query) => /SELECT id, status FROM payments/.test(query.text)), false);
+});
+
+test('a duplicate completed webhook uses its canonical attempt event after an admin reset', async () => {
+  const settlements = [];
+  const booking = {
+    id: 91,
+    guest_name: 'Guest Name',
+    guest_email: 'guest@example.com',
+    amount_due: 140,
+    payment_status: 'unpaid',
+    inventory_status: 'unreserved',
+  };
+  const sql = async (strings) => {
+    const text = strings.join(' ');
+    if (/SELECT \* FROM bookings/.test(text)) return [{ ...booking }];
+    if (/INSERT INTO payments/.test(text)) return [];
+    if (/SELECT id, status, booking_id[\s\S]*FROM payments/.test(text)) {
+      return [{ id: 501, status: 'completed', booking_id: 91 }];
+    }
+    throw new Error(`Unexpected duplicate webhook query: ${text}`);
+  };
+  const route = loadCommonJsWithMocks('../api/payment-webhook.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_ratelimit': { limit: () => false },
+    './_paid': {
+      settleBooking: async (_sql, bookingId, settlementKey, source, providerRef) => {
+        settlements.push({ bookingId, settlementKey, source, providerRef });
+        return {
+          settled: false,
+          alreadyPaid: false,
+          alreadyProcessed: true,
+          conflict: false,
+          booking,
+        };
+      },
+    },
+  });
+  const oldUser = process.env.FLOT_WEBHOOK_USER;
+  const oldPass = process.env.FLOT_WEBHOOK_PASS;
+  process.env.FLOT_WEBHOOK_USER = 'webhook-user';
+  process.env.FLOT_WEBHOOK_PASS = 'webhook-pass';
+  const res = responseRecorder();
+  try {
+    await route({
+      method: 'POST',
+      headers: {
+        authorization: `Basic ${Buffer.from('webhook-user:webhook-pass').toString('base64')}`,
+      },
+      body: { orderId: 'belvoir-91', flotRequestId: 'attempt-91', status: 'completed' },
+    }, res);
+  } finally {
+    if (oldUser === undefined) delete process.env.FLOT_WEBHOOK_USER; else process.env.FLOT_WEBHOOK_USER = oldUser;
+    if (oldPass === undefined) delete process.env.FLOT_WEBHOOK_PASS; else process.env.FLOT_WEBHOOK_PASS = oldPass;
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.duplicate, true);
+  assert.equal(res.body.paymentReceived, true);
+  assert.equal(res.body.markedPaid, false);
+  assert.equal(res.body.settlementAlreadyProcessed, true);
+  assert.equal(booking.payment_status, 'unpaid');
+  assert.deepEqual(settlements, [{
+    bookingId: 91,
+    settlementKey: 'flot-payment:501',
+    source: 'webhook',
+    providerRef: 'attempt-91',
+  }]);
 });
 
 test('concurrent same-pair webhooks leave one payment ledger row', async () => {
@@ -1519,8 +1873,8 @@ test('cron settles a recorded completed attempt whose booking transition was int
       log() {},
     },
     './_paid': {
-      settleBooking: async (_sql, bookingId, providerRef, source) => {
-        settlements.push({ bookingId, providerRef, source });
+      settleBooking: async (_sql, bookingId, settlementKey, source, providerRef) => {
+        settlements.push({ bookingId, settlementKey, source, providerRef });
         return { settled: true, alreadyPaid: false, conflict: false, booking: { id: 91 } };
       },
       deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
@@ -1542,9 +1896,49 @@ test('cron settles a recorded completed attempt whose booking transition was int
   assert.equal(res.body.completed, 1);
   assert.deepEqual(settlements, [{
     bookingId: 91,
-    providerRef: 'attempt-91',
+    settlementKey: 'flot-payment:501',
     source: 'reconciled',
+    providerRef: 'attempt-91',
   }]);
+});
+
+test('cron excludes a completed attempt already registered before an admin reset', async () => {
+  let settlementCalls = 0;
+  const sql = async (strings) => {
+    const text = strings.join(' ');
+    if (/SELECT p\.id/.test(text) && /FROM payments p/.test(text)) {
+      assert.match(text, /LEFT JOIN booking_settlement_events settlement_event/);
+      assert.match(text, /settlement_event\.settlement_key = 'flot-payment:' \|\| p\.id::text/);
+      assert.match(text, /settlement_event\.id IS NULL/);
+      return [];
+    }
+    if (/UPDATE payments SET status = 'expired'/.test(text)) return [];
+    throw new Error(`Unexpected processed-attempt cron query: ${text}`);
+  };
+  const route = loadCommonJsWithMocks('../api/cron-poll-payments.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_flot': { TEST_MODE: false, log() {} },
+    './_paid': {
+      settleBooking: async () => {
+        settlementCalls += 1;
+        return { settled: false, alreadyPaid: false, alreadyProcessed: true, conflict: false };
+      },
+      deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+    },
+    './_ratelimit': { sweepRateLimits: async () => 0 },
+  });
+  const oldSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'cron-secret';
+  const res = responseRecorder();
+  try {
+    await route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, res);
+  } finally {
+    if (oldSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = oldSecret;
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.checked, 0);
+  assert.equal(settlementCalls, 0);
 });
 
 test('cron drains pending payment notification work even with no open provider attempts', async () => {
@@ -1612,8 +2006,8 @@ test('admin manual-paid uses the shared notification-aware settlement path', asy
       reactivateBooking: async () => ({ reactivated: true }),
     },
     './_paid': {
-      settleBooking: async (_sql, bookingId, providerRef, source) => {
-        settlements.push({ bookingId, providerRef, source });
+      settleBooking: async (_sql, bookingId, settlementKey, source, providerRef) => {
+        settlements.push({ bookingId, settlementKey, source, providerRef });
         return { settled: true, alreadyPaid: false, conflict: true, booking };
       },
     },
@@ -1623,7 +2017,11 @@ test('admin manual-paid uses the shared notification-aware settlement path', asy
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.inventoryConflict, true);
-  assert.deepEqual(settlements, [{ bookingId: 91, providerRef: 'manual', source: 'admin' }]);
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].bookingId, 91);
+  assert.match(settlements[0].settlementKey, /^admin-payment:[0-9a-f-]{36}$/i);
+  assert.equal(settlements[0].source, 'admin');
+  assert.equal(settlements[0].providerRef, 'manual');
 });
 
 test('admin cannot mark a booking paid and cancelled in one ambiguous mutation', async () => {
@@ -1662,6 +2060,8 @@ test('checkout status polling includes the private booking claim and handles hol
   assert.match(polling, /[&?]claim=['"]?\s*\+\s*encodeURIComponent\(fcState\.claim\)/);
   assert.match(polling, /HOLD_EXPIRED/);
   assert.match(polling, /inventoryConflict/);
+  assert.match(polling, /hasAttemptReceipt && !data\.bookingFinal[\s\S]*'payment-recorded'/);
+  assert.match(indexSource, /Payment recorded — booking status changed/);
 });
 
 test('inventory adapter normalizes Neon numeric and date values', async () => {
@@ -1679,7 +2079,13 @@ test('inventory adapter normalizes Neon numeric and date values', async () => {
 test('inventory adapter normalizes hold, settlement, block, and reactivation contracts', async () => {
   const sql = taggedSql([
     [{ acquired: true, hold_expires_at: '2026-10-10T12:15:00.000Z', remaining: '-2' }],
-    [{ settled: true, already_paid: false, inventory_status: 'reserved' }],
+    [{
+      settled: true,
+      already_paid: false,
+      already_processed: false,
+      inventory_status: 'reserved',
+      payment_generation: '3',
+    }],
     [{ created: true, block_id: '42', remaining: '0' }],
     [{ reactivated: true, inventory_status: 'unreserved' }],
   ]);
@@ -1688,8 +2094,12 @@ test('inventory adapter normalizes hold, settlement, block, and reactivation con
     await inventory.acquireBookingHold(sql, '7', 'claim-token'),
     { acquired: true, holdExpiresAt: '2026-10-10T12:15:00.000Z', remaining: 0 },
   );
-  assert.deepEqual(await inventory.settleBookingInventory(sql, '7'), {
-    settled: true, alreadyPaid: false, inventoryStatus: 'reserved',
+  assert.deepEqual(await inventory.settleBookingInventory(sql, '7', 'flot-payment:501'), {
+    settled: true,
+    alreadyPaid: false,
+    alreadyProcessed: false,
+    inventoryStatus: 'reserved',
+    paymentGeneration: 3,
   });
   assert.deepEqual(await inventory.createRoomBlock(sql, 'standard', '2026-10-10', '2026-10-12', '1', 'repair'), {
     created: true, blockId: 42, remaining: 0,
@@ -1699,6 +2109,8 @@ test('inventory adapter normalizes hold, settlement, block, and reactivation con
   });
   assert.match(sql.calls[0].strings.join(' '), /belvoir_acquire_booking_hold/);
   assert.deepEqual(sql.calls[0].values, ['7', 'claim-token', 15]);
+  assert.match(sql.calls[1].strings.join(' '), /belvoir_settle_booking/);
+  assert.deepEqual(sql.calls[1].values, ['7', 'flot-payment:501']);
 });
 
 test('inventory adapter uses strict safe defaults for missing SQL rows', async () => {
@@ -1706,8 +2118,12 @@ test('inventory adapter uses strict safe defaults for missing SQL rows', async (
   assert.deepEqual(await inventory.acquireBookingHold(sql, 1, 'x'), {
     acquired: false, holdExpiresAt: null, remaining: 0,
   });
-  assert.deepEqual(await inventory.settleBookingInventory(sql, 1), {
-    settled: false, alreadyPaid: false, inventoryStatus: null,
+  assert.deepEqual(await inventory.settleBookingInventory(sql, 1, 'flot-payment:1'), {
+    settled: false,
+    alreadyPaid: false,
+    alreadyProcessed: false,
+    inventoryStatus: null,
+    paymentGeneration: null,
   });
   assert.deepEqual(await inventory.createRoomBlock(sql, 'standard', '2026-10-10', '2026-10-12', 1, 'x'), {
     created: false, blockId: null, remaining: 0,
@@ -1754,10 +2170,11 @@ test('failed checkout holds remain non-consuming enquiries and return a final co
 });
 
 test('admin booking mutations use capacity-safe inventory transitions', () => {
-  assert.match(bookingsSource, /b\.payment_status === 'paid'[\s\S]*settleBooking\(sql, id, 'manual', 'admin'\)/);
+  assert.match(bookingsSource, /b\.payment_status === 'paid'[\s\S]*admin-payment:[\s\S]*'admin'[\s\S]*'manual'/);
   assert.match(bookingsSource, /WITH target AS MATERIALIZED[\s\S]*payment_status = 'unpaid'[\s\S]*payment_notification_outbox/);
   assert.match(bookingsSource, /WITH target AS MATERIALIZED[\s\S]*status = 'cancelled', cancelled_at = now\(\)[\s\S]*payment_notification_outbox/);
-  assert.match(bookingsSource, /lease_token IS NOT NULL[\s\S]*lease_expires_at > clock_timestamp\(\)/);
+  assert.match(bookingsSource, /SELECT booking\.id, booking\.notification_delivery_token/);
+  assert.match(bookingsSource, /target\.notification_delivery_token IS NOT NULL[\s\S]*target\.notification_delivery_expires_at > clock_timestamp\(\)/);
   assert.match(bookingsSource, /NOTIFICATION_IN_FLIGHT/);
   assert.match(bookingsSource, /outcome = 'reserved'[\s\S]*delivered_at IS NULL[\s\S]*obsolete_at IS NULL/);
   assert.match(bookingsSource, /b\.status === 'active'[\s\S]*reactivateBooking\(sql, id\)[\s\S]*status\(409\)/);
@@ -1956,17 +2373,37 @@ test('settlement atomically conflicts cancelled payments and seeds the matching 
   assert.match(settlement, /payment_generation = v_generation/);
   assert.match(settlement, /':payment:' \|\|[\s\S]*v_generation::text/);
   assert.match(settlement, /ON CONFLICT \(booking_id, payment_generation, outcome, channel\) DO NOTHING/);
+  assert.match(settlement, /p_settlement_key text/);
+  assert.match(settlement, /booking_settlement_events/);
+  assert.match(settlement, /event\.settlement_key = p_settlement_key/);
+  assert.match(settlement, /already_processed boolean/);
+  assert.ok(
+    settlement.indexOf('event.settlement_key = p_settlement_key') <
+      settlement.indexOf("v_booking.payment_status = 'paid'"),
+  );
 });
 
 test('notification outbox has deterministic uniqueness and concurrency-safe leases', () => {
   assert.match(migration, /CREATE TABLE IF NOT EXISTS payment_notification_outbox/);
   assert.match(migration, /ALTER TABLE bookings\s+ADD COLUMN IF NOT EXISTS payment_generation integer/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_delivery_token text/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_delivery_expires_at timestamptz/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_delivery_outbox_id bigint/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS booking_settlement_events/);
+  assert.match(migration, /UNIQUE \(booking_id, settlement_key\)/);
+  assert.match(migration, /'flot-payment:' \|\| payment\.id::text/);
+  assert.match(migration, /payment\.status = 'completed'[\s\S]*booking\.payment_status = 'paid'/);
   assert.match(migration, /ALTER TABLE payment_notification_outbox\s+ADD COLUMN IF NOT EXISTS payment_generation integer/);
   assert.match(migration, /ON payment_notification_outbox \(booking_id, payment_generation, outcome, channel\)/);
   assert.match(migration, /dedupe_key text NOT NULL UNIQUE/);
   assert.match(migration, /obsolete_at timestamptz/);
   assert.match(paidSource, /WITH claimable AS/);
   assert.match(paidSource, /FOR UPDATE OF n, b SKIP LOCKED/);
+  assert.match(paidSource, /SET notification_delivery_token = \$\{leaseToken\}/);
+  assert.match(paidSource, /booking\.notification_delivery_token = \$\{leaseToken\}/);
+  assert.match(paidSource, /lease_remaining_ms/);
+  assert.match(paidSource, /leaseRemainingMs <= PROVIDER_TIMEOUT_MS \+ LEASE_START_SAFETY_MS/);
+  assert.match(paidSource, /signal: controller\.signal/);
   assert.match(paidSource, /JOIN bookings b ON b\.id = n\.booking_id/);
   assert.match(paidSource, /n\.payment_generation = b\.payment_generation/);
   assert.match(paidSource, /b\.status = 'active'[\s\S]*b\.payment_status = 'paid'[\s\S]*b\.inventory_status = 'reserved'/);
@@ -1975,6 +2412,16 @@ test('notification outbox has deterministic uniqueness and concurrency-safe leas
   assert.match(paidSource, /lease_expires_at/);
   assert.match(paidSource, /SET delivered_at = clock_timestamp\(\)/);
   assert.match(paidSource, /SET lease_token = NULL/);
+  assert.match(paidSource, /notification_delivery_token = NULL/);
+});
+
+test('all Flot settlement listeners use the canonical local payment row identity', () => {
+  assert.match(statusSource, /p\.id AS payment_id/);
+  assert.match(statusSource, /`flot-payment:\$\{payment\.payment_id\}`/);
+  assert.match(webhookSource, /`flot-payment:\$\{attempt\.id\}`/);
+  assert.match(cronSource, /`flot-payment:\$\{p\.id\}`/);
+  assert.match(cronSource, /LEFT JOIN booking_settlement_events settlement_event/);
+  assert.match(cronSource, /settlement_event\.id IS NULL/);
 });
 
 test('payment migrations safely deduplicate and uniquely constrain provider attempts', () => {

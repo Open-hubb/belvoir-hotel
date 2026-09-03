@@ -90,16 +90,22 @@ module.exports = async (req, res) => {
       SELECT p.id, p.reference, p.provider_ref, p.booking_id, p.status
       FROM payments p
       LEFT JOIN bookings b ON b.id = p.booking_id
+      LEFT JOIN booking_settlement_events settlement_event
+        ON settlement_event.booking_id = p.booking_id
+       AND settlement_event.settlement_key = 'flot-payment:' || p.id::text
       WHERE (
           (p.status IN ('created', 'pending')
            AND p.received_at > now() - (${STALE_AFTER_HOURS} || ' hours')::interval)
-          OR (p.status = 'completed' AND b.payment_status IS DISTINCT FROM 'paid')
+          OR (p.status = 'completed'
+              AND b.payment_status IS DISTINCT FROM 'paid'
+              AND settlement_event.id IS NULL)
         )
         AND p.provider_ref IS NOT NULL
       ORDER BY p.received_at ASC
       LIMIT ${BATCH}`;
 
-    let completed = 0, failed = 0, unchanged = 0, errored = 0, inventoryConflicts = 0;
+    let completed = 0, failed = 0, unchanged = 0, errored = 0;
+    let inventoryConflicts = 0, alreadyProcessed = 0;
 
     for (const p of open) {
       let observed = p.status === 'completed' ? { status: 'completed', data: null } : null;
@@ -121,8 +127,15 @@ module.exports = async (req, res) => {
         if (p.booking_id) {
           // Settles the booking and, if the guest closed the tab before the
           // browser could poll, this is what finally sends their receipt.
-          settlement = await settleBooking(sql, p.booking_id, p.provider_ref, 'reconciled');
+          settlement = await settleBooking(
+            sql,
+            p.booking_id,
+            `flot-payment:${p.id}`,
+            'reconciled',
+            p.provider_ref,
+          );
           if (settlement.conflict) inventoryConflicts++;
+          if (settlement.alreadyProcessed) alreadyProcessed++;
         }
         await sql`
           UPDATE payments SET status = 'completed',
@@ -180,6 +193,7 @@ module.exports = async (req, res) => {
       errored,
       inventoryConflict: inventoryConflicts > 0,
       inventoryConflicts,
+      alreadyProcessed,
       notifications,
       expired: expired.length,
       ms: Date.now() - started,

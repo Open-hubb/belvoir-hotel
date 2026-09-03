@@ -108,6 +108,29 @@ test('Whapi sends one group alert with server-only bearer credentials when confi
   assert.match(JSON.parse(calls[0].options.body).body, /Payment received/);
 });
 
+test('Whapi combines a caller cancellation signal with its bounded provider request', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let providerSignal = null;
+  const result = await notifyAdmins('payment-received', booking, {
+    env: {
+      WHAPI_TOKEN: 'test-token',
+      WHAPI_ADMIN_GROUP_ID: '120363012345678901@g.us',
+    },
+    signal: controller.signal,
+    timeoutMs: 100,
+    fetchImpl: async (_url, options) => {
+      providerSignal = options.signal;
+      if (providerSignal.aborted) throw new Error('aborted before provider call');
+      return { ok: true, status: 200 };
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(providerSignal.aborted, true);
+  assert.deepEqual(result, { sent: 0, failed: 1, skipped: false });
+});
+
 test('Whapi is a safe no-op until its token and admin group are configured', async () => {
   let fetchCalls = 0;
   const result = await notifyAdmins('new-enquiry', { id: 42 }, {
@@ -125,6 +148,7 @@ test('Whapi is a safe no-op until its token and admin group are configured', asy
 
 test('payment email helpers propagate deterministic Resend idempotency keys', async () => {
   const calls = [];
+  const controller = new AbortController();
   const originalFetch = globalThis.fetch;
   const originalKey = process.env.RESEND_API_KEY;
   process.env.RESEND_API_KEY = 'resend-test-key';
@@ -133,8 +157,14 @@ test('payment email helpers propagate deterministic Resend idempotency keys', as
     return { ok: true, status: 200, json: async () => ({ id: 'email-id' }) };
   };
   try {
-    await confirmBooking(booking, { idempotencyKey: 'belvoir:booking:75:reserved:guest-email' });
-    await notifyPaid(booking, { idempotencyKey: 'belvoir:booking:75:reserved:team-email' });
+    await confirmBooking(booking, {
+      idempotencyKey: 'belvoir:booking:75:reserved:guest-email',
+      signal: controller.signal,
+    });
+    await notifyPaid(booking, {
+      idempotencyKey: 'belvoir:booking:75:reserved:team-email',
+      signal: controller.signal,
+    });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.RESEND_API_KEY;
@@ -144,4 +174,6 @@ test('payment email helpers propagate deterministic Resend idempotency keys', as
   assert.equal(calls.length, 2);
   assert.equal(calls[0].headers['Idempotency-Key'], 'belvoir:booking:75:reserved:guest-email');
   assert.equal(calls[1].headers['Idempotency-Key'], 'belvoir:booking:75:reserved:team-email');
+  assert.equal(calls[0].signal, controller.signal);
+  assert.equal(calls[1].signal, controller.signal);
 });

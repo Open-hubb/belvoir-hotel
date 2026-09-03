@@ -8,7 +8,10 @@
 const { neon } = require('@neondatabase/serverless');
 const F = require('./_flot');
 const { limit } = require('./_ratelimit');
-const { settleBooking } = require('./_paid');
+const paid = require('./_paid');
+const { settleBooking } = paid;
+const deliverPendingPaymentNotifications = paid.deliverPendingPaymentNotifications ||
+  (async () => ({ claimed: 0, delivered: 0, pending: 0 }));
 const { acquireBookingHold } = require('./_inventory');
 
 let _sql = null;
@@ -46,7 +49,7 @@ module.exports = async (req, res) => {
     // caller-controlled order string. A miss and a bad claim deliberately have
     // the same response so this route cannot be used to enumerate bookings.
     const matches = await sql`
-      SELECT b.id AS booking_id, b.claim_token, b.payment_status,
+      SELECT p.id AS payment_id, b.id AS booking_id, b.claim_token, b.payment_status,
         b.inventory_status, p.status AS attempt_status, p.amount, p.currency
       FROM payments p
       JOIN bookings b ON b.id = p.booking_id
@@ -93,7 +96,14 @@ module.exports = async (req, res) => {
     if (status === 'completed') {
       // Settle before closing the attempt row. If the database call fails, a
       // later poll can retry; if another listener won, settlement is a no-op.
-      settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+      settlement = await settleBooking(
+        sql,
+        payment.booking_id,
+        `flot-payment:${payment.payment_id}`,
+        'browser',
+        attemptId,
+      );
+      finalBookingState = settlement.booking || null;
       await sql`
         UPDATE payments SET status = 'completed', matched = true,
           provider_raw = CASE
@@ -119,7 +129,7 @@ module.exports = async (req, res) => {
           FROM bookings WHERE id = ${payment.booking_id} LIMIT 1`;
         const current = bookings[0] || null;
         if (current && current.payment_status === 'paid') {
-          settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+          await deliverPendingPaymentNotifications(sql, payment.booking_id);
           return res.status(200).json({
             status,
             attemptStatus: status,
@@ -133,7 +143,9 @@ module.exports = async (req, res) => {
             orderId,
             updatedAt: data.updatedAt,
             testMode: F.TEST_MODE,
-            inventoryConflict: settlement.conflict === true || current.inventory_status === 'conflict',
+            inventoryConflict: current.inventory_status === 'conflict',
+            bookingSettled: false,
+            settlementAlreadyProcessed: false,
           });
         }
         return res.status(409).json({
@@ -153,13 +165,18 @@ module.exports = async (req, res) => {
         FROM bookings WHERE id = ${payment.booking_id} LIMIT 1`;
       finalBookingState = bookings[0] || null;
       if (finalBookingState && finalBookingState.payment_status === 'paid') {
-        settlement = await settleBooking(sql, payment.booking_id, attemptId, 'browser');
+        await deliverPendingPaymentNotifications(sql, payment.booking_id);
       }
     }
 
     // "failed" is a card error, so the order stays open and the guest can retry
-    const bookingFinal = status === 'completed' ||
-      Boolean(finalBookingState && finalBookingState.payment_status === 'paid');
+    const settledBooking = finalBookingState || (settlement && settlement.booking) || null;
+    const bookingPaymentStatus = settledBooking
+      ? settledBooking.payment_status
+      : ((settlement && (settlement.settled || settlement.alreadyPaid))
+        ? 'paid'
+        : payment.payment_status);
+    const bookingFinal = bookingPaymentStatus === 'paid';
     const bookingInventoryStatus = finalBookingState
       ? finalBookingState.inventory_status
       : (settlement && settlement.booking
@@ -169,8 +186,11 @@ module.exports = async (req, res) => {
       status,
       attemptStatus: status,
       bookingFinal,
-      bookingPaymentStatus: bookingFinal ? 'paid' : payment.payment_status,
+      bookingPaymentStatus,
       bookingInventoryStatus,
+      bookingSettled: settlement ? settlement.settled === true : false,
+      settlementAlreadyProcessed: settlement ? settlement.alreadyProcessed === true : false,
+      settlementOutcome: settlement ? settlement.settlementOutcome || null : null,
       receiptAvailable: status === 'completed',
       amount: data.amount ?? payment.amount,
       currency: data.currency ?? payment.currency,

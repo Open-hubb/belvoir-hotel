@@ -8597,9 +8597,11 @@
           if (data.bookingFinal || data.status === 'completed') {
             fcStopPolling();
             const hasAttemptReceipt = data.status === 'completed' && data.receiptAvailable !== false;
-            const finalKind = data.inventoryConflict
+            const finalKind = data.inventoryConflict || data.settlementOutcome === 'conflict'
               ? 'conflict'
-              : (hasAttemptReceipt ? 'completed' : 'booking-final');
+              : (hasAttemptReceipt && !data.bookingFinal
+                ? 'payment-recorded'
+                : (hasAttemptReceipt ? 'completed' : 'booking-final'));
             fcResult(finalKind, null, data);
           } else if (data.status === 'failed') {
             // A card error only. The booking stays open so the guest can retry.
@@ -8642,6 +8644,13 @@
         title.textContent = 'Booking payment confirmed';
         text.textContent = 'A payment for this booking was already confirmed through another payment attempt. No receipt is shown for this attempt.';
         btn.textContent = 'Done';
+        btn.onclick = fcDismiss;
+      } else if (kind === 'payment-recorded') {
+        mark.className = 'fc__result-mark fc__result-mark--warn';
+        mark.innerHTML = '<i data-lucide="alert-triangle"></i>';
+        title.textContent = 'Payment recorded — booking status changed';
+        text.textContent = 'This payment attempt was completed earlier, but the booking is not currently confirmed. Please contact Belvoir and quote your booking reference before making another payment.';
+        btn.textContent = 'Close';
         btn.onclick = fcDismiss;
       } else if (kind === 'conflict') {
         mark.className = 'fc__result-mark fc__result-mark--warn';

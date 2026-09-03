@@ -98,6 +98,13 @@ await step('durable payment notification outbox', async () => {
   await sql`
     ALTER TABLE bookings
     ADD COLUMN IF NOT EXISTS payment_generation integer NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notification_delivery_token text`;
+  await sql`
+    ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS notification_delivery_expires_at timestamptz`;
+  await sql`
+    ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS notification_delivery_outbox_id bigint`;
   await sql`
     ALTER TABLE bookings
     ALTER COLUMN payment_generation SET DEFAULT 0`;
@@ -183,6 +190,19 @@ await step('durable payment notification outbox', async () => {
     CREATE INDEX IF NOT EXISTS payment_notification_outbox_claimable
     ON payment_notification_outbox (available_at, lease_expires_at, id)
     WHERE delivered_at IS NULL AND obsolete_at IS NULL`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS booking_settlement_events (
+      id bigserial PRIMARY KEY,
+      booking_id bigint NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      settlement_key text NOT NULL,
+      payment_generation integer NOT NULL CHECK (payment_generation > 0),
+      outcome text NOT NULL CHECK (outcome IN ('reserved', 'conflict')),
+      settled_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      UNIQUE (booking_id, settlement_key)
+    )`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS booking_settlement_events_generation
+    ON booking_settlement_events (booking_id, payment_generation)`;
 });
 
 // Exclusion constraints model a capacity of one and must not survive the
@@ -296,29 +316,58 @@ await step('booking hold function', async () => {
 });
 
 await step('booking settlement function', async () => {
+  // The old one-argument function cannot coexist as an accidental call target.
+  await sql`DROP FUNCTION IF EXISTS belvoir_settle_booking(bigint)`;
   await sql`
-    CREATE OR REPLACE FUNCTION belvoir_settle_booking(p_booking_id bigint)
-    RETURNS TABLE(settled boolean, already_paid boolean, inventory_status text)
+    CREATE OR REPLACE FUNCTION belvoir_settle_booking(
+      p_booking_id bigint,
+      p_settlement_key text
+    )
+    RETURNS TABLE(
+      settled boolean,
+      already_paid boolean,
+      already_processed boolean,
+      inventory_status text,
+      payment_generation integer
+    )
     LANGUAGE plpgsql VOLATILE AS $$
     DECLARE
       v_booking bookings%ROWTYPE;
       v_remaining integer;
       v_has_live_hold boolean;
       v_generation integer;
+      v_existing_generation integer;
+      v_existing_outcome text;
+      v_outcome text;
     BEGIN
       SELECT * INTO v_booking FROM bookings WHERE id = p_booking_id FOR UPDATE;
-      IF NOT FOUND THEN
-        RETURN QUERY SELECT false, false, NULL::text;
+      IF NOT FOUND OR NULLIF(btrim(p_settlement_key), '') IS NULL THEN
+        RETURN QUERY SELECT false, false, false, NULL::text, NULL::integer;
+        RETURN;
+      END IF;
+
+      -- The immutable event identity is checked while the booking row is
+      -- locked. Webhook, browser poll, and cron retries of one provider attempt
+      -- therefore converge even after an administrator resets the booking.
+      SELECT event.payment_generation, event.outcome
+      INTO v_existing_generation, v_existing_outcome
+      FROM booking_settlement_events AS event
+      WHERE event.booking_id = p_booking_id
+        AND event.settlement_key = p_settlement_key;
+      IF FOUND THEN
+        RETURN QUERY SELECT false,
+          v_booking.payment_status = 'paid', true,
+          v_existing_outcome, v_existing_generation;
+        RETURN;
+      END IF;
+
+      IF v_booking.payment_status = 'paid' THEN
+        RETURN QUERY SELECT false, true, false,
+          v_booking.inventory_status, v_booking.payment_generation;
         RETURN;
       END IF;
 
       PERFORM pg_advisory_xact_lock(hashtextextended(v_booking.room_key, 0));
-
-      IF v_booking.payment_status = 'paid' THEN
-        RETURN QUERY SELECT false, true, v_booking.inventory_status;
-        RETURN;
-      END IF;
-
       v_generation := COALESCE(v_booking.payment_generation, 0) + 1;
 
       -- A cancellation is final for inventory. Money can still arrive late,
@@ -330,6 +379,10 @@ await step('booking settlement function', async () => {
             inventory_status = 'conflict', hold_expires_at = NULL,
             payment_generation = v_generation
         WHERE id = p_booking_id;
+        v_outcome := 'conflict';
+        INSERT INTO booking_settlement_events
+          (booking_id, settlement_key, payment_generation, outcome)
+        VALUES (p_booking_id, p_settlement_key, v_generation, v_outcome);
         INSERT INTO payment_notification_outbox
           (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
@@ -337,7 +390,7 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':conflict:whatsapp-conflict')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, 'conflict'::text;
+        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
         RETURN;
       END IF;
 
@@ -354,6 +407,10 @@ await step('booking settlement function', async () => {
             inventory_status = 'reserved', hold_expires_at = NULL,
             payment_generation = v_generation
         WHERE id = p_booking_id;
+        v_outcome := 'reserved';
+        INSERT INTO booking_settlement_events
+          (booking_id, settlement_key, payment_generation, outcome)
+        VALUES (p_booking_id, p_settlement_key, v_generation, v_outcome);
         INSERT INTO payment_notification_outbox
           (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
@@ -367,13 +424,17 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':reserved:whatsapp-payment')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, 'reserved'::text;
+        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
       ELSE
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
             inventory_status = 'conflict', hold_expires_at = NULL,
             payment_generation = v_generation
         WHERE id = p_booking_id;
+        v_outcome := 'conflict';
+        INSERT INTO booking_settlement_events
+          (booking_id, settlement_key, payment_generation, outcome)
+        VALUES (p_booking_id, p_settlement_key, v_generation, v_outcome);
         INSERT INTO payment_notification_outbox
           (booking_id, payment_generation, outcome, channel, dedupe_key)
         VALUES
@@ -381,7 +442,7 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':conflict:whatsapp-conflict')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, 'conflict'::text;
+        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
       END IF;
     END;
     $$`;
@@ -536,6 +597,32 @@ await step('backfill paid booking inventory', async () => {
   } finally {
     await sql`DROP FUNCTION IF EXISTS belvoir_backfill_paid_booking(bigint)`;
   }
+});
+
+// A completed canonical payment row for an already-paid booking represents
+// money that the existing system has accounted for. Register it after the
+// inventory backfill so a later admin reset cannot make an old provider
+// attempt look like a new payment. Completed rows whose booking is still
+// unpaid are deliberately excluded: cron must be able to recover those.
+await step('backfill settled payment attempt identities', async () => {
+  await sql`
+    INSERT INTO booking_settlement_events
+      (booking_id, settlement_key, payment_generation, outcome, settled_at)
+    SELECT payment.booking_id,
+      'flot-payment:' || payment.id::text,
+      booking.payment_generation,
+      CASE
+        WHEN booking.status IS DISTINCT FROM 'active'
+          OR booking.inventory_status = 'conflict' THEN 'conflict'
+        ELSE 'reserved'
+      END,
+      COALESCE(payment.completed_at, payment.received_at, clock_timestamp())
+    FROM payments AS payment
+    JOIN bookings AS booking ON booking.id = payment.booking_id
+    WHERE payment.status = 'completed'
+      AND booking.payment_status = 'paid'
+      AND booking.payment_generation > 0
+    ON CONFLICT (booking_id, settlement_key) DO NOTHING`;
 });
 
 await step('inventory indexes', async () => {
