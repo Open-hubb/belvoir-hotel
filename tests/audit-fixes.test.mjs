@@ -575,6 +575,166 @@ test('payment polling sends the claim and stops on hold expiry', { concurrency: 
   assert.equal(state.text, 'Your 15-minute reservation expired. Please recheck these dates before paying.');
 });
 
+test('payment polling never overlaps status requests in one session', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    openFlotCheckout(90, 'claim-90', 180, 'BEL-90', '2027-09-10T14:35:00.000Z');
+    fcState.orderId = 'order-90';
+    fcState.attemptId = 'attempt-90';
+
+    const nativeSetInterval = window.setInterval;
+    const nativeClearInterval = window.clearInterval;
+    let scheduledTick = null;
+    let fetchCalls = 0;
+    let resolveStatus;
+    const pendingStatus = new Promise((resolve) => { resolveStatus = resolve; });
+    window.setInterval = (callback) => {
+      scheduledTick = callback;
+      return 4242;
+    };
+    window.clearInterval = () => {};
+    window.fetch = async () => {
+      fetchCalls += 1;
+      return pendingStatus;
+    };
+
+    try {
+      fcBeginPolling();
+      await Promise.resolve();
+      scheduledTick();
+      scheduledTick();
+      await Promise.resolve();
+      const callsWhilePending = fetchCalls;
+
+      resolveStatus(new Response(JSON.stringify({ status: 'pending', bookingFinal: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      scheduledTick();
+      await Promise.resolve();
+      return { callsWhilePending, callsAfterCompletion: fetchCalls };
+    } finally {
+      fcStopPolling();
+      window.setInterval = nativeSetInterval;
+      window.clearInterval = nativeClearInterval;
+    }
+  });
+
+  assert.deepEqual(state, { callsWhilePending: 1, callsAfterCompletion: 2 });
+});
+
+test('a stale poll cannot overwrite hold-expiry recovery or a newer polling session', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    document.getElementById('bwCheckin').value = '2027-09-10';
+    document.getElementById('bwCheckout').value = '2027-09-13';
+    document.getElementById('bwGuests').value = '2';
+    document.getElementById('bwName').value = 'Polling Guest';
+    document.getElementById('bwPhone').value = '+23277333333';
+    document.getElementById('bwEmail').value = 'polling@example.com';
+    document.getElementById('bwRequests').value = 'Keep the dates visible';
+
+    let call = 0;
+    let oldJsonResolve;
+    let oldSignal = null;
+    let newSignal = null;
+    const oldJson = new Promise((resolve) => { oldJsonResolve = resolve; });
+    const newPending = new Promise(() => {});
+    window.fetch = async (input, options) => {
+      call += 1;
+      if (call === 1) {
+        oldSignal = options && options.signal;
+        return { ok: true, status: 200, json: () => oldJson };
+      }
+      if (call === 2) {
+        return new Response(JSON.stringify({ code: 'HOLD_EXPIRED' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      newSignal = options && options.signal;
+      return newPending;
+    };
+
+    openFlotCheckout(91, 'old-claim-91', 180, 'BEL-91', '2027-09-10T14:35:00.000Z');
+    fcState.orderId = 'old-order-91';
+    fcState.attemptId = 'old-attempt-91';
+    fcBeginPolling();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    openFlotCheckout(92, 'expiry-claim-92', 180, 'BEL-92', '2027-09-10T14:36:00.000Z');
+    fcState.orderId = 'expiry-order-92';
+    fcState.attemptId = 'expiry-attempt-92';
+    fcBeginPolling();
+    for (let attempt = 0; attempt < 20 && document.getElementById('fcResultTitle').textContent !== 'Reservation time expired'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    document.getElementById('fcResultBtn').click();
+    const recovered = {
+      wizardOpen: document.getElementById('bookWizard').classList.contains('active'),
+      focus: document.activeElement.id,
+      checkin: document.getElementById('bwCheckin').value,
+      checkout: document.getElementById('bwCheckout').value,
+      email: document.getElementById('bwEmail').value,
+      requests: document.getElementById('bwRequests').value,
+      oldRequestAborted: Boolean(oldSignal && oldSignal.aborted),
+    };
+
+    document.getElementById('bwCheckin').value = '2027-10-01';
+    document.getElementById('bwCheckout').value = '2027-10-03';
+    closeBookWizard();
+    openFlotCheckout(93, 'new-claim-93', 240, 'BEL-93', '2027-10-01T14:35:00.000Z');
+    fcState.orderId = 'new-order-93';
+    fcState.attemptId = 'new-attempt-93';
+    fcBeginPolling();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const newTimer = fcState.timer;
+
+    oldJsonResolve({
+      status: 'completed', bookingFinal: true, receiptAvailable: true,
+      amount: 180, currency: 'USD',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+
+    const afterStaleCompletion = {
+      bookingId: fcState.bookingId,
+      claim: fcState.claim,
+      timerStillCurrent: newTimer !== null && fcState.timer === newTimer,
+      newRequestActive: Boolean(newSignal && !newSignal.aborted),
+      visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
+      resultTitle: document.getElementById('fcResultTitle').textContent,
+      focus: document.activeElement.id,
+      checkin: document.getElementById('bwCheckin').value,
+      checkout: document.getElementById('bwCheckout').value,
+    };
+    fcStopPolling();
+    return { recovered, afterStaleCompletion };
+  });
+
+  assert.deepEqual(state.recovered, {
+    wizardOpen: true,
+    focus: 'bwCheckin',
+    checkin: '2027-09-10',
+    checkout: '2027-09-13',
+    email: 'polling@example.com',
+    requests: 'Keep the dates visible',
+    oldRequestAborted: true,
+  });
+  assert.deepEqual(state.afterStaleCompletion, {
+    bookingId: 93,
+    claim: 'new-claim-93',
+    timerStillCurrent: true,
+    newRequestActive: true,
+    visiblePanel: 'fcPick',
+    resultTitle: 'Reservation time expired',
+    focus: 'fcClose',
+    checkin: '2027-10-01',
+    checkout: '2027-10-03',
+  });
+});
+
 test('booking dialog does not leak focus to the background', { concurrency: false }, async () => {
   await openBookingDates();
   await page.keyboard.down('Shift');

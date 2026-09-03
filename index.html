@@ -8756,6 +8756,8 @@
 
     let fcState = { bookingId: null, claim: null, usd: 0, type: null, currency: 'USD',
                     orderId: null, attemptId: null, timer: null, startedAt: 0 };
+    let fcPollGeneration = 0;
+    let fcPollingSession = null;
 
     const fcPanels = ['fcPick', 'fcLoading', 'fcQr', 'fcUssd', 'fcResult'];
 
@@ -8763,8 +8765,37 @@
       fcPanels.forEach(p => { document.getElementById(p).hidden = (p !== id); });
     }
 
+    function fcPollSessionIsCurrent(session) {
+      return fcPollingSession === session &&
+        fcPollGeneration === session.generation &&
+        fcState.bookingId === session.bookingId &&
+        fcState.claim === session.claim &&
+        fcState.orderId === session.orderId &&
+        fcState.attemptId === session.attemptId;
+    }
+
     function fcStopPolling() {
-      if (fcState.timer) { clearInterval(fcState.timer); fcState.timer = null; }
+      const session = fcPollingSession;
+      fcPollGeneration += 1;
+      fcPollingSession = null;
+
+      if (session) {
+        if (session.timer !== null) clearInterval(session.timer);
+        if (session.controller) {
+          session.controller.abort();
+          session.controller = null;
+        }
+        if (fcState.timer === session.timer) fcState.timer = null;
+      } else if (fcState.timer !== null) {
+        clearInterval(fcState.timer);
+        fcState.timer = null;
+      }
+    }
+
+    function fcFinishPolling(session, kind, message, data) {
+      if (!fcPollSessionIsCurrent(session)) return;
+      fcStopPolling();
+      fcResult(kind, message, data);
     }
 
     function bookingDraft() {
@@ -8925,12 +8956,28 @@
 
     function fcBeginPolling() {
       fcStopPolling();
-      fcState.startedAt = Date.now();
+      const session = {
+        generation: ++fcPollGeneration,
+        bookingId: fcState.bookingId,
+        claim: fcState.claim,
+        orderId: fcState.orderId,
+        attemptId: fcState.attemptId,
+        statusUrl: '/api/flot-status?orderId=' + encodeURIComponent(fcState.orderId) +
+                   '&attemptId=' + encodeURIComponent(fcState.attemptId) +
+                   '&claim=' + encodeURIComponent(fcState.claim),
+        startedAt: Date.now(),
+        timer: null,
+        controller: null,
+        inFlight: false
+      };
+      fcPollingSession = session;
+      fcState.startedAt = session.startedAt;
+
       const tick = async () => {
-        const elapsed = Date.now() - fcState.startedAt;
+        if (!fcPollSessionIsCurrent(session) || session.inFlight) return;
+        const elapsed = Date.now() - session.startedAt;
         if (elapsed > FC_TIMEOUT_MS) {
-          fcStopPolling();
-          return fcResult('timeout');
+          return fcFinishPolling(session, 'timeout');
         }
         const mins = Math.floor(elapsed / 60000);
         const secs = Math.floor((elapsed % 60000) / 1000);
@@ -8940,28 +8987,34 @@
         if (w1) w1.textContent = label;
         if (w2) w2.textContent = label;
 
+        const controller = new AbortController();
+        session.controller = controller;
+        session.inFlight = true;
         try {
-          const url = '/api/flot-status?orderId=' + encodeURIComponent(fcState.orderId) +
-                      '&attemptId=' + encodeURIComponent(fcState.attemptId) +
-                      '&claim=' + encodeURIComponent(fcState.claim);
-          const res = await fetch(url);
+          const res = await fetch(session.statusUrl, { signal: controller.signal });
+          if (!fcPollSessionIsCurrent(session)) return;
           const data = await res.json();
+          if (!fcPollSessionIsCurrent(session)) return;
           if (res.status === 409 && data.code === 'HOLD_EXPIRED') {
-            fcStopPolling();
-            return fcResult('hold-expired');
+            return fcFinishPolling(session, 'hold-expired');
           }
           if (!res.ok) return; // transient, keep polling
           if (data.bookingFinal || data.status === 'completed') {
-            fcStopPolling();
-            fcResult(fcPaymentResultKind(data), null, data);
+            fcFinishPolling(session, fcPaymentResultKind(data), null, data);
           } else if (data.status === 'failed') {
             // A card error only. The booking stays open so the guest can retry.
-            fcStopPolling();
-            fcResult('failed');
+            fcFinishPolling(session, 'failed');
           }
-        } catch (e) { /* offline or transient, keep polling */ }
+        } catch (e) {
+          if (!fcPollSessionIsCurrent(session)) return;
+          // Offline or transient: keep this polling session alive.
+        } finally {
+          if (session.controller === controller) session.controller = null;
+          session.inFlight = false;
+        }
       };
-      fcState.timer = setInterval(tick, FC_POLL_MS);
+      session.timer = setInterval(tick, FC_POLL_MS);
+      fcState.timer = session.timer;
       tick();
     }
 
