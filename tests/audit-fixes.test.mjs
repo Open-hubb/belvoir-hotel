@@ -624,6 +624,80 @@ test('payment polling never overlaps status requests in one session', { concurre
   assert.deepEqual(state, { callsWhilePending: 1, callsAfterCompletion: 2 });
 });
 
+test('a hung payment status request still reaches the bounded polling timeout', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    openFlotCheckout(94, 'claim-94', 180, 'BEL-94', '2027-09-10T14:35:00.000Z');
+    fcState.orderId = 'order-94';
+    fcState.attemptId = 'attempt-94';
+
+    const nativeNow = Date.now;
+    const nativeSetInterval = window.setInterval;
+    const nativeClearInterval = window.clearInterval;
+    let now = 1_000;
+    let scheduledTick = null;
+    let statusSignal = null;
+    let clearCount = 0;
+    Date.now = () => now;
+    window.setInterval = (callback) => {
+      scheduledTick = callback;
+      return 5151;
+    };
+    window.clearInterval = (timer) => {
+      if (timer === 5151) clearCount += 1;
+    };
+    window.fetch = async (_input, options) => {
+      statusSignal = options && options.signal;
+      return new Promise(() => {});
+    };
+
+    try {
+      fcBeginPolling();
+      await Promise.resolve();
+      now += FC_TIMEOUT_MS + 1;
+      await scheduledTick();
+      const afterTimeout = {
+        requestAborted: Boolean(statusSignal && statusSignal.aborted),
+        timerStopped: fcState.timer === null,
+        visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
+        title: document.getElementById('fcResultTitle').textContent,
+        focus: document.activeElement.id,
+        clearCount,
+      };
+
+      document.getElementById('fcResultTitle').textContent = 'timeout-rendered-once';
+      await scheduledTick();
+      return {
+        afterTimeout,
+        afterStaleTick: {
+          title: document.getElementById('fcResultTitle').textContent,
+          focus: document.activeElement.id,
+          clearCount,
+        },
+      };
+    } finally {
+      fcStopPolling();
+      Date.now = nativeNow;
+      window.setInterval = nativeSetInterval;
+      window.clearInterval = nativeClearInterval;
+    }
+  });
+
+  assert.deepEqual(state.afterTimeout, {
+    requestAborted: true,
+    timerStopped: true,
+    visiblePanel: 'fcResult',
+    title: 'Payment timed out',
+    focus: 'fcResultBtn',
+    clearCount: 1,
+  });
+  assert.deepEqual(state.afterStaleTick, {
+    title: 'timeout-rendered-once',
+    focus: 'fcResultBtn',
+    clearCount: 1,
+  });
+});
+
 test('a stale poll cannot overwrite hold-expiry recovery or a newer polling session', { concurrency: false }, async () => {
   await openBookingDates();
   const state = await page.evaluate(async () => {
@@ -732,6 +806,215 @@ test('a stale poll cannot overwrite hold-expiry recovery or a newer polling sess
     focus: 'fcClose',
     checkin: '2027-10-01',
     checkout: '2027-10-03',
+  });
+});
+
+test('a stale payment-link response cannot attach its attempt to a newer checkout', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    let paymentLinkCalls = 0;
+    let statusCalls = 0;
+    let oldJsonResolve;
+    let oldSignal = null;
+    let newSignal = null;
+    const oldJson = new Promise((resolve) => { oldJsonResolve = resolve; });
+
+    window.fetch = async (input, options) => {
+      const url = String(input);
+      if (url.includes('/api/flot-status')) {
+        statusCalls += 1;
+        return new Promise(() => {});
+      }
+      if (url.includes('/api/flot-payment-link')) {
+        paymentLinkCalls += 1;
+        const body = JSON.parse(options.body);
+        if (body.bookingId === 301 && paymentLinkCalls === 1) {
+          oldSignal = options.signal;
+          return { ok: true, status: 200, json: () => oldJson };
+        }
+        if (body.bookingId === 302) newSignal = options.signal;
+        return new Promise(() => {});
+      }
+      throw new Error('Unexpected fetch: ' + url);
+    };
+
+    openFlotCheckout(301, 'claim-301', 180, 'BEL-301', '2027-09-10T14:35:00.000Z');
+    fcPick('card');
+    const oldStart = fcStart();
+    await Promise.resolve();
+    fcStart();
+    await Promise.resolve();
+    const callsAfterDuplicateStart = paymentLinkCalls;
+
+    fcDismiss();
+    openFlotCheckout(302, 'claim-302', 240, 'BEL-302', '2027-09-10T14:36:00.000Z');
+    fcPick('card');
+    fcStart();
+    await Promise.resolve();
+    document.getElementById('fcQrLink').href = 'https://example.test/new-checkout';
+
+    oldJsonResolve({
+      orderId: 'old-order-301',
+      attemptId: 'old-attempt-301',
+      amount: 180,
+      currency: 'USD',
+      link: 'https://pay.example.test/old-301',
+    });
+    await oldStart;
+    await Promise.resolve();
+
+    const snapshot = {
+      callsAfterDuplicateStart,
+      paymentLinkCalls,
+      statusCalls,
+      oldRequestAborted: Boolean(oldSignal && oldSignal.aborted),
+      newRequestActive: Boolean(newSignal && !newSignal.aborted),
+      bookingId: fcState.bookingId,
+      claim: fcState.claim,
+      orderId: fcState.orderId,
+      attemptId: fcState.attemptId,
+      qrLink: document.getElementById('fcQrLink').href,
+      visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
+      focus: document.activeElement.id,
+      payDisabled: document.getElementById('fcPay').disabled,
+    };
+    fcStopPolling();
+    if (typeof fcStopStartingPayment === 'function') fcStopStartingPayment();
+    return snapshot;
+  });
+
+  assert.deepEqual(state, {
+    callsAfterDuplicateStart: 1,
+    paymentLinkCalls: 2,
+    statusCalls: 0,
+    oldRequestAborted: true,
+    newRequestActive: true,
+    bookingId: 302,
+    claim: 'claim-302',
+    orderId: null,
+    attemptId: null,
+    qrLink: 'https://example.test/new-checkout',
+    visiblePanel: 'fcLoading',
+    focus: 'fcClose',
+    payDisabled: true,
+  });
+});
+
+test('a stale payment-link error cannot replace the newer checkout state', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    let rejectOld;
+    let oldSignal = null;
+    let newSignal = null;
+    window.fetch = async (input, options) => {
+      if (!String(input).includes('/api/flot-payment-link')) {
+        throw new Error('Unexpected fetch: ' + String(input));
+      }
+      const body = JSON.parse(options.body);
+      if (body.bookingId === 401) {
+        oldSignal = options.signal;
+        return new Promise((_resolve, reject) => { rejectOld = reject; });
+      }
+      newSignal = options.signal;
+      return new Promise(() => {});
+    };
+
+    openFlotCheckout(401, 'claim-401', 180, 'BEL-401', '2027-09-10T14:35:00.000Z');
+    fcPick('card');
+    const oldStart = fcStart();
+    await Promise.resolve();
+    fcDismiss();
+
+    openFlotCheckout(402, 'claim-402', 240, 'BEL-402', '2027-09-10T14:36:00.000Z');
+    fcPick('card');
+    fcStart();
+    await Promise.resolve();
+    document.getElementById('fcResultTitle').textContent = 'new-checkout-marker';
+    rejectOld(new Error('Old checkout failed'));
+    await oldStart;
+    await Promise.resolve();
+
+    const snapshot = {
+      oldRequestAborted: Boolean(oldSignal && oldSignal.aborted),
+      newRequestActive: Boolean(newSignal && !newSignal.aborted),
+      bookingId: fcState.bookingId,
+      claim: fcState.claim,
+      orderId: fcState.orderId,
+      attemptId: fcState.attemptId,
+      visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
+      resultTitle: document.getElementById('fcResultTitle').textContent,
+      focus: document.activeElement.id,
+    };
+    fcStopStartingPayment();
+    return snapshot;
+  });
+
+  assert.deepEqual(state, {
+    oldRequestAborted: true,
+    newRequestActive: true,
+    bookingId: 402,
+    claim: 'claim-402',
+    orderId: null,
+    attemptId: null,
+    visiblePanel: 'fcLoading',
+    resultTitle: 'new-checkout-marker',
+    focus: 'fcClose',
+  });
+});
+
+test('the current payment-link response starts polling its matching checkout identity', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    let statusUrl = '';
+    let statusSignal = null;
+    window.fetch = async (input, options) => {
+      const url = String(input);
+      if (url.includes('/api/flot-payment-link')) {
+        return new Response(JSON.stringify({
+          orderId: 'order-501',
+          attemptId: 'attempt-501',
+          amount: 240,
+          currency: 'USD',
+          link: 'https://pay.example.test/current-501',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      statusUrl = url;
+      statusSignal = options && options.signal;
+      return new Promise(() => {});
+    };
+
+    openFlotCheckout(501, 'claim-501', 240, 'BEL-501', '2027-09-10T14:36:00.000Z');
+    fcPick('card');
+    await fcStart();
+    await Promise.resolve();
+    const snapshot = {
+      bookingId: fcState.bookingId,
+      claim: fcState.claim,
+      orderId: fcState.orderId,
+      attemptId: fcState.attemptId,
+      statusUrl,
+      statusRequestActive: Boolean(statusSignal && !statusSignal.aborted),
+      startFinished: fcStartingSession === null,
+      visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
+      qrLink: document.getElementById('fcQrLink').href,
+    };
+    fcStopPolling();
+    return snapshot;
+  });
+
+  assert.deepEqual(state, {
+    bookingId: 501,
+    claim: 'claim-501',
+    orderId: 'order-501',
+    attemptId: 'attempt-501',
+    statusUrl: '/api/flot-status?orderId=order-501&attemptId=attempt-501&claim=claim-501',
+    statusRequestActive: true,
+    startFinished: true,
+    visiblePanel: 'fcQr',
+    qrLink: 'https://pay.example.test/current-501',
   });
 });
 

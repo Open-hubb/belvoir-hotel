@@ -8756,6 +8756,8 @@
 
     let fcState = { bookingId: null, claim: null, usd: 0, type: null, currency: 'USD',
                     orderId: null, attemptId: null, timer: null, startedAt: 0 };
+    let fcStartGeneration = 0;
+    let fcStartingSession = null;
     let fcPollGeneration = 0;
     let fcPollingSession = null;
 
@@ -8763,6 +8765,38 @@
 
     function fcShow(id) {
       fcPanels.forEach(p => { document.getElementById(p).hidden = (p !== id); });
+    }
+
+    function fcStartSessionIsCurrent(session) {
+      return fcStartingSession === session &&
+        fcStartGeneration === session.generation &&
+        fcState.bookingId === session.bookingId &&
+        fcState.claim === session.claim &&
+        fcState.type === session.type &&
+        fcState.currency === session.currency &&
+        fcState.reference === session.reference &&
+        fcState.holdExpiresAt === session.holdExpiresAt &&
+        fcState.usd === session.usd &&
+        fcState.orderId === session.orderId &&
+        fcState.attemptId === session.attemptId;
+    }
+
+    function fcStopStartingPayment() {
+      const session = fcStartingSession;
+      fcStartGeneration += 1;
+      fcStartingSession = null;
+      if (session && session.controller) {
+        session.controller.abort();
+        session.controller = null;
+      }
+    }
+
+    function fcFinishStartingPayment(session) {
+      if (!fcStartSessionIsCurrent(session)) return false;
+      fcStartGeneration += 1;
+      fcStartingSession = null;
+      session.controller = null;
+      return true;
     }
 
     function fcPollSessionIsCurrent(session) {
@@ -8820,6 +8854,7 @@
     }
 
     function openFlotCheckout(bookingId, claim, usd, reference, holdExpiresAt) {
+      fcStopStartingPayment();
       fcStopPolling();
       fcState = { bookingId: bookingId, claim: claim, usd: usd, type: null,
                   reference: reference || null,
@@ -8895,23 +8930,58 @@
 
     async function fcStart() {
       if (!fcState.type || !fcState.bookingId) return;
+      if (fcStartingSession && fcStartSessionIsCurrent(fcStartingSession)) return;
+
+      fcStopStartingPayment();
+      const controller = new AbortController();
+      const session = {
+        generation: ++fcStartGeneration,
+        bookingId: fcState.bookingId,
+        claim: fcState.claim,
+        type: fcState.type,
+        currency: fcState.currency,
+        reference: fcState.reference,
+        holdExpiresAt: fcState.holdExpiresAt,
+        usd: fcState.usd,
+        orderId: fcState.orderId,
+        attemptId: fcState.attemptId,
+        controller
+      };
+      fcStartingSession = session;
+      document.getElementById('fcPay').disabled = true;
       fcShow('fcLoading');
       try {
         const res = await fetch('/api/flot-payment-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            bookingId: fcState.bookingId,
-            claim: fcState.claim,
-            type: fcState.type,
-            currency: fcState.currency
-          })
+            bookingId: session.bookingId,
+            claim: session.claim,
+            type: session.type,
+            currency: session.currency
+          }),
+          signal: controller.signal
         });
-        const data = await res.json().catch(() => ({}));
+        if (!fcStartSessionIsCurrent(session)) return;
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (error) {
+          if (!fcStartSessionIsCurrent(session)) return;
+        }
+        if (!fcStartSessionIsCurrent(session)) return;
         if (res.status === 409 && data.code === 'HOLD_EXPIRED') {
+          fcFinishStartingPayment(session);
           return fcResult('hold-expired');
         }
         if (!res.ok) throw new Error(data.error || 'Could not start the payment.');
+        if (!data.code && !data.link) {
+          throw new Error('The payment provider returned nothing to pay with.');
+        }
+
+        const money = (data.currency === 'SLE' ? 'Le ' : '$') +
+                      Number(data.amount).toLocaleString();
+        if (!fcFinishStartingPayment(session)) return;
 
         fcState.orderId = data.orderId;
         fcState.attemptId = data.attemptId;
@@ -8921,28 +8991,27 @@
         fcState.currency = data.currency;
         document.getElementById('fcTestBadge').hidden = !data.testMode;
 
-        const money = (data.currency === 'SLE' ? 'Le ' : '$') +
-                      Number(data.amount).toLocaleString();
-
         if (data.code) {
           document.getElementById('fcUssdCode').textContent = data.code;
           document.getElementById('fcUssdAmt').textContent = money;
           fcShow('fcUssd');
         } else if (data.link) {
           document.getElementById('fcQrLead').textContent =
-            fcState.type === 'card' ? 'Scan to pay by card' : 'Scan with the Flot app';
+            session.type === 'card' ? 'Scan to pay by card' : 'Scan with the Flot app';
           const img = document.getElementById('fcQrImg');
           if (data.qrDataUrl) { img.src = data.qrDataUrl; img.hidden = false; }
           else { img.hidden = true; }
           const link = document.getElementById('fcQrLink');
           link.href = data.link;
           fcShow('fcQr');
-        } else {
-          throw new Error('The payment provider returned nothing to pay with.');
         }
         fcBeginPolling();
       } catch (err) {
+        if (!fcStartSessionIsCurrent(session)) return;
+        fcFinishStartingPayment(session);
         fcResult('failed', err.message);
+      } finally {
+        if (session.controller === controller) session.controller = null;
       }
     }
 
@@ -8955,6 +9024,7 @@
     }
 
     function fcBeginPolling() {
+      fcStopStartingPayment();
       fcStopPolling();
       const session = {
         generation: ++fcPollGeneration,
@@ -8974,11 +9044,12 @@
       fcState.startedAt = session.startedAt;
 
       const tick = async () => {
-        if (!fcPollSessionIsCurrent(session) || session.inFlight) return;
+        if (!fcPollSessionIsCurrent(session)) return;
         const elapsed = Date.now() - session.startedAt;
         if (elapsed > FC_TIMEOUT_MS) {
           return fcFinishPolling(session, 'timeout');
         }
+        if (session.inFlight) return;
         const mins = Math.floor(elapsed / 60000);
         const secs = Math.floor((elapsed % 60000) / 1000);
         const label = 'Waiting for payment… ' + mins + 'm ' + String(secs).padStart(2, '0') + 's';
@@ -9094,6 +9165,7 @@
 
     function fcRecheckDates() {
       const draft = fcState.draft || {};
+      fcStopStartingPayment();
       fcStopPolling();
       document.getElementById('paymentPopup').classList.remove('active');
 
@@ -9141,9 +9213,11 @@
 
     function fcBackToPick() {
       // Reuse the same orderId so Flot opens a new attempt on the same order
+      fcStopStartingPayment();
       fcStopPolling();
       fcState.attemptId = null;
       document.getElementById('fcPickErr').textContent = '';
+      document.getElementById('fcPay').disabled = !fcState.type || !fcState.bookingId;
       fcShow('fcPick');
     }
 
@@ -9165,6 +9239,7 @@
     function fcDismiss() {
       const polling = !!fcState.timer;
       if (polling && !confirm('Your payment is still being confirmed. Close anyway?')) return;
+      fcStopStartingPayment();
       fcStopPolling();
       document.getElementById('paymentPopup').classList.remove('active');
       document.body.style.overflow = '';
