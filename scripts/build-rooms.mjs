@@ -212,7 +212,7 @@ ${JSON.stringify(ld, null, 2)}
     </div>
   </nav>
 
-  <main id="main">
+  <main id="main" data-room-key="${esc(key)}" data-room-name="${esc(d.title)}">
     <nav class="rp__crumbs" aria-label="Breadcrumb">
       <a href="/#rooms" class="rp__back" data-room-back aria-label="Back to the previous page">Back</a>
       <ol>
@@ -231,7 +231,22 @@ ${JSON.stringify(ld, null, 2)}
         <span>Check-in 2:00 PM</span>
         <span>Check-out 11:00 AM</span>
       </div>
-      <a href="/#rooms" class="rp__book">Check availability</a>
+      <section class="rp__availability" id="roomAvailability" aria-labelledby="roomAvailabilityTitle">
+        <h2 id="roomAvailabilityTitle">Check your dates</h2>
+        <form method="get" data-room-availability>
+          <div class="rp__date-field">
+            <label for="roomCheckin">Check-in</label>
+            <input type="date" id="roomCheckin" name="checkin" required>
+          </div>
+          <div class="rp__date-field">
+            <label for="roomCheckout">Check-out</label>
+            <input type="date" id="roomCheckout" name="checkout" required>
+          </div>
+          <button type="submit" id="roomAvailabilitySubmit">Check availability</button>
+        </form>
+        <p id="roomAvailabilityResult" class="rp__availability-result" role="status" aria-live="polite" hidden></p>
+        <a class="rp__book" aria-disabled="true" tabindex="0">Choose dates to book</a>
+      </section>
     </header>
 
     <section class="rp__gallery" aria-roledescription="carousel" aria-label="Photographs of the ${esc(d.title)}">
@@ -274,7 +289,7 @@ ${siblings}
       <h2>Stay at Belvoir</h2>
       <p>Air-conditioned en-suite rooms, studio flats and serviced apartments on one of
          Freetown's most sought-after addresses, minutes from Lumley and Aberdeen beaches.</p>
-      <a href="/#rooms" class="rp__book">Check availability</a>
+      <a href="#roomAvailability" class="rp__foot-link">Check this room</a>
     </section>
   </main>
 

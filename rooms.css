@@ -29,7 +29,7 @@ body {
 
 img { max-width: 100%; height: auto; display: block; }
 a { color: var(--gold); }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid #7a5e33; outline-offset: 3px; }
 
 .skip-link {
   position: absolute; left: -9999px; top: 0; z-index: 100;
@@ -99,13 +99,108 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
   background: var(--sand); border: 1px solid var(--line); color: var(--navy);
 }
 
+.rp__availability {
+  max-width: 50rem;
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow:
+    0 18px 36px -30px rgba(12, 27, 51, 0.52),
+    0 2px 8px -5px rgba(176, 141, 87, 0.24);
+}
+.rp__availability h2 {
+  margin: 0 0 0.9rem;
+  color: var(--navy);
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 400;
+}
+.rp__availability form {
+  display: grid;
+  gap: 0.85rem;
+}
+.rp__date-field { display: grid; gap: 0.35rem; }
+.rp__date-field label {
+  color: var(--navy);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+.rp__date-field input,
+#roomAvailabilitySubmit {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 8px;
+  font: inherit;
+}
+.rp__date-field input {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(12, 27, 51, 0.5);
+  background: var(--cream);
+  color: var(--ink);
+}
+.rp__date-field input:hover { border-color: #7a5e33; }
+#roomAvailabilitySubmit {
+  align-self: end;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--navy);
+  background: var(--navy);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+#roomAvailabilitySubmit:hover { background: var(--gold); border-color: var(--gold); }
+#roomAvailabilitySubmit:active { transform: scale(0.98); }
+#roomAvailabilitySubmit:disabled { cursor: wait; opacity: 0.66; }
+.rp__availability-result {
+  position: relative;
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.85rem 0.75rem 2.5rem;
+  border: 1px solid #8b6c3e;
+  border-radius: 10px;
+  background: var(--sand);
+  color: var(--navy);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.rp__availability-result::before {
+  position: absolute;
+  left: 0.85rem;
+  top: 0.72rem;
+  width: 1.1rem;
+  text-align: center;
+  color: var(--gold);
+  content: '✓';
+  font-weight: 600;
+}
+.rp__availability-result[data-state='checking']::before { content: '…'; }
+.rp__availability-result[data-state='full'],
+.rp__availability-result[data-state='error'] {
+  border-color: rgba(12, 27, 51, 0.58);
+  background: #ebe8e2;
+}
+.rp__availability-result[data-state='full']::before { content: '×'; color: var(--navy); }
+.rp__availability-result[data-state='error']::before { content: '!'; color: var(--navy); }
+.rp__availability .rp__book { margin-top: 1rem; }
+
 .rp__book {
   display: inline-block; background: var(--navy); color: #fff; text-decoration: none;
   padding: 0.95rem 2rem; border-radius: 999px;
   font-size: 0.8125rem; letter-spacing: 0.16em; text-transform: uppercase;
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .rp__book:hover { background: var(--gold); transform: translateY(-2px); }
+.rp__book[aria-disabled='true'] {
+  background: #d7d1c8;
+  box-shadow: inset 0 0 0 1px #77716a;
+  color: #4f4b46;
+  cursor: pointer;
+}
+.rp__book[aria-disabled='true']:hover { background: #d7d1c8; transform: none; }
 
 /* ── gallery ─────────────────────────────────────────────────────── */
 .rp__gallery { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
@@ -256,8 +351,17 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
 .rp__foot-cta { background: var(--navy); color: var(--cream); text-align: center; padding: 4rem 1.5rem; }
 .rp__foot-cta h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0 0 0.85rem; color: #fff; }
 .rp__foot-cta p { max-width: 34rem; margin: 0 auto 1.75rem; color: rgba(250, 248, 245, 0.75); font-size: 0.9875rem; }
-.rp__foot-cta .rp__book { background: var(--gold); }
-.rp__foot-cta .rp__book:hover { background: var(--gold-light); }
+.rp__foot-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border-bottom: 1px solid currentColor;
+  color: var(--gold-light);
+  font-size: 0.8125rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+}
+.rp__foot-link:hover { color: #fff; }
 
 .rp__footer { max-width: 68rem; margin: 0 auto; padding: 2.5rem 1.5rem 3.5rem; text-align: center; font-size: 0.875rem; color: var(--ink-soft); }
 .rp__footer p { margin: 0 0 0.6rem; }
@@ -270,8 +374,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-
   .rp__nav-links a:not(.rp__nav-cta) { display: none; }
 }
 
+@media (min-width: 700px) {
+  .rp__availability form { grid-template-columns: 1fr 1fr minmax(10rem, 0.8fr); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .rp__book, .rp__siblings a, .rp__back { transition: none; }
+  .rp__book, .rp__siblings a, .rp__back, #roomAvailabilitySubmit { transition: none; }
   .rp__book:hover, .rp__siblings a:hover { transform: none; }
   /* Slides cut rather than fade. The script also stops advancing them on its
      own, so the only movement left is what the reader asks for. */

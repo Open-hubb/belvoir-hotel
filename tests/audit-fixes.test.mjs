@@ -6,6 +6,16 @@ import puppeteer from 'puppeteer';
 
 const port = 4568;
 const baseUrl = `http://localhost:${port}`;
+const ROOM_SLUGS = [
+  'superior-double-comfort',
+  'deluxe-standard',
+  'superior-deluxe-king',
+  'superior-deluxe-twin',
+  'studio-penthouse',
+  'ground-floor-one-bedroom',
+  'one-bedroom-apartment',
+  'two-bedroom-apartment',
+];
 let server;
 let browser;
 let page;
@@ -1080,6 +1090,304 @@ test('room detail pages expose the requested amenities', { concurrency: false },
 
   for (const { slug, amenity, body } of entries) {
     assert.match(body, new RegExp(`<li>${amenity}</li>`), `${slug} should list ${amenity}`);
+  }
+});
+
+test('every room detail page has a labelled availability form', { concurrency: false }, async () => {
+  for (const slug of ROOM_SLUGS) {
+    const response = await fetch(`${baseUrl}/rooms/${slug}`);
+    assert.equal(response.ok, true, `${slug} should be available`);
+    const html = await response.text();
+    assert.match(html, /<main\b[^>]*\bdata-room-key="[^"]+"/);
+    assert.match(html, /<main\b[^>]*\bdata-room-name="[^"]+"/);
+    assert.match(html, /<form\b[^>]*\bdata-room-availability/);
+    assert.match(html, /<label\b[^>]*for="roomCheckin"/);
+    assert.match(html, /<label\b[^>]*for="roomCheckout"/);
+    assert.match(html, /id="roomAvailabilitySubmit"/);
+    assert.match(html, /id="roomAvailabilityResult"[^>]*role="status"[^>]*aria-live="polite"/);
+  }
+});
+
+test('room detail availability enables a date-preserving booking link', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  const requests = [];
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      requests.push(url);
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: url.searchParams.get('checkin'),
+          checkout: url.searchParams.get('checkout'),
+          nights: 2,
+          rooms: [{
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+          }],
+          anyAvailable: true,
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    await roomPage.evaluate(() => {
+      document.getElementById('roomCheckin').value = '2027-09-10';
+      document.getElementById('roomCheckout').value = '2027-09-12';
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.trim() === 'Only 1 room left',
+    );
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].searchParams.get('room'), 'comfort');
+    assert.equal(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.getAttribute('href')),
+      '/?room=comfort&checkin=2027-09-10&checkout=2027-09-12#rooms',
+    );
+    assert.equal(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.hasAttribute('aria-disabled')),
+      false,
+    );
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('fully booked room detail keeps its dates and returns focus to check-in', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
+          rooms: [{
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+            capacity: 1, remaining: 0, available: false, nights: 2, total: 120,
+          }],
+          anyAvailable: false,
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    await roomPage.evaluate(() => {
+      document.getElementById('roomCheckin').value = '2027-09-10';
+      document.getElementById('roomCheckout').value = '2027-09-12';
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.includes('Fully booked'),
+    );
+
+    const before = roomPage.url();
+    assert.equal(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.getAttribute('aria-disabled')),
+      'true',
+    );
+    assert.equal(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.textContent.trim()),
+      'Choose different dates',
+    );
+    await roomPage.click('.rp__availability .rp__book');
+    assert.equal(roomPage.url(), before);
+    assert.equal(
+      await roomPage.evaluate(() => document.activeElement.id),
+      'roomCheckin',
+    );
+    await roomPage.focus('.rp__availability .rp__book');
+    await roomPage.keyboard.press('Space');
+    assert.equal(
+      await roomPage.evaluate(() => document.activeElement.id),
+      'roomCheckin',
+    );
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('room detail rejects malformed inventory and fails closed with retry guidance', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
+          rooms: [{
+            key: 'comfort', name: 'Wrong room', rate: 60,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+          }],
+          anyAvailable: true,
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    await roomPage.evaluate(() => {
+      document.getElementById('roomCheckin').value = '2027-09-10';
+      document.getElementById('roomCheckout').value = '2027-09-12';
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.includes('could not check'),
+    );
+    assert.equal(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.getAttribute('aria-disabled')),
+      'true',
+    );
+    assert.equal(
+      await roomPage.$eval('#roomAvailabilitySubmit', (node) => node.textContent.trim()),
+      'Try again',
+    );
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('room detail hydrates only valid future date queries and automatically checks them', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  const requests = [];
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      requests.push(url.search);
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
+          rooms: [{
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+          }],
+          anyAvailable: true,
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await roomPage.goto(
+      `${baseUrl}/rooms/superior-double-comfort?checkin=2027-09-10&checkout=2027-09-12`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.trim() === 'Only 1 room left',
+    );
+    assert.deepEqual(await roomPage.evaluate(() => ({
+      checkin: document.getElementById('roomCheckin').value,
+      checkout: document.getElementById('roomCheckout').value,
+    })), { checkin: '2027-09-10', checkout: '2027-09-12' });
+    assert.equal(requests.length, 1);
+
+    await roomPage.goto(
+      `${baseUrl}/rooms/superior-double-comfort?checkin=2027-09-12&checkout=2027-09-10`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    assert.deepEqual(await roomPage.evaluate(() => ({
+      checkin: document.getElementById('roomCheckin').value,
+      checkout: document.getElementById('roomCheckout').value,
+    })), { checkin: '', checkout: '' });
+    assert.equal(requests.length, 1);
+
+    for (const query of [
+      '?checkin=2020-09-10&checkout=2020-09-12',
+      '?checkin=2027-02-31&checkout=2027-03-02',
+    ]) {
+      await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort${query}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      assert.deepEqual(await roomPage.evaluate(() => ({
+        checkin: document.getElementById('roomCheckin').value,
+        checkout: document.getElementById('roomCheckout').value,
+      })), { checkin: '', checkout: '' });
+    }
+    assert.equal(requests.length, 1);
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('a stale room availability response cannot overwrite newer dates', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    await roomPage.evaluate(() => {
+      let call = 0;
+      window.__roomFetchCalls = 0;
+      window.fetch = (_input, options) => {
+        call += 1;
+        window.__roomFetchCalls += 1;
+        const current = call;
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve(new Response(JSON.stringify({
+            checkin: current === 1 ? '2027-09-10' : '2027-10-10',
+            checkout: current === 1 ? '2027-09-12' : '2027-10-12',
+            nights: 2,
+            rooms: [{
+              key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+              capacity: 1, remaining: current === 1 ? 0 : 1,
+              available: current !== 1, nights: 2, total: 120,
+            }],
+            anyAvailable: current !== 1,
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } })), current === 1 ? 180 : 10);
+          options.signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+          }, { once: true });
+        });
+      };
+
+      const checkin = document.getElementById('roomCheckin');
+      const checkout = document.getElementById('roomCheckout');
+      checkin.value = '2027-09-10';
+      checkout.value = '2027-09-12';
+      document.querySelector('[data-room-availability]').requestSubmit();
+      document.querySelector('[data-room-availability]').requestSubmit();
+      checkin.value = '2027-10-10';
+      checkout.value = '2027-10-12';
+      checkin.dispatchEvent(new Event('input', { bubbles: true }));
+      checkout.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.trim() === 'Only 1 room left',
+    );
+    await wait(220);
+    assert.equal(
+      await roomPage.$eval('#roomAvailabilityResult', (node) => node.textContent.trim()),
+      'Only 1 room left',
+    );
+    assert.match(
+      await roomPage.$eval('.rp__availability .rp__book', (node) => node.href),
+      /checkin=2027-10-10&checkout=2027-10-12/,
+    );
+    assert.equal(await roomPage.evaluate(() => window.__roomFetchCalls), 2);
+  } finally {
+    await roomPage.close();
   }
 });
 
