@@ -9,8 +9,8 @@
  *   { "orderId": "order-123", "flotRequestId": "123456", "status": "completed" }
  *
  * Notes from the spec that shape this handler:
- *  - Flot sends each notification ONCE and never retries, so we acknowledge
- *    with 2xx as early as possible and keep the work small.
+ *  - Successful handling returns 2xx. A deliberate maintenance pause returns
+ *    retryable 503 instead, so it is never acknowledged as processed.
  *  - Repeated orderId + flotRequestId pairs must be handled idempotently.
  *  - status "failed" means the guest hit a card error and may retry, so the
  *    booking stays pending rather than being marked failed.
@@ -20,6 +20,7 @@ const { neon } = require('@neondatabase/serverless');
 const crypto = require('crypto');
 const { limit } = require('./_ratelimit');
 const { settleBooking } = require('./_paid');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -61,11 +62,15 @@ function bookingIdFromOrderId(orderId) {
 }
 
 module.exports = async (req, res) => {
-  if (limit(req, res, 'webhook', 60, 60000)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // A maintenance response must remain non-2xx so the provider does not treat
+  // a notification as processed while reconciliation is deliberately paused.
+  if (pausePaymentListener(res)) return;
+  if (limit(req, res, 'webhook', 60, 60000)) return;
 
   if (!authOk(req)) {
     res.setHeader('WWW-Authenticate', 'Basic realm="belvoir-webhook"');

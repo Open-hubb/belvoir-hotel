@@ -21,6 +21,7 @@ const { settleBooking } = paid;
 const deliverPendingPaymentNotifications = paid.deliverPendingPaymentNotifications ||
   (async () => ({ claimed: 0, delivered: 0, pending: 0 }));
 const { sweepRateLimits } = require('./_ratelimit');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -69,6 +70,8 @@ module.exports = async (req, res) => {
     res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (pausePaymentListener(res)) return;
 
   if (!authorised(req)) {
     F.log('CRON_DENIED', { reason: process.env.CRON_SECRET ? 'bad token' : 'CRON_SECRET not set' });

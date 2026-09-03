@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const F = require('./_flot');
 const { limit } = require('./_ratelimit');
 const { acquireBookingHold } = require('./_inventory');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -25,6 +26,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (pausePaymentListener(res)) return;
   if (limit(req, res, 'paylink', 15, 60000)) return;
 
   const body = req.body || {};

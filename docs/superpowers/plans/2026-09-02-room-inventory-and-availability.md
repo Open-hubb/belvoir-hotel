@@ -974,31 +974,74 @@ Use generated claim tokens and references; never use a real room key, guest, pay
 
 Document that the schema migration runs with the direct URL, the smoke test uses temporary non-public keys, and cleanup is verified by a final count query.
 
-- [ ] **Step 3: Run the migration against the configured Neon database**
+- [ ] **Step 3: Deploy the guarded build with every payment listener explicitly disabled**
 
-Run: `node --env-file=.env.local scripts/migrate-availability.mjs`
+Run exactly in this order:
 
-Expected: every labeled step prints `ok`, all eight capacities are upserted, and no existing paid booking is converted away from `reserved`.
+```bash
+npx vercel env add PAYMENT_LISTENERS_ENABLED production --value "false" --force --yes
+npx vercel --prod --yes
+node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com
+```
 
-- [ ] **Step 4: Run the concurrency smoke test**
+Expected: the verifier checks payment-link creation, payment status, webhook, and cron. Every endpoint must return retryable HTTP 503 `PAYMENT_LISTENERS_PAUSED`. Stop if any endpoint is active; do not run the migration.
 
-Run: `npm run inventory:smoke`
+- [ ] **Step 4: Run the migration and freeze the payment cutoff while listeners are paused**
 
-Expected: PASS with one winning hold, one rejected hold, correct remaining counts, a valid quantity block, and `0 temporary rows remain`.
+Run:
 
-- [ ] **Step 5: Re-run the migration to prove idempotency**
+```bash
+PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/migrate-availability.mjs --listeners-paused-verified
+```
 
-Run: `node --env-file=.env.local scripts/migrate-availability.mjs`
+Expected: the script accepts only the explicit disabled state plus the verification acknowledgement, every labeled step prints `ok`, all eight capacities are upserted, and no existing paid booking is converted away from `reserved`.
 
-Expected: PASS a second time with unchanged capacities and no duplicate constraints, indexes, or functions.
+- [ ] **Step 5: Prove the guarded deployment remains paused, then run the concurrency smoke test**
 
-- [ ] **Step 6: Run the full automated suite**
+Run:
+
+```bash
+node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com
+npm run inventory:smoke
+```
+
+Expected: all four payment endpoints remain paused. The smoke test passes with one winning hold, one rejected hold, correct remaining counts, a valid quantity block, and `0 temporary rows remain`.
+
+- [ ] **Step 6: Re-run the migration to prove idempotency**
+
+Run:
+
+```bash
+PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/migrate-availability.mjs --listeners-paused-verified
+```
+
+Expected: PASS a second time with unchanged capacities and no duplicate constraints, indexes, cutover rows, or functions.
+
+- [ ] **Step 7: Reconcile the frozen population and resolve every quarantine ID**
+
+Run while the production deployment is still verified paused:
+
+```bash
+PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners
+```
+
+The command prints the complete `unresolvedQuarantineIds` array and exits nonzero while any ID remains. Inspect each listed payment using payment-ledger and exact settlement-note evidence, then explicitly choose one disposition in Neon SQL:
+
+```sql
+SELECT belvoir_resolve_legacy_payment(<payment_id>, 'recover');
+-- or
+SELECT belvoir_resolve_legacy_payment(<payment_id>, 'ignore');
+```
+
+Rerun the reconciliation command until it exits zero with `"unresolvedQuarantineIds":[]` and `"safeToEnableListeners":true`. Do not enable payment listeners before that machine-checked result.
+
+- [ ] **Step 8: Run the full automated suite**
 
 Run: `npm test && npm run seo:check`
 
 Expected: all Node/Puppeteer tests and all sitemap SEO checks PASS.
 
-- [ ] **Step 7: Commit the operational checkpoint**
+- [ ] **Step 9: Commit the operational checkpoint**
 
 ```bash
 git add scripts/smoke-inventory.mjs package.json
@@ -1069,14 +1112,18 @@ Expected: all tests pass, SEO passes for every sitemap URL, no whitespace errors
 
 Confirm claim tokens are required for payment hold refresh, no token or guest contact detail appears in availability responses or logs, all SQL values are parameterized, advisory locks cover all capacity-consuming writes, and conflict notifications contain no payment credentials.
 
-- [ ] **Step 8: Push and deploy to production**
+- [ ] **Step 8: Reconfirm reconciliation, then explicitly enable and deploy payment listeners**
 
 ```bash
+node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com
+PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners
 git push origin main
+npx vercel env add PAYMENT_LISTENERS_ENABLED production --value "true" --force --yes
 npx vercel --prod --yes
+node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: Vercel reports a successful production deployment and the canonical domain continues to resolve to `https://www.belvoir-estates.com`.
+Expected: the first verifier confirms all four endpoints remain paused, reconciliation exits zero with no unresolved IDs, and the push cannot activate listeners because the production flag is still false. Only then is the flag set to exact `true` and a new deployment created. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
 
 - [ ] **Step 9: Run production read-only and temporary-row checks**
 
@@ -1098,6 +1145,7 @@ git add index.html admin.html rooms.css rooms.js scripts/build-rooms.mjs rooms/*
 git commit -m "Polish room availability states"
 git push origin main
 npx vercel --prod --yes
+node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
 Report the final commit, deployment URL, migration/smoke results, automated test counts, responsive widths, accessibility checks, and any remaining placeholders. The expected placeholder list is empty.

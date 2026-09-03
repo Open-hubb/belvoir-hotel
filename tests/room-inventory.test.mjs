@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+// Payment listeners are opt-in in production. Existing route fixtures make
+// their active-state assumption explicit; maintenance tests override this.
+process.env.PAYMENT_LISTENERS_ENABLED = 'true';
 const Module = require('node:module');
 const { ROOMS, roomCapacity } = require('../api/_rooms.js');
 const inventory = require('../api/_inventory.js');
@@ -88,9 +95,10 @@ function responseRecorder() {
   return {
     statusCode: 200,
     body: null,
+    headers: {},
     status(code) { this.statusCode = code; return this; },
     json(body) { this.body = body; return this; },
-    setHeader() {},
+    setHeader(name, value) { this.headers[String(name).toLowerCase()] = String(value); },
   };
 }
 
@@ -120,6 +128,35 @@ async function withFetch(fetchImpl, run) {
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+async function withPaymentListenersFlag(value, run) {
+  const previous = process.env.PAYMENT_LISTENERS_ENABLED;
+  if (value === undefined) delete process.env.PAYMENT_LISTENERS_ENABLED;
+  else process.env.PAYMENT_LISTENERS_ENABLED = value;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.PAYMENT_LISTENERS_ENABLED;
+    else process.env.PAYMENT_LISTENERS_ENABLED = previous;
+  }
+}
+
+function runNode(args, environment = {}) {
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    for (const [key, value] of Object.entries(environment)) {
+      if (value === null) delete env[key];
+      else env[key] = value;
+    }
+    const child = spawn(process.execPath, args, { cwd: repoRoot, env });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', (status, signal) => resolve({ status, signal, stdout, stderr }));
+  });
 }
 
 function paymentLinkHarness({ booking = null, holdAcquired = true } = {}) {
@@ -979,6 +1016,312 @@ function bookingRouteHarness(initialBookings = [], options = {}) {
 
   return { bookings, notifications, post, queries };
 }
+
+test('payment handlers fail closed before side effects unless the listener flag is exact true', async () => {
+  const oldUser = process.env.FLOT_WEBHOOK_USER;
+  const oldPass = process.env.FLOT_WEBHOOK_PASS;
+  const oldSecret = process.env.CRON_SECRET;
+  process.env.FLOT_WEBHOOK_USER = 'webhook-user';
+  process.env.FLOT_WEBHOOK_PASS = 'webhook-pass';
+  process.env.CRON_SECRET = 'cron-secret';
+
+  try {
+    for (const flag of [undefined, 'false', 'TRUE', '1']) {
+      await withPaymentListenersFlag(flag, async () => {
+        const work = Object.fromEntries(
+          ['link', 'status', 'webhook', 'cron'].map((name) => [name, {
+            database: 0,
+            provider: 0,
+            settlement: 0,
+          }]),
+        );
+        const neonFor = (name) => () => {
+          work[name].database += 1;
+          return async () => [];
+        };
+        const settleFor = (name) => async () => {
+          work[name].settlement += 1;
+          return { settled: true, alreadyPaid: false, conflict: false, booking: { id: 91 } };
+        };
+        const flot = {
+          API_BASE: 'https://payments.example',
+          MERCHANT_ID: 'merchant',
+          TEST_MODE: false,
+          TYPES: ['card', 'momo', 'in-app'],
+          resolveCurrency: () => 'USD',
+          amountFor: () => ({ amount: '140.00', currency: 'USD' }),
+          orderIdFor: (id) => `belvoir-${id}`,
+          signBody: () => 'signature',
+          signCanonical: () => 'signature',
+          log() {},
+        };
+        const routes = {
+          link: loadCommonJsWithMocks('../api/flot-payment-link.js', {
+            '@neondatabase/serverless': { neon: neonFor('link') },
+            qrcode: { toDataURL: async () => null },
+            './_flot': flot,
+            './_ratelimit': { limit: () => false },
+            './_inventory': { acquireBookingHold: async () => ({ acquired: true, remaining: 1 }) },
+          }),
+          status: loadCommonJsWithMocks('../api/flot-status.js', {
+            '@neondatabase/serverless': { neon: neonFor('status') },
+            './_flot': flot,
+            './_ratelimit': { limit: () => false },
+            './_inventory': { acquireBookingHold: async () => ({ acquired: true, remaining: 1 }) },
+            './_paid': {
+              settleBooking: settleFor('status'),
+              deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+            },
+          }),
+          webhook: loadCommonJsWithMocks('../api/payment-webhook.js', {
+            '@neondatabase/serverless': { neon: neonFor('webhook') },
+            './_ratelimit': { limit: () => false },
+            './_paid': { settleBooking: settleFor('webhook') },
+          }),
+          cron: loadCommonJsWithMocks('../api/cron-poll-payments.js', {
+            '@neondatabase/serverless': { neon: neonFor('cron') },
+            './_flot': flot,
+            './_paid': {
+              settleBooking: settleFor('cron'),
+              deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+            },
+            './_ratelimit': { sweepRateLimits: async () => 0 },
+          }),
+        };
+        const responses = {
+          link: responseRecorder(),
+          status: responseRecorder(),
+          webhook: responseRecorder(),
+          cron: responseRecorder(),
+        };
+        const expected = {
+          code: 'PAYMENT_LISTENERS_PAUSED',
+          error: 'Payment processing is temporarily unavailable. Please try again shortly.',
+          retryable: true,
+        };
+
+        await withFetch(async () => {
+          for (const entry of Object.values(work)) entry.provider += 1;
+          throw new Error('provider work must remain paused');
+        }, async () => {
+          await routes.link({
+            method: 'POST',
+            headers: {},
+            body: { bookingId: 91, claim: 'claim', type: 'card' },
+          }, responses.link);
+          await routes.status({
+            method: 'GET',
+            headers: {},
+            query: { orderId: 'belvoir-91', attemptId: 'attempt-91', claim: 'claim' },
+            url: '/api/flot-status',
+          }, responses.status);
+          await routes.webhook({
+            method: 'POST',
+            headers: {
+              authorization: `Basic ${Buffer.from('webhook-user:webhook-pass').toString('base64')}`,
+            },
+            body: { orderId: 'belvoir-91', flotRequestId: 'attempt-91', status: 'completed' },
+          }, responses.webhook);
+          await routes.cron({
+            method: 'GET',
+            headers: { authorization: 'Bearer cron-secret' },
+          }, responses.cron);
+        });
+
+        for (const [name, response] of Object.entries(responses)) {
+          assert.equal(response.statusCode, 503, `${name} must pause for flag=${String(flag)}`);
+          assert.deepEqual(response.body, expected);
+          assert.equal(response.headers['retry-after'], '300');
+        }
+        assert.deepEqual(work, {
+          link: { database: 0, provider: 0, settlement: 0 },
+          status: { database: 0, provider: 0, settlement: 0 },
+          webhook: { database: 0, provider: 0, settlement: 0 },
+          cron: { database: 0, provider: 0, settlement: 0 },
+        });
+      });
+    }
+  } finally {
+    if (oldUser === undefined) delete process.env.FLOT_WEBHOOK_USER; else process.env.FLOT_WEBHOOK_USER = oldUser;
+    if (oldPass === undefined) delete process.env.FLOT_WEBHOOK_PASS; else process.env.FLOT_WEBHOOK_PASS = oldPass;
+    if (oldSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = oldSecret;
+  }
+});
+
+test('all four payment handlers resume their normal work for explicit true', async () => {
+  await withPaymentListenersFlag('true', async () => {
+    const booking = {
+      id: 91,
+      amount_due: 140,
+      total: 140,
+      payment_status: 'unpaid',
+      claim_token: 'private-claim',
+      guest_name: 'Guest Name',
+      guest_email: 'guest@example.com',
+    };
+    const link = paymentLinkHarness({ booking });
+    const linkResponse = responseRecorder();
+    let linkProviderCalls = 0;
+    await withFetch(async () => {
+      linkProviderCalls += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { id: 'attempt-91', code: '*123#' } }),
+      };
+    }, () => link.route({
+      method: 'POST',
+      headers: {},
+      body: { bookingId: 91, claim: 'private-claim', type: 'momo' },
+    }, linkResponse));
+    assert.equal(linkResponse.statusCode, 200);
+    assert.equal(linkProviderCalls, 1);
+    assert.equal(link.attempts.length, 1);
+
+    const status = paymentStatusHarness({ providerStatus: 'completed' });
+    const statusResponse = responseRecorder();
+    await withFetch(status.providerFetch, () => status.route(status.request(), statusResponse));
+    assert.equal(statusResponse.statusCode, 200);
+    assert.deepEqual(status.events, ['provider']);
+    assert.equal(status.settlements.length, 1);
+
+    const oldUser = process.env.FLOT_WEBHOOK_USER;
+    const oldPass = process.env.FLOT_WEBHOOK_PASS;
+    process.env.FLOT_WEBHOOK_USER = 'webhook-user';
+    process.env.FLOT_WEBHOOK_PASS = 'webhook-pass';
+    try {
+      const webhook = legacySettlementRouteHarness({ initialResolution: 'recover' });
+      const webhookResponse = responseRecorder();
+      await webhook.webhookRoute(webhook.webhookRequest, webhookResponse);
+      assert.equal(webhookResponse.statusCode, 200);
+      assert.equal(webhookResponse.body.markedPaid, true);
+      assert.equal(webhook.state.settlementTransitions, 1);
+    } finally {
+      if (oldUser === undefined) delete process.env.FLOT_WEBHOOK_USER; else process.env.FLOT_WEBHOOK_USER = oldUser;
+      if (oldPass === undefined) delete process.env.FLOT_WEBHOOK_PASS; else process.env.FLOT_WEBHOOK_PASS = oldPass;
+    }
+
+    let cronQueries = 0;
+    const cronSql = async (strings) => {
+      cronQueries += 1;
+      const text = strings.join(' ');
+      if (/SELECT p\.id/.test(text) && /FROM payments p/.test(text)) return [];
+      if (/UPDATE payments SET status = 'expired'/.test(text)) return [];
+      throw new Error(`Unexpected active-gate cron query: ${text}`);
+    };
+    const cron = loadCommonJsWithMocks('../api/cron-poll-payments.js', {
+      '@neondatabase/serverless': { neon: () => cronSql },
+      './_flot': { TEST_MODE: false, log() {} },
+      './_paid': {
+        settleBooking: async () => ({ settled: false, alreadyPaid: false, conflict: false }),
+        deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+      },
+      './_ratelimit': { sweepRateLimits: async () => 0 },
+    });
+    const oldSecret = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = 'cron-secret';
+    const cronResponse = responseRecorder();
+    try {
+      await cron({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, cronResponse);
+    } finally {
+      if (oldSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = oldSecret;
+    }
+    assert.equal(cronResponse.statusCode, 200);
+    assert.equal(cronResponse.body.checked, 0);
+    assert.equal(cronQueries, 2);
+  });
+});
+
+test('rollout verifier checks all four endpoints in paused and active deployments', async () => {
+  let state = 'paused';
+  let mismatchedPath = null;
+  let seen = [];
+  const activeStatuses = new Map([
+    ['/api/flot-payment-link', 400],
+    ['/api/flot-status', 400],
+    ['/api/payment-webhook', 401],
+    ['/api/cron-poll-payments', 401],
+  ]);
+  const server = createServer((req, res) => {
+    seen.push(req.url);
+    const shouldMismatch = req.url === mismatchedPath;
+    const status = state === 'paused'
+      ? (shouldMismatch ? 200 : 503)
+      : (shouldMismatch ? 503 : activeStatuses.get(req.url));
+    res.statusCode = status || 404;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(status === 503
+      ? { code: 'PAYMENT_LISTENERS_PAUSED', retryable: true }
+      : { error: 'Expected validation/auth response' }));
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const endpoints = [...activeStatuses.keys()];
+
+  try {
+    const paused = await runNode([
+      'scripts/verify-payment-listeners.mjs', '--expect=paused', `--base-url=${baseUrl}`,
+    ]);
+    assert.equal(paused.status, 0, paused.stderr);
+    assert.deepEqual(seen.sort(), endpoints.toSorted());
+    assert.equal(JSON.parse(paused.stdout).state, 'paused');
+
+    state = 'active';
+    seen = [];
+    const active = await runNode([
+      'scripts/verify-payment-listeners.mjs', '--expect=active', `--base-url=${baseUrl}`,
+    ]);
+    assert.equal(active.status, 0, active.stderr);
+    assert.deepEqual(seen.sort(), endpoints.toSorted());
+    assert.equal(JSON.parse(active.stdout).state, 'active');
+
+    state = 'paused';
+    mismatchedPath = '/api/flot-status';
+    const mismatch = await runNode([
+      'scripts/verify-payment-listeners.mjs', '--expect=paused', `--base-url=${baseUrl}`,
+    ]);
+    assert.notEqual(mismatch.status, 0);
+    assert.match(mismatch.stderr, /\/api\/flot-status/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('migration CLIs reject unsafe listener state before database access', async () => {
+  const withoutDatabases = {
+    DATABASE_URL: null,
+    DATABASE_URL_UNPOOLED: null,
+  };
+  const migrationEnabled = await runNode([
+    'scripts/migrate-availability.mjs', '--listeners-paused-verified',
+  ], {
+    ...withoutDatabases,
+    PAYMENT_LISTENERS_ENABLED: 'true',
+  });
+  assert.notEqual(migrationEnabled.status, 0);
+  assert.match(migrationEnabled.stderr, /PAYMENT_LISTENERS_ENABLED=false/);
+
+  const migrationUnacknowledged = await runNode([
+    'scripts/migrate-availability.mjs',
+  ], {
+    ...withoutDatabases,
+    PAYMENT_LISTENERS_ENABLED: 'false',
+  });
+  assert.notEqual(migrationUnacknowledged.status, 0);
+  assert.match(migrationUnacknowledged.stderr, /--listeners-paused-verified/);
+
+  const reconciliationEnabled = await runNode([
+    'scripts/legacy-payment-reconciliation.mjs', '--post-deploy-before-listeners',
+  ], {
+    ...withoutDatabases,
+    PAYMENT_LISTENERS_ENABLED: 'true',
+  });
+  assert.notEqual(reconciliationEnabled.status, 0);
+  assert.match(reconciliationEnabled.stderr, /PAYMENT_LISTENERS_ENABLED=false/);
+});
 
 test('payment-link claim rejection does not reveal whether a booking exists', async () => {
   const privateBooking = {
@@ -3129,6 +3472,7 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
   assert.equal(state.quarantine.get(504).reason, 'pre-cutover-payment-not-completed');
   assert.equal(state.quarantine.get(505).reason, 'pre-cutover-payment-not-completed');
   assert.deepEqual(first.pendingIds, [502, 504, 505]);
+  assert.equal(first.safeToEnableListeners, false);
   assert.match(logs[0], /3 legacy payment/);
   assert.match(logs[0], /502/);
 
@@ -3177,8 +3521,17 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
   assert.equal(state.quarantine.get(504).resolved_at, null);
   assert.equal(state.quarantine.get(505).resolution, 'pending');
   assert.deepEqual(second.pendingIds, [505]);
+  assert.equal(second.safeToEnableListeners, false);
   assert.equal(state.bookings.get(91).payment_status, 'unpaid');
   assert.equal(state.bookings.get(91).inventory_status, 'unreserved');
+
+  state.quarantine.get(505).resolution = 'ignore';
+  state.quarantine.get(505).resolved_at = '2026-09-03T12:05:00.000Z';
+  const third = await reconcileLegacyPaymentAttempts(sql, { logger: { log() {} } });
+  assert.deepEqual(third.unresolvedQuarantineIds, []);
+  assert.equal(third.safeToEnableListeners, true);
+  assert.equal(state.quarantine.get(505).resolution, 'ignore');
+  assert.equal(state.events.has(505), false);
 });
 
 test('payment rollout contract keeps listeners disabled through post-deploy reconciliation', async () => {
@@ -3187,17 +3540,23 @@ test('payment rollout contract keeps listeners disabled through post-deploy reco
   );
 
   assert.deepEqual(PAYMENT_ROLLOUT_CONTRACT.phases, [
-    'migrate-before-api-deploy',
-    'deploy-with-payment-listeners-disabled',
-    'reconcile-immediately-after-deploy',
-    'verify-unresolved-quarantine-ids',
-    'enable-payment-listeners',
+    'deploy-guarded-build-listeners-disabled',
+    'verify-all-payment-endpoints-paused',
+    'migrate-and-freeze-cutover',
+    'retain-guarded-build-listeners-disabled',
+    'reconcile-post-deploy',
+    'resolve-and-verify-zero-quarantine-ids',
+    'enable-listeners-and-deploy',
+    'verify-all-payment-endpoints-active',
   ]);
-  assert.equal(
-    PAYMENT_ROLLOUT_CONTRACT.postDeployCommand,
-    'node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
-  );
+  assert.deepEqual(PAYMENT_ROLLOUT_CONTRACT.commands, {
+    verifyPaused: 'node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com',
+    migrate: 'PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/migrate-availability.mjs --listeners-paused-verified',
+    reconcile: 'PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
+    verifyActive: 'node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com',
+  });
   assert.equal(PAYMENT_ROLLOUT_CONTRACT.verificationField, 'unresolvedQuarantineIds');
+  assert.equal(PAYMENT_ROLLOUT_CONTRACT.enablementField, 'safeToEnableListeners');
 });
 
 test('availability migration defines multi-unit inventory and locked writes', () => {

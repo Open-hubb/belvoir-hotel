@@ -1,15 +1,18 @@
 // Adds the schema and transactional functions for multi-unit room inventory.
 //
-// Controlled payment rollout (listeners remain disabled throughout steps 1-4):
-//   1. Run this migration before deploying API/cron code.
-//   2. Deploy the API/cron build with payment listeners disabled.
-//   3. Immediately run legacy-payment-reconciliation.mjs with
-//      --post-deploy-before-listeners.
-//   4. Capture its complete unresolvedQuarantineIds verification field.
-//   5. Only then enable polling, webhook delivery, and cron reconciliation.
+// Controlled payment rollout (listeners remain disabled throughout steps 1-6):
+//   1. Deploy the guarded build with PAYMENT_LISTENERS_ENABLED=false.
+//   2. Verify link, status, webhook, and cron endpoints are all paused.
+//   3. Run this migration to freeze the payment cutover.
+//   4. Retain the guarded build and verify it remains paused.
+//   5. Run legacy-payment-reconciliation.mjs --post-deploy-before-listeners.
+//   6. Resolve every unresolvedQuarantineIds entry and rerun until
+//      safeToEnableListeners is true.
+//   7. Set PAYMENT_LISTENERS_ENABLED=true, deploy, and verify all four active.
 //
-// Step 1 command:
-//   node --env-file=.env.local scripts/migrate-availability.mjs
+// Step 3 command (refuses any other listener-state/acknowledgement pairing):
+//   PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local
+//     scripts/migrate-availability.mjs --listeners-paused-verified
 //
 // Safe to re-run: schema changes are guarded, capacities are upserted, and
 // functions are replaced in place.
@@ -21,6 +24,9 @@ import { reconcileLegacyPaymentAttempts } from './legacy-payment-reconciliation.
 
 const require = createRequire(import.meta.url);
 const { ROOMS } = require('../api/_rooms.js');
+const { requirePaymentListenersPaused } = require('../api/_payment-listeners.js');
+
+requirePaymentListenersPaused('--listeners-paused-verified');
 
 const databaseUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL is required');

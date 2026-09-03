@@ -1,5 +1,8 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import paymentListeners from '../api/_payment-listeners.js';
+
+const { requirePaymentListenersPaused } = paymentListeners;
 
 const CUTOVER_KEY = 'settlement-events-v1';
 const AMBIGUOUS_REASON = 'completed-unpaid-without-settlement-evidence';
@@ -10,15 +13,27 @@ const INCOMPLETE_REASON = 'pre-cutover-payment-not-completed';
 // until this exact sequence reaches its final phase.
 export const PAYMENT_ROLLOUT_CONTRACT = Object.freeze({
   phases: Object.freeze([
-    'migrate-before-api-deploy',
-    'deploy-with-payment-listeners-disabled',
-    'reconcile-immediately-after-deploy',
-    'verify-unresolved-quarantine-ids',
-    'enable-payment-listeners',
+    'deploy-guarded-build-listeners-disabled',
+    'verify-all-payment-endpoints-paused',
+    'migrate-and-freeze-cutover',
+    'retain-guarded-build-listeners-disabled',
+    'reconcile-post-deploy',
+    'resolve-and-verify-zero-quarantine-ids',
+    'enable-listeners-and-deploy',
+    'verify-all-payment-endpoints-active',
   ]),
-  postDeployCommand:
-    'node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
+  commands: Object.freeze({
+    verifyPaused:
+      'node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com',
+    migrate:
+      'PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/migrate-availability.mjs --listeners-paused-verified',
+    reconcile:
+      'PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
+    verifyActive:
+      'node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com',
+  }),
   verificationField: 'unresolvedQuarantineIds',
+  enablementField: 'safeToEnableListeners',
 });
 
 export function hasExactPaidAuditMarker(notes, providerRef) {
@@ -160,6 +175,7 @@ export async function reconcileLegacyPaymentAttempts(sql, { logger = console } =
     quarantined,
     pendingIds,
     unresolvedQuarantineIds: pendingIds,
+    safeToEnableListeners: pendingIds.length === 0,
   };
 }
 
@@ -172,6 +188,7 @@ if (invokedUrl === import.meta.url) {
       'Use --post-deploy-before-listeners after API deployment and before enabling payment listeners.',
     );
   }
+  requirePaymentListenersPaused('--post-deploy-before-listeners');
   const databaseUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL is required');
   const { neon } = await import('@neondatabase/serverless');
@@ -180,5 +197,12 @@ if (invokedUrl === import.meta.url) {
     phase: 'post-deploy-before-listeners',
     cutoffId: result.cutoffId,
     unresolvedQuarantineIds: result.unresolvedQuarantineIds,
+    safeToEnableListeners: result.safeToEnableListeners,
   }));
+  if (!result.safeToEnableListeners) {
+    console.error(
+      '[payment-rollout] Resolve every unresolvedQuarantineIds entry, then rerun before enabling listeners.',
+    );
+    process.exitCode = 2;
+  }
 }

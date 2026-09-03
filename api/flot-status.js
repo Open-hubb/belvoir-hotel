@@ -13,6 +13,7 @@ const { settleBooking } = paid;
 const deliverPendingPaymentNotifications = paid.deliverPendingPaymentNotifications ||
   (async () => ({ claimed: 0, delivered: 0, pending: 0 }));
 const { acquireBookingHold } = require('./_inventory');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -27,11 +28,13 @@ function query(req) {
 }
 
 module.exports = async (req, res) => {
-  if (limit(req, res, 'status', 90, 60000)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (pausePaymentListener(res)) return;
+  if (limit(req, res, 'status', 90, 60000)) return;
 
   const q = query(req);
   const orderId = String(q.orderId || '');
