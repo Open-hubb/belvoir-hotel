@@ -1,6 +1,14 @@
 // Adds the schema and transactional functions for multi-unit room inventory.
 //
-// Run once against each environment during the controlled rollout:
+// Controlled payment rollout (listeners remain disabled throughout steps 1-4):
+//   1. Run this migration before deploying API/cron code.
+//   2. Deploy the API/cron build with payment listeners disabled.
+//   3. Immediately run legacy-payment-reconciliation.mjs with
+//      --post-deploy-before-listeners.
+//   4. Capture its complete unresolvedQuarantineIds verification field.
+//   5. Only then enable polling, webhook delivery, and cron reconciliation.
+//
+// Step 1 command:
 //   node --env-file=.env.local scripts/migrate-availability.mjs
 //
 // Safe to re-run: schema changes are guarded, capacities are upserted, and
@@ -365,8 +373,10 @@ await step('booking hold function', async () => {
 });
 
 await step('booking settlement function', async () => {
-  // The old one-argument function cannot coexist as an accidental call target.
+  // Neither the legacy one-argument target nor the previous five-column
+  // two-argument return type may survive this guarded settlement contract.
   await sql`DROP FUNCTION IF EXISTS belvoir_settle_booking(bigint)`;
+  await sql`DROP FUNCTION IF EXISTS belvoir_settle_booking(bigint, text)`;
   await sql`
     CREATE OR REPLACE FUNCTION belvoir_settle_booking(
       p_booking_id bigint,
@@ -376,6 +386,8 @@ await step('booking settlement function', async () => {
       settled boolean,
       already_paid boolean,
       already_processed boolean,
+      resolution_required boolean,
+      legacy_resolution text,
       inventory_status text,
       payment_generation integer
     )
@@ -388,10 +400,14 @@ await step('booking settlement function', async () => {
       v_existing_generation integer;
       v_existing_outcome text;
       v_outcome text;
+      v_payment_id bigint;
+      v_cutoff bigint;
+      v_legacy_resolution text;
     BEGIN
       SELECT * INTO v_booking FROM bookings WHERE id = p_booking_id FOR UPDATE;
       IF NOT FOUND OR NULLIF(btrim(p_settlement_key), '') IS NULL THEN
-        RETURN QUERY SELECT false, false, false, NULL::text, NULL::integer;
+        RETURN QUERY SELECT false, false, false, false, NULL::text,
+          NULL::text, NULL::integer;
         RETURN;
       END IF;
 
@@ -405,13 +421,45 @@ await step('booking settlement function', async () => {
         AND event.settlement_key = p_settlement_key;
       IF FOUND THEN
         RETURN QUERY SELECT false,
-          v_booking.payment_status = 'paid', true,
+          v_booking.payment_status = 'paid', true, false, NULL::text,
           v_existing_outcome, v_existing_generation;
         RETURN;
       END IF;
 
+      -- Every Flot attempt at or below the insert-once cutover is legacy.
+      -- Pending, ignored, and even not-yet-classified identities fail closed
+      -- here, inside the same function used by every present/future listener.
+      -- Only the operator-owned recover resolution may cross this boundary.
+      IF p_settlement_key ~ '^flot-payment:[0-9]+$' THEN
+        v_payment_id := split_part(p_settlement_key, ':', 2)::bigint;
+        SELECT cutover.legacy_max_payment_id INTO v_cutoff
+        FROM legacy_payment_reconciliation_cutovers AS cutover
+        WHERE cutover.migration_key = 'settlement-events-v1';
+
+        IF v_cutoff IS NULL THEN
+          RETURN QUERY SELECT false, false, false, true,
+            'migration-required'::text,
+            v_booking.inventory_status, v_booking.payment_generation;
+          RETURN;
+        END IF;
+
+        IF v_payment_id <= v_cutoff THEN
+          SELECT reconciliation.resolution INTO v_legacy_resolution
+          FROM legacy_payment_reconciliation AS reconciliation
+          WHERE reconciliation.payment_id = v_payment_id
+            AND reconciliation.booking_id = p_booking_id
+          FOR UPDATE;
+          IF v_legacy_resolution IS DISTINCT FROM 'recover' THEN
+            RETURN QUERY SELECT false, false, false, true,
+              COALESCE(v_legacy_resolution, 'pending')::text,
+              v_booking.inventory_status, v_booking.payment_generation;
+            RETURN;
+          END IF;
+        END IF;
+      END IF;
+
       IF v_booking.payment_status = 'paid' THEN
-        RETURN QUERY SELECT false, true, false,
+        RETURN QUERY SELECT false, true, false, false, v_legacy_resolution,
           v_booking.inventory_status, v_booking.payment_generation;
         RETURN;
       END IF;
@@ -439,7 +487,8 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':conflict:whatsapp-conflict')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
+        RETURN QUERY SELECT true, false, false, false, v_legacy_resolution,
+          v_outcome, v_generation;
         RETURN;
       END IF;
 
@@ -473,7 +522,8 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':reserved:whatsapp-payment')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
+        RETURN QUERY SELECT true, false, false, false, v_legacy_resolution,
+          v_outcome, v_generation;
       ELSE
         UPDATE bookings
         SET payment_status = 'paid', stage = 'checkout',
@@ -491,7 +541,8 @@ await step('booking settlement function', async () => {
            'belvoir:booking:' || p_booking_id::text || ':payment:' ||
              v_generation::text || ':conflict:whatsapp-conflict')
         ON CONFLICT (booking_id, payment_generation, outcome, channel) DO NOTHING;
-        RETURN QUERY SELECT true, false, false, v_outcome, v_generation;
+        RETURN QUERY SELECT true, false, false, false, v_legacy_resolution,
+          v_outcome, v_generation;
       END IF;
     END;
     $$`;

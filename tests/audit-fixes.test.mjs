@@ -195,3 +195,241 @@ test('room detail page has an accessible back control with a room-list fallback'
   await navigation;
   assert.equal(new URL(page.url()).pathname, '/');
 });
+
+test('admin block form labels, clamps, and submits room quantities', { concurrency: false }, async () => {
+  await page.setViewport({ width: 768, height: 900 });
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  const state = await page.evaluate(async () => {
+    BLOCKS = [{
+      id: 70,
+      room_key: 'superior-deluxe',
+      room_name: 'Superior Deluxe King',
+      starts: '2027-11-10',
+      ends: '2027-11-12',
+      units: 2,
+      capacity: 3,
+      reason: 'Deep clean',
+      created_at: '2027-10-01T10:00:00.000Z',
+    }];
+    VIEW = 'blocks';
+    renderBlocks();
+
+    const room = document.getElementById('blkRoom');
+    const units = document.getElementById('blkUnits');
+    const label = document.querySelector('label[for="blkUnits"]');
+    const initial = {
+      label: label && label.textContent.trim(),
+      min: units && units.min,
+      step: units && units.step,
+      max: units && units.max,
+      listText: document.getElementById('list').textContent,
+    };
+
+    units.value = '99';
+    room.value = 'superior-deluxe';
+    room.dispatchEvent(new Event('change', { bubbles: true }));
+    const clamped = { max: units.max, value: units.value };
+
+    document.getElementById('blkFrom').value = '2027-12-01';
+    document.getElementById('blkTo').value = '2027-12-03';
+    units.value = '2';
+    let submitted = null;
+    api = async (method, body, path) => {
+      if (method === 'POST' && path === '/api/blocks') submitted = body;
+      if (method === 'GET' && path === '/api/blocks') return { blocks: [] };
+      return { ok: true };
+    };
+    await addBlock();
+
+    return {
+      initial,
+      clamped,
+      submittedUnits: submitted && submitted.units,
+      submittedType: submitted && typeof submitted.units,
+    };
+  });
+
+  assert.equal(state.initial.label, 'Rooms out of service');
+  assert.equal(state.initial.min, '1');
+  assert.equal(state.initial.step, '1');
+  assert.equal(state.initial.max, '1');
+  assert.match(state.initial.listText, /2 of 3 rooms blocked/);
+  assert.deepEqual(state.clamped, { max: '3', value: '3' });
+  assert.equal(state.submittedUnits, 2);
+  assert.equal(state.submittedType, 'number');
+});
+
+test('admin inventory views stay within a 375px viewport', { concurrency: false }, async () => {
+  await page.setViewport({ width: 375, height: 812 });
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  const widths = await page.evaluate(() => {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('dashView').classList.add('active');
+    ME = { role: 'owner' };
+    BLOCKS = [];
+    VIEW = 'blocks';
+    renderBlocks();
+    const blocks = { viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth };
+
+    BOOKINGS = [{
+      id: 88, guest_name: 'Conflict Guest', guest_email: 'guest@example.com',
+      guest_phone: '+232 77 000 000', room_name: 'Deluxe Standard',
+      checkin: '2027-11-10', checkout: '2027-11-12', nights: 2, guests: '2',
+      payment_option: 'full', amount_due: 140, total: 140, requests: '',
+      created_at: '2027-10-01T10:00:00.000Z', status: 'active', stage: 'checkout',
+      payment_status: 'paid', inventory_status: 'conflict', hold_expires_at: null,
+    }];
+    VIEW = 'bookings';
+    FILTER = 'all';
+    render();
+    const bookings = { viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth };
+    return { blocks, bookings };
+  });
+
+  assert.ok(widths.blocks.page <= widths.blocks.viewport, JSON.stringify(widths.blocks));
+  assert.ok(widths.bookings.page <= widths.bookings.viewport, JSON.stringify(widths.bookings));
+});
+
+test('admin booking cards distinguish conflicts, live holds, and abandoned checkout', { concurrency: false }, async () => {
+  await page.setViewport({ width: 1440, height: 900 });
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  const cards = await page.evaluate(() => {
+    const base = {
+      room_name: 'Deluxe Standard',
+      checkin: '2027-11-10',
+      checkout: '2027-11-12',
+      nights: 2,
+      guests: '2',
+      guest_email: 'guest@example.com',
+      guest_phone: '+232 77 000 000',
+      payment_option: 'full',
+      amount_due: 140,
+      total: 140,
+      requests: '',
+      created_at: '2027-10-01T10:00:00.000Z',
+      status: 'active',
+      stage: 'checkout',
+    };
+    BOOKINGS = [
+      { ...base, id: 81, guest_name: 'Conflict Guest', payment_status: 'paid', inventory_status: 'conflict', hold_expires_at: null },
+      { ...base, id: 82, guest_name: 'Held Guest', payment_status: 'unpaid', inventory_status: 'held', hold_expires_at: '2099-10-01T14:35:00.000Z' },
+      { ...base, id: 83, guest_name: 'Expired Guest', payment_status: 'unpaid', inventory_status: 'held', hold_expires_at: '2020-10-01T14:35:00.000Z' },
+      { ...base, id: 84, guest_name: 'Unreserved Guest', payment_status: 'unpaid', inventory_status: 'unreserved', hold_expires_at: null },
+    ];
+    ME = { role: 'owner' };
+    VIEW = 'bookings';
+    FILTER = 'all';
+    render();
+    return Object.fromEntries(
+      [...document.querySelectorAll('.card[data-id]')]
+        .map((card) => [card.dataset.id, card.textContent.replace(/\s+/g, ' ').trim()]),
+    );
+  });
+
+  assert.match(cards['81'], /Payment conflict/);
+  assert.match(cards['81'], /Reassign or refund/);
+  assert.match(cards['82'], /Held until \d{2}:\d{2}/);
+  assert.doesNotMatch(cards['82'], /Left at payment/);
+  assert.match(cards['83'], /Left at payment/);
+  assert.match(cards['84'], /Left at payment/);
+});
+
+test('admin keeps local booking state unchanged when 409 actions return safe messages', { concurrency: false }, async () => {
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  const state = await page.evaluate(async () => {
+    const base = {
+      room_name: 'Deluxe Standard', checkin: '2027-11-10', checkout: '2027-11-12',
+      nights: 2, guests: '2', guest_email: 'guest@example.com', guest_phone: '+232 77 000 000',
+      payment_option: 'full', amount_due: 140, total: 140, requests: '',
+      created_at: '2027-10-01T10:00:00.000Z', stage: 'checkout', inventory_status: 'unreserved',
+    };
+    BOOKINGS = [
+      { ...base, id: 85, guest_name: 'Mark Paid Guest', payment_status: 'unpaid', status: 'active' },
+      { ...base, id: 86, guest_name: 'Restore Guest', payment_status: 'paid', status: 'cancelled' },
+    ];
+    ME = { role: 'owner' };
+    VIEW = 'bookings';
+    FILTER = 'all';
+    render();
+    const messages = [];
+    window.alert = (message) => messages.push(message);
+    api = async (_method, body) => {
+      if (body.payment_status === 'paid') throw new Error('Only 0 rooms remain for those dates.');
+      throw new Error('That booking cannot be restored because the room is full.');
+    };
+
+    await toggle(85, 'paid');
+    await setBookingStatus(86, 'active');
+    return {
+      messages,
+      paymentStatus: BOOKINGS.find((booking) => booking.id === 85).payment_status,
+      bookingStatus: BOOKINGS.find((booking) => booking.id === 86).status,
+    };
+  });
+
+  assert.deepEqual(state.messages, [
+    'Only 0 rooms remain for those dates.',
+    'That booking cannot be restored because the room is full.',
+  ]);
+  assert.equal(state.paymentStatus, 'unpaid');
+  assert.equal(state.bookingStatus, 'cancelled');
+});
+
+test('admin applies the server inventory outcome after marking a booking paid', { concurrency: false }, async () => {
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  const state = await page.evaluate(async () => {
+    BOOKINGS = [{
+      id: 87,
+      guest_name: 'Late Payment Guest',
+      guest_email: 'guest@example.com',
+      guest_phone: '+232 77 000 000',
+      room_name: 'Deluxe Standard',
+      checkin: '2027-11-10',
+      checkout: '2027-11-12',
+      nights: 2,
+      guests: '2',
+      payment_option: 'full',
+      amount_due: 140,
+      total: 140,
+      requests: '',
+      created_at: '2027-10-01T10:00:00.000Z',
+      stage: 'checkout',
+      payment_status: 'unpaid',
+      inventory_status: 'unreserved',
+      hold_expires_at: null,
+      status: 'active',
+    }];
+    ME = { role: 'owner' };
+    VIEW = 'bookings';
+    FILTER = 'all';
+    render();
+    api = async () => ({
+      ok: true,
+      booking: {
+        id: 87,
+        payment_status: 'paid',
+        inventory_status: 'conflict',
+        hold_expires_at: null,
+        status: 'active',
+      },
+      inventoryConflict: true,
+    });
+
+    await toggle(87, 'paid');
+    return {
+      paymentStatus: BOOKINGS[0].payment_status,
+      inventoryStatus: BOOKINGS[0].inventory_status,
+      cardText: document.querySelector('.card[data-id="87"]').textContent.replace(/\s+/g, ' ').trim(),
+    };
+  });
+
+  assert.equal(state.paymentStatus, 'paid');
+  assert.equal(state.inventoryStatus, 'conflict');
+  assert.match(state.cardText, /Payment conflict/);
+  assert.match(state.cardText, /Reassign or refund/);
+});

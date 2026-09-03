@@ -111,7 +111,7 @@ module.exports = async (req, res) => {
       LIMIT ${BATCH}`;
 
     let completed = 0, failed = 0, unchanged = 0, errored = 0;
-    let inventoryConflicts = 0, alreadyProcessed = 0;
+    let inventoryConflicts = 0, alreadyProcessed = 0, reconciliationRequired = 0;
 
     for (const p of open) {
       let observed = p.status === 'completed' ? { status: 'completed', data: null } : null;
@@ -140,6 +140,7 @@ module.exports = async (req, res) => {
             'reconciled',
             p.provider_ref,
           );
+          if (settlement.resolutionRequired) reconciliationRequired++;
           if (settlement.conflict) inventoryConflicts++;
           if (settlement.alreadyProcessed) alreadyProcessed++;
         }
@@ -148,12 +149,19 @@ module.exports = async (req, res) => {
             provider_raw = COALESCE(${providerRaw}, provider_raw),
             completed_at = COALESCE(completed_at, clock_timestamp())
           WHERE id = ${p.id}`;
-        completed++;
-        F.log('CRON_PAYMENT_COMPLETED', {
-          orderId: p.reference,
-          bookingId: p.booking_id,
-          inventoryConflict: settlement ? settlement.conflict === true : false,
-        });
+        if (settlement && settlement.resolutionRequired) {
+          F.log('CRON_PAYMENT_RECONCILIATION_REQUIRED', {
+            orderId: p.reference,
+            bookingId: p.booking_id,
+          });
+        } else {
+          completed++;
+          F.log('CRON_PAYMENT_COMPLETED', {
+            orderId: p.reference,
+            bookingId: p.booking_id,
+            inventoryConflict: settlement ? settlement.conflict === true : false,
+          });
+        }
       } else if (status === 'failed') {
         // The guest can still retry, so only the attempt is closed off.
         await sql`
@@ -200,6 +208,7 @@ module.exports = async (req, res) => {
       inventoryConflict: inventoryConflicts > 0,
       inventoryConflicts,
       alreadyProcessed,
+      reconciliationRequired,
       notifications,
       expired: expired.length,
       ms: Date.now() - started,

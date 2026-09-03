@@ -35,10 +35,21 @@ async function settleBookingInventory(sql, bookingId, settlementKey) {
       ${bookingId}::bigint, ${settlementKey}::text
     )`;
   const row = rows[0] || {};
+  const isFlotSettlement = /^flot-payment:\d+$/.test(String(settlementKey || ''));
+  const guardReported = typeof row.resolution_required === 'boolean';
+  // If API code reaches a database that has not installed the quarantine-aware
+  // return contract yet, every provider settlement fails closed. Admin-only
+  // settlement keys are not legacy payment identities and remain compatible.
+  const guardUnavailable = isFlotSettlement && !guardReported;
+  const resolutionRequired = row.resolution_required === true || guardUnavailable;
   return {
     settled: row.settled === true,
     alreadyPaid: row.already_paid === true,
     alreadyProcessed: row.already_processed === true,
+    resolutionRequired,
+    quarantineResolution: resolutionRequired
+      ? (row.legacy_resolution || (guardUnavailable ? 'migration-required' : 'pending'))
+      : (row.legacy_resolution || null),
     inventoryStatus: row.inventory_status || null,
     paymentGeneration: row.payment_generation == null
       ? null

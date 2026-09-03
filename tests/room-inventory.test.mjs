@@ -15,6 +15,10 @@ const bookingsSource = readFileSync(
   new URL('../api/bookings.js', import.meta.url),
   'utf8',
 );
+const blocksSource = readFileSync(
+  new URL('../api/blocks.js', import.meta.url),
+  'utf8',
+);
 const paidSource = readFileSync(
   new URL('../api/_paid.js', import.meta.url),
   'utf8',
@@ -246,6 +250,223 @@ function paymentStatusHarness({
     };
   };
   return { route, request, providerFetch, events, holds, settlements, updates };
+}
+
+function legacySettlementRouteHarness({ initialResolution = 'pending' } = {}) {
+  const state = {
+    resolution: initialResolution,
+    event: null,
+    settlementTransitions: 0,
+    noteWrites: 0,
+    outboxQueries: 0,
+    paymentUpdates: 0,
+    booking: {
+      id: 92,
+      reference: 'BLV-00092',
+      room_key: 'standard',
+      room_name: 'Deluxe Standard',
+      checkin: '2027-10-10',
+      checkout: '2027-10-12',
+      guest_name: 'Legacy Guest',
+      guest_email: 'legacy@example.com',
+      guest_phone: '+232 77 000 092',
+      amount_due: 140,
+      total: 140,
+      status: 'active',
+      stage: 'checkout',
+      payment_status: 'unpaid',
+      inventory_status: 'unreserved',
+      payment_generation: 0,
+    },
+  };
+
+  const settleBookingInventory = async (_sql, bookingId, settlementKey) => {
+    assert.equal(bookingId, 92);
+    assert.equal(settlementKey, 'flot-payment:502');
+    if (state.event) {
+      return {
+        settled: false,
+        alreadyPaid: state.booking.payment_status === 'paid',
+        alreadyProcessed: true,
+        resolutionRequired: false,
+        quarantineResolution: 'recover',
+        inventoryStatus: state.event.outcome,
+        paymentGeneration: state.event.paymentGeneration,
+      };
+    }
+    if (state.resolution !== 'recover') {
+      return {
+        settled: false,
+        alreadyPaid: false,
+        alreadyProcessed: false,
+        resolutionRequired: true,
+        quarantineResolution: state.resolution || 'pending',
+        inventoryStatus: state.booking.inventory_status,
+        paymentGeneration: state.booking.payment_generation,
+      };
+    }
+
+    state.settlementTransitions += 1;
+    state.booking.payment_status = 'paid';
+    state.booking.inventory_status = 'reserved';
+    state.booking.payment_generation += 1;
+    state.event = {
+      outcome: 'reserved',
+      paymentGeneration: state.booking.payment_generation,
+    };
+    return {
+      settled: true,
+      alreadyPaid: false,
+      alreadyProcessed: false,
+      resolutionRequired: false,
+      quarantineResolution: 'recover',
+      inventoryStatus: 'reserved',
+      paymentGeneration: state.booking.payment_generation,
+    };
+  };
+
+  const sql = async (strings) => {
+    const text = strings.join(' ');
+    if (/p\.id AS payment_id/.test(text) && /JOIN bookings/.test(text)) {
+      return [{
+        payment_id: 502,
+        booking_id: 92,
+        claim_token: 'legacy-claim',
+        payment_status: state.booking.payment_status,
+        inventory_status: state.booking.inventory_status,
+        attempt_status: 'completed',
+        amount: '140.00',
+        currency: 'USD',
+      }];
+    }
+    if (/SELECT \* FROM bookings/.test(text)) return [{ ...state.booking }];
+    if (/INSERT INTO payments/.test(text)) return [];
+    if (/SELECT id, status, booking_id[\s\S]*FROM payments/.test(text)) {
+      return [{ id: 502, status: 'completed', booking_id: 92 }];
+    }
+    if (/UPDATE bookings\s+SET notes/.test(text)) {
+      state.noteWrites += 1;
+      return [{ ...state.booking }];
+    }
+    if (/WITH claimable AS MATERIALIZED/.test(text)) {
+      state.outboxQueries += 1;
+      return [];
+    }
+    if (/UPDATE payments\s+SET status = 'completed'/.test(text)) {
+      state.paymentUpdates += 1;
+      return [];
+    }
+    throw new Error(`Unexpected legacy settlement route query: ${text}`);
+  };
+
+  const paid = loadCommonJsWithMocks('../api/_paid.js', {
+    './_inventory': { settleBookingInventory },
+    './_notify': {
+      confirmBooking: async () => ({ id: 'guest-message' }),
+      notifyPaid: async () => ({ id: 'team-message' }),
+    },
+    './_whapi': {
+      notifyAdmins: async () => ({ sent: 1, failed: 0, skipped: false }),
+    },
+    './_flot': { log() {} },
+  });
+
+  const statusRoute = loadCommonJsWithMocks('../api/flot-status.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_flot': {
+      API_BASE: 'https://payments.example',
+      MERCHANT_ID: 'merchant',
+      TEST_MODE: false,
+      signCanonical: () => 'signature',
+      log() {},
+    },
+    './_ratelimit': { limit: () => false },
+    './_inventory': {
+      acquireBookingHold: async () => ({ acquired: true, remaining: 1 }),
+    },
+    './_paid': paid,
+  });
+
+  const webhookRoute = loadCommonJsWithMocks('../api/payment-webhook.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_ratelimit': { limit: () => false },
+    './_paid': paid,
+  });
+
+  return {
+    state,
+    statusRoute,
+    webhookRoute,
+    statusRequest: {
+      method: 'GET',
+      query: {
+        orderId: 'belvoir-92',
+        attemptId: 'attempt-legacy',
+        claim: 'legacy-claim',
+      },
+      url: '/api/flot-status',
+    },
+    webhookRequest: {
+      method: 'POST',
+      headers: {
+        authorization: `Basic ${Buffer.from('webhook-user:webhook-pass').toString('base64')}`,
+      },
+      body: {
+        orderId: 'belvoir-92',
+        flotRequestId: 'attempt-legacy',
+        status: 'completed',
+      },
+    },
+  };
+}
+
+function roomBlockRouteHarness() {
+  const state = {
+    createResult: { created: true, blockId: 71, remaining: 0 },
+    createCalls: [],
+    queries: [],
+    listedBlocks: [{
+      id: 70,
+      room_key: 'superior-deluxe',
+      starts: '2027-11-10',
+      ends: '2027-11-12',
+      units: '2',
+      reason: 'Deep clean',
+      created_at: '2027-10-01T10:00:00.000Z',
+    }],
+  };
+  const sql = async (strings, ...values) => {
+    const text = strings.join(' ');
+    state.queries.push({ text, values });
+    if (/SELECT \* FROM room_blocks ORDER BY/.test(text)) {
+      return state.listedBlocks.map((block) => ({ ...block }));
+    }
+    if (/SELECT \* FROM room_blocks WHERE id/.test(text)) {
+      return [{
+        id: 71,
+        room_key: 'standard',
+        starts: '2027-12-01',
+        ends: '2027-12-03',
+        units: 2,
+        reason: 'Repairs',
+        created_at: '2027-10-01T10:00:00.000Z',
+      }];
+    }
+    if (/DELETE FROM room_blocks/.test(text)) return [{ id: Number(values[0]) }];
+    throw new Error(`Unexpected room-block query: ${text}`);
+  };
+  const route = loadCommonJsWithMocks('../api/blocks.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_auth': { isAdminRequest: async () => true },
+    './_ratelimit': { limit: () => false },
+    './_inventory': {
+      createRoomBlock: async (_sql, roomKey, starts, ends, units, reason) => {
+        state.createCalls.push({ roomKey, starts, ends, units, reason });
+        return { ...state.createResult };
+      },
+    },
+  });
+  return { route, state };
 }
 
 function durablePaidHarness({
@@ -1695,6 +1916,92 @@ test('a duplicate completed webhook uses its canonical attempt event after an ad
   }]);
 });
 
+test('claim-authenticated status polling cannot bypass legacy quarantine', async () => {
+  const harness = legacySettlementRouteHarness();
+
+  for (const resolution of ['pending', 'ignore']) {
+    harness.state.resolution = resolution;
+    const blocked = responseRecorder();
+    await harness.statusRoute(harness.statusRequest, blocked);
+
+    assert.equal(blocked.statusCode, 409);
+    assert.equal(blocked.body.code, 'PAYMENT_RECONCILIATION_REQUIRED');
+    assert.equal(blocked.body.resolutionRequired, true);
+    assert.equal(blocked.body.bookingFinal, false);
+    assert.equal(harness.state.booking.payment_status, 'unpaid');
+    assert.equal(harness.state.booking.inventory_status, 'unreserved');
+    assert.equal(harness.state.booking.payment_generation, 0);
+    assert.equal(harness.state.noteWrites, 0);
+    assert.equal(harness.state.outboxQueries, 0);
+  }
+
+  harness.state.resolution = 'recover';
+  const recovered = responseRecorder();
+  await harness.statusRoute(harness.statusRequest, recovered);
+  assert.equal(recovered.statusCode, 200);
+  assert.equal(recovered.body.bookingSettled, true);
+  assert.equal(recovered.body.resolutionRequired, false);
+  assert.equal(recovered.body.bookingFinal, true);
+  assert.equal(harness.state.booking.payment_status, 'paid');
+  assert.equal(harness.state.booking.inventory_status, 'reserved');
+  assert.equal(harness.state.booking.payment_generation, 1);
+
+  const replay = responseRecorder();
+  await harness.statusRoute(harness.statusRequest, replay);
+  assert.equal(replay.statusCode, 200);
+  assert.equal(replay.body.bookingSettled, false);
+  assert.equal(replay.body.settlementAlreadyProcessed, true);
+  assert.equal(harness.state.settlementTransitions, 1);
+  assert.equal(harness.state.noteWrites, 1);
+});
+
+test('duplicate webhook acknowledges but cannot bypass legacy quarantine', async () => {
+  const harness = legacySettlementRouteHarness();
+  const oldUser = process.env.FLOT_WEBHOOK_USER;
+  const oldPass = process.env.FLOT_WEBHOOK_PASS;
+  process.env.FLOT_WEBHOOK_USER = 'webhook-user';
+  process.env.FLOT_WEBHOOK_PASS = 'webhook-pass';
+  try {
+    for (const resolution of ['pending', 'ignore']) {
+      harness.state.resolution = resolution;
+      const blocked = responseRecorder();
+      await harness.webhookRoute(harness.webhookRequest, blocked);
+
+      assert.equal(blocked.statusCode, 200);
+      assert.equal(blocked.body.duplicate, true);
+      assert.equal(blocked.body.markedPaid, false);
+      assert.equal(blocked.body.resolutionRequired, true);
+      assert.equal(blocked.body.code, 'PAYMENT_RECONCILIATION_REQUIRED');
+      assert.equal(harness.state.booking.payment_status, 'unpaid');
+      assert.equal(harness.state.booking.inventory_status, 'unreserved');
+      assert.equal(harness.state.booking.payment_generation, 0);
+      assert.equal(harness.state.noteWrites, 0);
+      assert.equal(harness.state.outboxQueries, 0);
+    }
+
+    harness.state.resolution = 'recover';
+    const recovered = responseRecorder();
+    await harness.webhookRoute(harness.webhookRequest, recovered);
+    assert.equal(recovered.statusCode, 200);
+    assert.equal(recovered.body.markedPaid, true);
+    assert.equal(recovered.body.resolutionRequired, false);
+    assert.equal(harness.state.booking.payment_generation, 1);
+
+    const replay = responseRecorder();
+    await harness.webhookRoute(harness.webhookRequest, replay);
+    assert.equal(replay.statusCode, 200);
+    assert.equal(replay.body.settlementAlreadyProcessed, true);
+    assert.equal(replay.body.resolutionRequired, false);
+    assert.equal(harness.state.settlementTransitions, 1);
+    assert.equal(harness.state.noteWrites, 1);
+  } finally {
+    if (oldUser === undefined) delete process.env.FLOT_WEBHOOK_USER;
+    else process.env.FLOT_WEBHOOK_USER = oldUser;
+    if (oldPass === undefined) delete process.env.FLOT_WEBHOOK_PASS;
+    else process.env.FLOT_WEBHOOK_PASS = oldPass;
+  }
+});
+
 test('concurrent same-pair webhooks leave one payment ledger row', async () => {
   const ledger = [];
   let lookupArrivals = 0;
@@ -2025,6 +2332,68 @@ test('cron excludes quarantined legacy attempts until an operator marks one reco
   }
 });
 
+test('cron reports a shared quarantine refusal instead of counting completion', async () => {
+  let paymentEvidenceWrites = 0;
+  const sql = async (strings) => {
+    const text = strings.join(' ');
+    if (/SELECT p\.id/.test(text) && /FROM payments p/.test(text)) {
+      return [{
+        id: 502,
+        reference: 'belvoir-92',
+        provider_ref: 'attempt-ambiguous',
+        booking_id: 92,
+        status: 'pending',
+      }];
+    }
+    if (/UPDATE payments SET status = 'completed'/.test(text)) {
+      paymentEvidenceWrites += 1;
+      return [];
+    }
+    if (/UPDATE payments SET status = 'expired'/.test(text)) return [];
+    throw new Error(`Unexpected shared-quarantine cron query: ${text}`);
+  };
+  const route = loadCommonJsWithMocks('../api/cron-poll-payments.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_flot': {
+      API_BASE: 'https://payments.example',
+      MERCHANT_ID: 'merchant',
+      TEST_MODE: false,
+      signCanonical: () => 'signature',
+      log() {},
+    },
+    './_paid': {
+      settleBooking: async () => ({
+        settled: false,
+        alreadyPaid: false,
+        alreadyProcessed: false,
+        resolutionRequired: true,
+        conflict: false,
+        booking: null,
+      }),
+      deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+    },
+    './_ratelimit': { sweepRateLimits: async () => 0 },
+  });
+  const oldSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'cron-secret';
+  const res = responseRecorder();
+  try {
+    await withFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { status: 'completed' } }),
+    }), () => route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, res));
+  } finally {
+    if (oldSecret === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = oldSecret;
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.completed, 0);
+  assert.equal(res.body.reconciliationRequired, 1);
+  assert.equal(paymentEvidenceWrites, 1);
+});
+
 test('cron excludes a completed attempt already registered before an admin reset', async () => {
   let settlementCalls = 0;
   const sql = async (strings) => {
@@ -2206,6 +2575,90 @@ test('checkout renders an already-processed conflict on a reset booking as payme
   }), 'conflict');
 });
 
+test('block API validates whole-room quantities before entering the locked write', async () => {
+  const harness = roomBlockRouteHarness();
+  const baseBody = {
+    room: 'standard',
+    starts: '2027-12-01',
+    ends: '2027-12-03',
+    reason: 'Repairs',
+  };
+
+  for (const units of [undefined, 0, -1, 1.5, 3, 'not-a-number']) {
+    const res = responseRecorder();
+    await harness.route({ method: 'POST', body: { ...baseBody, units } }, res);
+    assert.equal(res.statusCode, 400, `units=${String(units)} must be rejected`);
+  }
+  assert.equal(harness.state.createCalls.length, 0);
+
+  const accepted = responseRecorder();
+  await harness.route({ method: 'POST', body: { ...baseBody, units: 2 } }, accepted);
+  assert.equal(accepted.statusCode, 201);
+  assert.deepEqual(harness.state.createCalls, [{
+    roomKey: 'standard',
+    starts: '2027-12-01',
+    ends: '2027-12-03',
+    units: 2,
+    reason: 'Repairs',
+  }]);
+  assert.equal(
+    harness.state.queries.some((query) => /FROM bookings|guest_name/.test(query.text)),
+    false,
+  );
+});
+
+test('block API reports the capacity left by the locked database write', async () => {
+  const harness = roomBlockRouteHarness();
+  harness.state.createResult = { created: false, blockId: null, remaining: 1 };
+  const res = responseRecorder();
+
+  await harness.route({
+    method: 'POST',
+    body: {
+      room: 'superior-deluxe',
+      starts: '2027-12-01',
+      ends: '2027-12-03',
+      units: 2,
+      reason: 'Repairs',
+    },
+  }, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.deepEqual(res.body, {
+    code: 'INSUFFICIENT_CAPACITY',
+    error: 'Only 1 room can be blocked for that date range.',
+    remaining: 1,
+  });
+  assert.equal(harness.state.createCalls.length, 1);
+});
+
+test('block API lists unit capacity while preserving delete behavior', async () => {
+  const harness = roomBlockRouteHarness();
+  const listed = responseRecorder();
+  await harness.route({ method: 'GET', url: '/api/blocks' }, listed);
+
+  assert.equal(listed.statusCode, 200);
+  assert.deepEqual(listed.body.blocks[0], {
+    ...harness.state.listedBlocks[0],
+    units: 2,
+    room_name: 'Superior Deluxe King',
+    capacity: 3,
+  });
+
+  const removed = responseRecorder();
+  await harness.route({ method: 'DELETE', query: { id: '70' }, url: '/api/blocks?id=70' }, removed);
+  assert.equal(removed.statusCode, 200);
+  assert.deepEqual(removed.body, { ok: true });
+});
+
+test('block API source keeps capacity enforcement in the shared locked function', () => {
+  assert.match(blocksSource, /Number\.isInteger\(units\)/);
+  assert.match(blocksSource, /roomCapacity/);
+  assert.match(blocksSource, /createRoomBlock/);
+  assert.match(blocksSource, /INSUFFICIENT_CAPACITY/);
+  assert.doesNotMatch(blocksSource, /SELECT id, reference, guest_name FROM bookings/);
+});
+
 test('inventory adapter normalizes Neon numeric and date values', async () => {
   const sql = taggedSql([[
     { room_key: 'standard', capacity: '2', remaining: '1' },
@@ -2225,6 +2678,8 @@ test('inventory adapter normalizes hold, settlement, block, and reactivation con
       settled: true,
       already_paid: false,
       already_processed: false,
+      resolution_required: false,
+      legacy_resolution: null,
       inventory_status: 'reserved',
       payment_generation: '3',
     }],
@@ -2240,6 +2695,8 @@ test('inventory adapter normalizes hold, settlement, block, and reactivation con
     settled: true,
     alreadyPaid: false,
     alreadyProcessed: false,
+    resolutionRequired: false,
+    quarantineResolution: null,
     inventoryStatus: 'reserved',
     paymentGeneration: 3,
   });
@@ -2255,8 +2712,8 @@ test('inventory adapter normalizes hold, settlement, block, and reactivation con
   assert.deepEqual(sql.calls[1].values, ['7', 'flot-payment:501']);
 });
 
-test('inventory adapter uses strict safe defaults for missing SQL rows', async () => {
-  const sql = taggedSql([[], [], [], []]);
+test('inventory adapter fails closed when a Flot settlement guard is unavailable', async () => {
+  const sql = taggedSql([[], [], [], [], []]);
   assert.deepEqual(await inventory.acquireBookingHold(sql, 1, 'x'), {
     acquired: false, holdExpiresAt: null, remaining: 0,
   });
@@ -2264,6 +2721,17 @@ test('inventory adapter uses strict safe defaults for missing SQL rows', async (
     settled: false,
     alreadyPaid: false,
     alreadyProcessed: false,
+    resolutionRequired: true,
+    quarantineResolution: 'migration-required',
+    inventoryStatus: null,
+    paymentGeneration: null,
+  });
+  assert.deepEqual(await inventory.settleBookingInventory(sql, 1, 'admin-payment:1'), {
+    settled: false,
+    alreadyPaid: false,
+    alreadyProcessed: false,
+    resolutionRequired: false,
+    quarantineResolution: null,
     inventoryStatus: null,
     paymentGeneration: null,
   });
@@ -2510,6 +2978,22 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
         notes: null,
         payment_generation: 1,
       }],
+      [94, {
+        id: 94,
+        payment_status: 'unpaid',
+        inventory_status: 'held',
+        status: 'active',
+        notes: null,
+        payment_generation: 0,
+      }],
+      [95, {
+        id: 95,
+        payment_status: 'unpaid',
+        inventory_status: 'held',
+        status: 'active',
+        notes: null,
+        payment_generation: 0,
+      }],
     ]),
     payments: [
       {
@@ -2536,6 +3020,22 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
         completed_at: '2026-08-12T10:00:00.000Z',
         received_at: '2026-08-12T09:59:00.000Z',
       },
+      {
+        id: 504,
+        booking_id: 94,
+        provider_ref: 'attempt-pending-accounted-later',
+        status: 'pending',
+        completed_at: null,
+        received_at: '2026-08-13T09:59:00.000Z',
+      },
+      {
+        id: 505,
+        booking_id: 95,
+        provider_ref: 'attempt-pending-ambiguous-later',
+        status: 'pending',
+        completed_at: null,
+        received_at: '2026-08-14T09:59:00.000Z',
+      },
     ],
     events: new Map(),
     quarantine: new Map(),
@@ -2553,13 +3053,14 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
     if (/SELECT payment\.id AS payment_id/.test(text)) {
       const cutoff = Number(values[0]);
       return state.payments
-        .filter((payment) => payment.id <= cutoff && payment.status === 'completed')
+        .filter((payment) => payment.id <= cutoff)
         .map((payment) => {
           const booking = state.bookings.get(payment.booking_id);
           return {
             payment_id: payment.id,
             booking_id: payment.booking_id,
             provider_ref: payment.provider_ref,
+            payment_status: payment.status,
             completed_at: payment.completed_at,
             received_at: payment.received_at,
             booking_payment_status: booking.payment_status,
@@ -2625,21 +3126,32 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
   );
   assert.equal(state.bookings.get(93).payment_status, 'paid');
   assert.equal(state.bookings.get(93).inventory_status, 'reserved');
-  assert.deepEqual(first.pendingIds, [502]);
-  assert.match(logs[0], /1 legacy completed payment/);
+  assert.equal(state.quarantine.get(504).reason, 'pre-cutover-payment-not-completed');
+  assert.equal(state.quarantine.get(505).reason, 'pre-cutover-payment-not-completed');
+  assert.deepEqual(first.pendingIds, [502, 504, 505]);
+  assert.match(logs[0], /3 legacy payment/);
   assert.match(logs[0], /502/);
 
-  state.bookings.set(94, {
-    id: 94,
-    payment_status: 'unpaid',
-    inventory_status: 'held',
-    status: 'active',
-    notes: null,
-    payment_generation: 0,
+  // Payment 504 completes under the legacy deployment after the first pass.
+  // Exact legacy settlement evidence lets the mandatory post-deploy rerun
+  // register immutable history without replaying or changing booking state.
+  state.payments.find((payment) => payment.id === 504).status = 'completed';
+  state.payments.find((payment) => payment.id === 504).completed_at =
+    '2026-09-03T11:58:00.000Z';
+  Object.assign(state.bookings.get(94), {
+    payment_status: 'paid',
+    inventory_status: 'reserved',
+    notes: 'Paid via Flot · attempt-pending-accounted-later · browser',
+    payment_generation: 1,
   });
+  // Payment 505 also completes, but without exact settlement evidence. It
+  // remains pending and therefore fail-closed until an operator decides.
+  state.payments.find((payment) => payment.id === 505).status = 'completed';
+  state.payments.find((payment) => payment.id === 505).completed_at =
+    '2026-09-03T11:59:00.000Z';
   state.payments.push({
-    id: 504,
-    booking_id: 94,
+    id: 506,
+    booking_id: 95,
     provider_ref: 'attempt-post-migration',
     status: 'completed',
     completed_at: '2026-09-03T12:01:00.000Z',
@@ -2649,17 +3161,43 @@ test('legacy payment reconciliation preserves resets, quarantines ambiguity, and
   state.quarantine.get(502).resolved_at = '2026-09-03T12:00:00.000Z';
   state.bookings.get(92).notes = 'Paid via Flot · attempt-ambiguous · operator-note';
   const eventCount = state.events.size;
-  await reconcileLegacyPaymentAttempts(sql, { logger: { log() {} } });
+  const second = await reconcileLegacyPaymentAttempts(sql, { logger: { log() {} } });
 
-  assert.equal(state.cutoff, 503);
-  assert.equal(state.events.size, eventCount);
+  assert.equal(state.cutoff, 505);
+  assert.equal(state.events.size, eventCount + 1);
   assert.equal(state.events.has(502), false);
-  assert.equal(state.events.has(504), false);
-  assert.equal(state.quarantine.has(504), false);
+  assert.equal(state.events.has(504), true);
+  assert.equal(state.events.get(504).outcome, 'reserved');
+  assert.equal(state.events.has(505), false);
+  assert.equal(state.events.has(506), false);
+  assert.equal(state.quarantine.has(506), false);
   assert.equal(state.quarantine.get(502).resolution, 'recover');
   assert.equal(state.quarantine.get(502).resolved_at, '2026-09-03T12:00:00.000Z');
+  assert.equal(state.quarantine.get(504).resolution, 'pending');
+  assert.equal(state.quarantine.get(504).resolved_at, null);
+  assert.equal(state.quarantine.get(505).resolution, 'pending');
+  assert.deepEqual(second.pendingIds, [505]);
   assert.equal(state.bookings.get(91).payment_status, 'unpaid');
   assert.equal(state.bookings.get(91).inventory_status, 'unreserved');
+});
+
+test('payment rollout contract keeps listeners disabled through post-deploy reconciliation', async () => {
+  const { PAYMENT_ROLLOUT_CONTRACT } = await import(
+    `../scripts/legacy-payment-reconciliation.mjs?rollout=${Date.now()}`
+  );
+
+  assert.deepEqual(PAYMENT_ROLLOUT_CONTRACT.phases, [
+    'migrate-before-api-deploy',
+    'deploy-with-payment-listeners-disabled',
+    'reconcile-immediately-after-deploy',
+    'verify-unresolved-quarantine-ids',
+    'enable-payment-listeners',
+  ]);
+  assert.equal(
+    PAYMENT_ROLLOUT_CONTRACT.postDeployCommand,
+    'node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
+  );
+  assert.equal(PAYMENT_ROLLOUT_CONTRACT.verificationField, 'unresolvedQuarantineIds');
 });
 
 test('availability migration defines multi-unit inventory and locked writes', () => {
@@ -2702,9 +3240,26 @@ test('settlement atomically conflicts cancelled payments and seeds the matching 
   assert.match(settlement, /booking_settlement_events/);
   assert.match(settlement, /event\.settlement_key = p_settlement_key/);
   assert.match(settlement, /already_processed boolean/);
+  assert.match(settlement, /resolution_required boolean/);
+  assert.match(settlement, /legacy_resolution text/);
+  assert.match(settlement, /legacy_payment_reconciliation_cutovers/);
+  assert.match(settlement, /legacy_payment_reconciliation/);
+  assert.match(settlement, /v_legacy_resolution IS DISTINCT FROM 'recover'/);
+  assert.match(
+    settlement,
+    /SELECT reconciliation\.resolution INTO v_legacy_resolution[\s\S]*FOR UPDATE/,
+  );
   assert.ok(
     settlement.indexOf('event.settlement_key = p_settlement_key') <
       settlement.indexOf("v_booking.payment_status = 'paid'"),
+  );
+  assert.ok(
+    settlement.indexOf("v_legacy_resolution IS DISTINCT FROM 'recover'") <
+      settlement.indexOf("IF v_booking.payment_status = 'paid'"),
+  );
+  assert.ok(
+    settlement.indexOf("v_legacy_resolution IS DISTINCT FROM 'recover'") <
+      settlement.indexOf('pg_advisory_xact_lock'),
   );
 });
 

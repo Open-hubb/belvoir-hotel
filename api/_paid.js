@@ -264,7 +264,7 @@ async function deliverPendingPaymentNotifications(sql, bookingId = null, supplie
 }
 
 /**
- * @returns {Promise<{settled:boolean, alreadyPaid:boolean, alreadyProcessed:boolean, conflict:boolean, booking:object|null}>}
+ * @returns {Promise<{settled:boolean, alreadyPaid:boolean, alreadyProcessed:boolean,resolutionRequired:boolean,quarantineResolution:string|null,conflict:boolean,booking:object|null}>}
  */
 async function settleBooking(sql, bookingId, settlementKey, source, providerRef = null) {
   const id = parseInt(bookingId, 10);
@@ -274,12 +274,35 @@ async function settleBooking(sql, bookingId, settlementKey, source, providerRef 
       settled: false,
       alreadyPaid: false,
       alreadyProcessed: false,
+      resolutionRequired: false,
+      quarantineResolution: null,
       conflict: false,
       booking: null,
     };
   }
 
   const outcome = await settleBookingInventory(sql, id, key);
+  if (outcome.resolutionRequired) {
+    // The database is the authority for legacy eligibility. Stop before note
+    // writes and outbox delivery so a pending/ignored identity is a complete
+    // no-op regardless of which listener reached this wrapper.
+    F.log('PAYMENT_RECONCILIATION_REQUIRED', {
+      bookingId: id,
+      resolution: outcome.quarantineResolution || 'pending',
+      observedBy: source || null,
+    });
+    return {
+      settled: false,
+      alreadyPaid: false,
+      alreadyProcessed: false,
+      resolutionRequired: true,
+      quarantineResolution: outcome.quarantineResolution || 'pending',
+      conflict: false,
+      paymentGeneration: outcome.paymentGeneration,
+      settlementOutcome: outcome.inventoryStatus,
+      booking: null,
+    };
+  }
   const conflict = outcome.inventoryStatus === 'conflict';
   const note = source === 'admin'
     ? 'Marked paid by an administrator'
@@ -327,6 +350,8 @@ async function settleBooking(sql, bookingId, settlementKey, source, providerRef 
     settled: outcome.settled,
     alreadyPaid: outcome.alreadyPaid,
     alreadyProcessed: outcome.alreadyProcessed,
+    resolutionRequired: false,
+    quarantineResolution: outcome.quarantineResolution || null,
     conflict,
     paymentGeneration: outcome.paymentGeneration,
     settlementOutcome: outcome.inventoryStatus,

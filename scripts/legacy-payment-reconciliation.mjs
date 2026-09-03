@@ -1,5 +1,25 @@
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 const CUTOVER_KEY = 'settlement-events-v1';
 const AMBIGUOUS_REASON = 'completed-unpaid-without-settlement-evidence';
+const INCOMPLETE_REASON = 'pre-cutover-payment-not-completed';
+
+// Operational tooling can consume this without scraping prose. The shared SQL
+// guard remains fail-closed throughout, but payment listeners stay disabled
+// until this exact sequence reaches its final phase.
+export const PAYMENT_ROLLOUT_CONTRACT = Object.freeze({
+  phases: Object.freeze([
+    'migrate-before-api-deploy',
+    'deploy-with-payment-listeners-disabled',
+    'reconcile-immediately-after-deploy',
+    'verify-unresolved-quarantine-ids',
+    'enable-payment-listeners',
+  ]),
+  postDeployCommand:
+    'node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners',
+  verificationField: 'unresolvedQuarantineIds',
+});
 
 export function hasExactPaidAuditMarker(notes, providerRef) {
   if (!providerRef || typeof notes !== 'string') return false;
@@ -45,6 +65,7 @@ export async function reconcileLegacyPaymentAttempts(sql, { logger = console } =
     SELECT payment.id AS payment_id,
       payment.booking_id,
       payment.provider_ref,
+      payment.status AS payment_status,
       payment.completed_at,
       payment.received_at,
       booking.payment_status AS booking_payment_status,
@@ -61,22 +82,28 @@ export async function reconcileLegacyPaymentAttempts(sql, { logger = console } =
     LEFT JOIN legacy_payment_reconciliation AS reconciliation
       ON reconciliation.payment_id = payment.id
     WHERE payment.id <= ${cutoffId}
-      AND payment.status = 'completed'
       AND payment.provider_ref IS NOT NULL
     ORDER BY payment.id`;
 
   let registered = 0;
   let quarantined = 0;
   for (const candidate of candidates) {
-    if (candidate.settlement_event_id != null || candidate.reconciliation_resolution != null) {
+    if (candidate.settlement_event_id != null) {
       continue;
     }
-    if (isReliablyAccounted(candidate)) {
+    // A recover/ignore choice belongs to the operator and is never replaced by
+    // later note or status changes. System-owned pending rows may still become
+    // exact historical evidence on the mandatory post-deploy rerun.
+    if (candidate.reconciliation_resolution === 'recover' ||
+        candidate.reconciliation_resolution === 'ignore') {
+      continue;
+    }
+    if (candidate.payment_status === 'completed' && isReliablyAccounted(candidate)) {
       const minimumGeneration = Math.max(1, Number(candidate.payment_generation) || 0);
       const outcome = historicalOutcome(candidate);
       const settledAt = candidate.completed_at || candidate.received_at || null;
       const settlementKey = `flot-payment:${candidate.payment_id}`;
-      await sql`
+      const inserted = await sql`
         WITH generation AS (
           UPDATE bookings
           SET payment_generation = GREATEST(payment_generation, ${minimumGeneration})
@@ -90,16 +117,20 @@ export async function reconcileLegacyPaymentAttempts(sql, { logger = console } =
         FROM generation
         ON CONFLICT (booking_id, settlement_key) DO NOTHING
         RETURNING id`;
-      registered += 1;
+      registered += inserted.length;
       continue;
     }
 
-    await sql`
+    const reason = candidate.payment_status === 'completed'
+      ? AMBIGUOUS_REASON
+      : INCOMPLETE_REASON;
+    const inserted = await sql`
       INSERT INTO legacy_payment_reconciliation
         (payment_id, booking_id, reason)
-      VALUES (${candidate.payment_id}, ${candidate.booking_id}, ${AMBIGUOUS_REASON})
-      ON CONFLICT (payment_id) DO NOTHING`;
-    quarantined += 1;
+      VALUES (${candidate.payment_id}, ${candidate.booking_id}, ${reason})
+      ON CONFLICT (payment_id) DO NOTHING
+      RETURNING payment_id`;
+    quarantined += inserted.length;
   }
 
   const unresolved = await sql`
@@ -119,9 +150,35 @@ export async function reconcileLegacyPaymentAttempts(sql, { logger = console } =
     ? ` IDs: ${previewIds.join(', ')}${remainder > 0 ? ` (+${remainder} more)` : ''}`
     : '';
   logger.log(
-    `[availability] ${pendingIds.length} legacy completed payment${pendingIds.length === 1 ? '' : 's'} ` +
+    `[availability] ${pendingIds.length} legacy payment identit${pendingIds.length === 1 ? 'y' : 'ies'} ` +
       `awaiting reconciliation.${idList}`,
   );
 
-  return { cutoffId, registered, quarantined, pendingIds };
+  return {
+    cutoffId,
+    registered,
+    quarantined,
+    pendingIds,
+    unresolvedQuarantineIds: pendingIds,
+  };
+}
+
+const invokedUrl = process.argv[1]
+  ? pathToFileURL(resolve(process.argv[1])).href
+  : null;
+if (invokedUrl === import.meta.url) {
+  if (!process.argv.includes('--post-deploy-before-listeners')) {
+    throw new Error(
+      'Use --post-deploy-before-listeners after API deployment and before enabling payment listeners.',
+    );
+  }
+  const databaseUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL is required');
+  const { neon } = await import('@neondatabase/serverless');
+  const result = await reconcileLegacyPaymentAttempts(neon(databaseUrl));
+  console.log(JSON.stringify({
+    phase: 'post-deploy-before-listeners',
+    cutoffId: result.cutoffId,
+    unresolvedQuarantineIds: result.unresolvedQuarantineIds,
+  }));
 }

@@ -118,6 +118,26 @@ module.exports = async (req, res) => {
         bookingId: payment.booking_id,
         inventoryConflict: settlement.conflict === true,
       });
+      if (settlement.resolutionRequired) {
+        return res.status(409).json({
+          code: 'PAYMENT_RECONCILIATION_REQUIRED',
+          error: 'Your payment was recorded and needs staff review before the booking can be confirmed.',
+          status,
+          attemptStatus: status,
+          bookingFinal: false,
+          bookingSettled: false,
+          settlementAlreadyProcessed: false,
+          resolutionRequired: true,
+          receiptAvailable: true,
+          amount: data.amount ?? payment.amount,
+          currency: data.currency ?? payment.currency,
+          attemptId,
+          orderId,
+          updatedAt: data.updatedAt,
+          testMode: F.TEST_MODE,
+          inventoryConflict: false,
+        });
+      }
     } else if (status === 'created' || status === 'pending') {
       const hold = await acquireBookingHold(sql, payment.booking_id, claim);
       if (!hold.acquired) {
@@ -146,6 +166,7 @@ module.exports = async (req, res) => {
             inventoryConflict: current.inventory_status === 'conflict',
             bookingSettled: false,
             settlementAlreadyProcessed: false,
+            resolutionRequired: false,
           });
         }
         return res.status(409).json({
@@ -193,6 +214,7 @@ module.exports = async (req, res) => {
       bookingInventoryStatus,
       bookingSettled: settlement ? settlement.settled === true : false,
       settlementAlreadyProcessed: settlement ? settlement.alreadyProcessed === true : false,
+      resolutionRequired: settlement ? settlement.resolutionRequired === true : false,
       settlementOutcome: settlement ? settlement.settlementOutcome || null : null,
       receiptAvailable: status === 'completed',
       amount: data.amount ?? payment.amount,

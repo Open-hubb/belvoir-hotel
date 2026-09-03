@@ -166,6 +166,10 @@ module.exports = async (req, res) => {
         )
       ),
       settlementAlreadyProcessed: settlement ? settlement.alreadyProcessed === true : false,
+      resolutionRequired: settlement ? settlement.resolutionRequired === true : false,
+      code: settlement && settlement.resolutionRequired
+        ? 'PAYMENT_RECONCILIATION_REQUIRED'
+        : null,
       inventoryConflict: settlement ? settlement.conflict === true : false,
     });
   } catch (e) {
