@@ -5007,15 +5007,20 @@ test('bounded inventory SQL client preserves parameterization and applies a fetc
   );
   const calls = [];
   const client = smoke.createBoundedNeonClient('fixture-url', {
-    timeoutMs: 100,
+    serverStatementTimeoutMs: 20,
+    clientTimeoutMs: 100,
+    certaintyMarginMs: 10,
     neonFactory(url) {
       assert.equal(url, 'fixture-url');
-      return {
-        async query(text, values, options) {
-          calls.push({ text, values, options });
-          return [{ value: values[0] }];
-        },
+      const sql = (strings, ...values) => ({ strings, values });
+      sql.transaction = async (queries, options) => {
+        calls.push({ queries, options });
+        return [
+          [{ configured_timeout: '20ms' }],
+          [{ value: queries[1].values[0] }],
+        ];
       };
+      return sql;
     },
   });
   const untrusted = '__inventory_smoke_parameter_fixture';
@@ -5024,10 +5029,13 @@ test('bounded inventory SQL client preserves parameterization and applies a fetc
 
   assert.deepEqual(rows, [{ value: untrusted }]);
   assert.equal(calls.length, 1);
-  assert.match(calls[0].text, /SELECT \$1::text AS value, \$2::integer AS count/);
-  assert.equal(calls[0].text.includes(untrusted), false);
-  assert.deepEqual(calls[0].values, [untrusted, 7]);
+  assert.match(calls[0].queries[0].strings.join(' '), /set_config.*statement_timeout/i);
+  assert.deepEqual(calls[0].queries[0].values, ['20ms']);
+  assert.match(calls[0].queries[1].strings.join(' '), /SELECT .*::text AS value, .*::integer AS count/);
+  assert.equal(calls[0].queries[1].strings.join(' ').includes(untrusted), false);
+  assert.deepEqual(calls[0].queries[1].values, [untrusted, 7]);
   assert.ok(calls[0].options.fetchOptions.signal instanceof AbortSignal);
+  assert.equal(typeof client.waitForServerCertainty, 'function');
 });
 
 test('bounded inventory SQL client converts a fetch timeout into a retryable safe error', async () => {
@@ -5035,17 +5043,19 @@ test('bounded inventory SQL client converts a fetch timeout into a retryable saf
     `../scripts/smoke-inventory.mjs?timeout=${Date.now()}`
   );
   const client = smoke.createBoundedNeonClient('fixture-url', {
-    timeoutMs: 5,
+    serverStatementTimeoutMs: 5,
+    clientTimeoutMs: 15,
+    certaintyMarginMs: 5,
     neonFactory() {
-      return {
-        query(_text, _values, options) {
+      const sql = (strings, ...values) => ({ strings, values });
+      sql.transaction = (_queries, options) => {
           return new Promise((_resolve, reject) => {
             options.fetchOptions.signal.addEventListener('abort', () => {
               reject(new Error('driver included fixture-url in its abort error'));
             }, { once: true });
           });
-        },
       };
+      return sql;
     },
   });
 
@@ -5058,6 +5068,139 @@ test('bounded inventory SQL client converts a fetch timeout into a retryable saf
       return true;
     },
   );
+  const certaintyStarted = Date.now();
+  await client.waitForServerCertainty();
+  assert.ok(Date.now() - certaintyStarted >= 8);
+});
+
+test('inventory smoke waits out a late server commit before final cleanup and zero count', async () => {
+  const smoke = await import(
+    `../scripts/smoke-inventory.mjs?late-server-commit=${Date.now()}`
+  );
+  const identifiers = {
+    roomKey: '__inventory_smoke_late_server_fixture',
+    claims: [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ],
+    references: [
+      'BLV-SMOKE-11111111111141118111111111111111',
+      'BLV-SMOKE-22222222222242228222222222222222',
+    ],
+  };
+  const columnTypes = new Map([
+    ['bookings.hold_expires_at', 'timestamp with time zone'],
+    ['bookings.inventory_status', 'text'],
+    ['room_blocks.units', 'integer'],
+  ]);
+  const state = {
+    inventoryRoomKey: null,
+    commitAt: null,
+    firstCleanupAt: null,
+    countChecks: 0,
+    configuredTimeouts: [],
+  };
+  let delayedInsertSeen = false;
+
+  const perform = (text, values, options) => {
+    if (/FROM pg_catalog\.pg_proc/.test(text)) {
+      const contract = smokeCatalogFixture[values[0]];
+      return Promise.resolve([contract ? { ...contract } : null].filter(Boolean));
+    }
+    if (/information_schema\.columns/.test(text)) {
+      return Promise.resolve([{ data_type: columnTypes.get(`${values[0]}.${values[1]}`) }]);
+    }
+    if (/INSERT INTO room_inventory/.test(text) && !delayedInsertSeen) {
+      delayedInsertSeen = true;
+      const requestStartedAt = Date.now();
+      // The simulated request reaches PostgreSQL late and commits after the
+      // HTTP client has already aborted, but before the local server deadline.
+      setTimeout(() => {
+        state.inventoryRoomKey = values[0];
+        state.commitAt = Date.now();
+      }, 33);
+      return new Promise((_resolve, reject) => {
+        options.fetchOptions.signal.addEventListener('abort', () => {
+          reject(new Error(`transport aborted after ${Date.now() - requestStartedAt}ms`));
+        }, { once: true });
+      });
+    }
+    if (/DELETE FROM payments|DELETE FROM bookings|DELETE FROM room_blocks/.test(text)) {
+      return Promise.resolve([]);
+    }
+    if (/DELETE FROM room_inventory/.test(text)) {
+      if (state.firstCleanupAt === null) state.firstCleanupAt = Date.now();
+      if (state.inventoryRoomKey === values[0]) state.inventoryRoomKey = null;
+      return Promise.resolve([]);
+    }
+    if (/temporary_rows_remaining/.test(text)) {
+      state.countChecks += 1;
+      return Promise.resolve([{
+        temporary_rows_remaining: state.inventoryRoomKey === identifiers.roomKey ? '1' : '0',
+      }]);
+    }
+    throw new Error(`unexpected delayed-server fixture query: ${text}`);
+  };
+
+  const neonFactory = () => {
+    const sql = (strings, ...values) => ({ strings, values });
+    // Old client-only implementations use query(); retaining this fake path
+    // makes the regression demonstrate the cleanup race before the fix.
+    sql.query = (text, values, options) => perform(text, values, options);
+    sql.transaction = async (queries, options) => {
+      const timeoutText = queries[0].strings.join(' ');
+      assert.match(timeoutText, /set_config.*statement_timeout/i);
+      state.configuredTimeouts.push(queries[0].values[0]);
+      const operation = queries[1];
+      const rows = await perform(operation.strings.join(' '), operation.values, options);
+      return [[{ configured_timeout: queries[0].values[0] }], rows];
+    };
+    return sql;
+  };
+  const inspectionSql = smoke.createBoundedNeonClient('fixture-direct', {
+    serverStatementTimeoutMs: 10,
+    clientTimeoutMs: 30,
+    certaintyMarginMs: 15,
+    neonFactory,
+  });
+  const runtimeSqlA = async () => { throw new Error('runtime A must not be reached'); };
+  const runtimeSqlB = async () => { throw new Error('runtime B must not be reached'); };
+
+  await assert.rejects(
+    smoke.runInventorySmoke({
+      inspectionSql,
+      runtimeSqlA,
+      runtimeSqlB,
+      identifiers,
+      now: () => new Date('2026-01-01T00:00:00.000Z'),
+      logger: { log() {} },
+    }),
+    (error) => {
+      assert.equal(error.name, 'InventorySmokeError');
+      assert.equal(error.report.temporaryRowsRemaining, 0);
+      return true;
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 35));
+  assert.ok(state.commitAt, 'the simulated server mutation must commit after client abort');
+  assert.ok(state.firstCleanupAt >= state.commitAt,
+    'cleanup must wait until every timed-out server operation is past its certainty barrier');
+  assert.equal(state.inventoryRoomKey, null);
+  assert.equal(state.countChecks, 1);
+  assert.ok(state.configuredTimeouts.length >= 9);
+  assert.ok(state.configuredTimeouts.every((value) => value === '10ms'));
+});
+
+test('tracked inventory smoke runbook documents SIGKILL recovery without broad deletes', () => {
+  const runbook = new URL('../docs/operations/room-inventory-smoke.md', import.meta.url);
+  assert.equal(existsSync(runbook), true, 'tracked inventory smoke runbook is required');
+  const source = readFileSync(runbook, 'utf8');
+  assert.match(source, /SIGKILL|power loss/i);
+  assert.match(source, /stop (?:the )?rollout/i);
+  assert.match(source, /__inventory_smoke_/);
+  assert.match(source, /verified (?:temporary )?room key/i);
+  assert.match(source, /never.*public room key/i);
 });
 
 function runInventorySignalChild({ signal, signalCount, operationDelayMs }) {

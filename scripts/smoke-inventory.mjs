@@ -3,6 +3,7 @@
 // This script never calls a payment provider or a notification path. It uses
 // one generated, non-public room key, two generated booking claims, and future
 // dates. Every temporary row is removed in dependency order in `finally`.
+// Abrupt-termination recovery: docs/operations/room-inventory-smoke.md
 
 import { neon } from '@neondatabase/serverless';
 import { randomUUID } from 'node:crypto';
@@ -48,7 +49,9 @@ const SAFE_CLAIM = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const SAFE_REFERENCE = /^BLV-SMOKE-[0-9A-F]{32}$/;
 const HOLD_MINUTES = 15;
 const HOLD_WINDOW_TOLERANCE_MS = 60_000;
-const DATABASE_OPERATION_TIMEOUT_MS = 20_000;
+const DATABASE_SERVER_STATEMENT_TIMEOUT_MS = 10_000;
+const DATABASE_CLIENT_TIMEOUT_MS = 20_000;
+const DATABASE_CERTAINTY_MARGIN_MS = 2_000;
 
 const SIGNAL_EXIT_CODES = Object.freeze({ SIGINT: 130, SIGTERM: 143 });
 
@@ -455,42 +458,112 @@ async function createQuantityBlock(sql, identifiers, dates, interrupt) {
   }
 }
 
-function compileParameterizedQuery(strings) {
-  let text = strings[0];
-  for (let index = 1; index < strings.length; index += 1) {
-    text += `$${index}${strings[index]}`;
-  }
-  return text;
-}
-
 export function createBoundedNeonClient(
   databaseUrl,
-  { timeoutMs = DATABASE_OPERATION_TIMEOUT_MS, neonFactory = neon } = {},
+  {
+    serverStatementTimeoutMs = DATABASE_SERVER_STATEMENT_TIMEOUT_MS,
+    clientTimeoutMs = DATABASE_CLIENT_TIMEOUT_MS,
+    certaintyMarginMs = DATABASE_CERTAINTY_MARGIN_MS,
+    neonFactory = neon,
+  } = {},
 ) {
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) fail('Database timeout must be positive');
+  if (!Number.isSafeInteger(serverStatementTimeoutMs) || serverStatementTimeoutMs <= 0) {
+    fail('Database server statement timeout must be positive');
+  }
+  if (!Number.isSafeInteger(clientTimeoutMs) ||
+      clientTimeoutMs < serverStatementTimeoutMs * 2) {
+    fail('Database client timeout must be at least twice the server statement timeout');
+  }
+  if (!Number.isSafeInteger(certaintyMarginMs) || certaintyMarginMs <= 0) {
+    fail('Database certainty margin must be positive');
+  }
+
   const query = neonFactory(databaseUrl);
-  return async (strings, ...values) => {
+  if (typeof query !== 'function' || typeof query.transaction !== 'function') {
+    fail('Neon SQL client must support transaction-scoped statement timeouts');
+  }
+  let uncertainUntil = 0;
+  const boundedSql = async (strings, ...values) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const operationStartedAt = Date.now();
+    const timeout = setTimeout(() => controller.abort(), clientTimeoutMs);
+    let results;
     try {
-      return await query.query(compileParameterizedQuery(strings), values, {
+      results = await query.transaction([
+        query`SELECT set_config('statement_timeout', ${`${serverStatementTimeoutMs}ms`}, true) AS configured_timeout`,
+        query(strings, ...values),
+      ], {
         fetchOptions: { signal: controller.signal },
       });
     } catch (error) {
+      if (error?.code === '57014') {
+        const timeoutError = new Error('Database statement exceeded its server deadline');
+        timeoutError.code = 'INVENTORY_SMOKE_SERVER_TIMEOUT';
+        throw timeoutError;
+      }
+
+      // A PostgreSQL error response proves that the transaction ended. A
+      // client timeout or transport failure does not: the server may still be
+      // finishing the request. Wait through the server deadline and a margin
+      // before cleanup is allowed to report a definitive zero.
+      const hasPostgresErrorCode = typeof error?.code === 'string' &&
+        /^[0-9A-Z]{5}$/.test(error.code);
+      if (!hasPostgresErrorCode) {
+        uncertainUntil = Math.max(
+          uncertainUntil,
+          Math.max(Date.now(), operationStartedAt + clientTimeoutMs) +
+            serverStatementTimeoutMs + certaintyMarginMs,
+        );
+      }
       if (controller.signal.aborted) {
         const timeoutError = new Error('Bounded database operation timed out');
         timeoutError.code = 'INVENTORY_SMOKE_QUERY_TIMEOUT';
         throw timeoutError;
       }
+      if (!hasPostgresErrorCode) {
+        const uncertainError = new Error('Database transport failed with an uncertain server outcome');
+        uncertainError.code = 'INVENTORY_SMOKE_OPERATION_UNCERTAIN';
+        throw uncertainError;
+      }
       throw error;
     } finally {
       clearTimeout(timeout);
     }
+    if (!Array.isArray(results) || results.length !== 2 || !Array.isArray(results[1])) {
+      fail('Bounded database transaction returned an unexpected result');
+    }
+    return results[1];
   };
+  boundedSql.waitForServerCertainty = async () => {
+    while (uncertainUntil > Date.now()) {
+      await new Promise((resolveDelay) =>
+        setTimeout(resolveDelay, uncertainUntil - Date.now()));
+    }
+  };
+  return boundedSql;
 }
 
 function isRetryableCleanupError(error) {
-  return error?.code === 'INVENTORY_SMOKE_QUERY_TIMEOUT';
+  return error?.code === 'INVENTORY_SMOKE_QUERY_TIMEOUT' ||
+    error?.code === 'INVENTORY_SMOKE_SERVER_TIMEOUT' ||
+    error?.code === 'INVENTORY_SMOKE_OPERATION_UNCERTAIN';
+}
+
+async function waitForSqlCertainty(sql) {
+  if (typeof sql?.waitForServerCertainty === 'function') {
+    await sql.waitForServerCertainty();
+  }
+}
+
+async function waitForAllSqlCertainty(clients) {
+  const uniqueClients = [...new Set(clients)];
+  const outcomes = await Promise.allSettled(uniqueClients.map(waitForSqlCertainty));
+  const failures = outcomes.filter((outcome) => outcome.status === 'rejected');
+  if (failures.length) {
+    const error = new Error('Could not establish that all database operations had reached a server deadline');
+    error.code = 'INVENTORY_SMOKE_CERTAINTY_FAILED';
+    throw error;
+  }
 }
 
 async function cleanupFixtures(sql, roomKey, bookingIds) {
@@ -503,6 +576,12 @@ async function cleanupFixtures(sql, roomKey, bookingIds) {
       } catch (error) {
         if (attemptNumber === 2 || !isRetryableCleanupError(error)) {
           errors.push({ step, error });
+          return;
+        }
+        try {
+          await waitForSqlCertainty(sql);
+        } catch (certaintyError) {
+          errors.push({ step: `${step}-certainty`, error: certaintyError });
           return;
         }
       }
@@ -560,6 +639,12 @@ async function cleanupFixtures(sql, roomKey, bookingIds) {
     } catch (error) {
       if (verificationAttempt === 2 || !isRetryableCleanupError(error)) {
         errors.push({ step: 'verification', error });
+        break;
+      }
+      try {
+        await waitForSqlCertainty(sql);
+      } catch (certaintyError) {
+        errors.push({ step: 'verification-certainty', error: certaintyError });
         break;
       }
     }
@@ -662,6 +747,12 @@ export async function runInventorySmoke({
   } catch (error) {
     primaryError = error;
   } finally {
+    const certaintyErrors = [];
+    try {
+      await waitForAllSqlCertainty([inspectionSql, runtimeSqlA, runtimeSqlB]);
+    } catch (error) {
+      certaintyErrors.push({ step: 'pre-cleanup-certainty', error });
+    }
     interrupt?.beginCleanup();
     let emergencyCleanupError = null;
     try {
@@ -669,10 +760,19 @@ export async function runInventorySmoke({
     } catch (error) {
       emergencyCleanupError = error;
     }
+    // A second signal can start exact-key cleanup while the original bounded
+    // call is still unwinding. Recheck every client after that attempt so a
+    // late server completion cannot race the definitive cleanup/count below.
+    try {
+      await waitForAllSqlCertainty([inspectionSql, runtimeSqlA, runtimeSqlB]);
+    } catch (error) {
+      certaintyErrors.push({ step: 'post-emergency-certainty', error });
+    }
     cleanup = await cleanupFixtures(inspectionSql, identifiers.roomKey, bookingIds);
     if (emergencyCleanupError) {
       cleanup.errors.unshift({ step: 'emergency-cleanup', error: emergencyCleanupError });
     }
+    cleanup.errors.unshift(...certaintyErrors);
   }
 
   if (!primaryError && interrupt?.requested) {
