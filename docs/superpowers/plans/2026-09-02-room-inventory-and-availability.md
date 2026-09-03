@@ -976,15 +976,31 @@ Document that the schema migration runs with the direct URL, the smoke test uses
 
 - [ ] **Step 3: Deploy the guarded build with every payment listener explicitly disabled**
 
-Run exactly in this order:
+After the `codex/room-inventory` HEAD has completed task review, run exactly in this order. The root checkout is the only deployment working directory; do not deploy from `.worktrees/room-inventory`, which may contain intentionally unstaged files such as `package-lock.json`.
 
 ```bash
-npx vercel env add PAYMENT_LISTENERS_ENABLED production --value "false" --force --yes
-npx vercel --prod --yes
-node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com
+set -euo pipefail
+BELVOIR_ROOT='/Users/pabai/Documents/Model sites/Belvoir Hotel'
+REVIEWED_WORKTREE="$BELVOIR_ROOT/.worktrees/room-inventory"
+test "$(git -C "$REVIEWED_WORKTREE" branch --show-current)" = "codex/room-inventory"
+REVIEWED_HEAD="$(git -C "$REVIEWED_WORKTREE" rev-parse HEAD)"
+test -n "$REVIEWED_HEAD"
+npx vercel --cwd "$BELVOIR_ROOT" env add PAYMENT_LISTENERS_ENABLED production --value "false" --force --yes
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+git -C "$BELVOIR_ROOT" switch main
+git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory
+ROOT_MAIN="$(git -C "$BELVOIR_ROOT" rev-parse refs/heads/main)"
+test "$ROOT_MAIN" = "$REVIEWED_HEAD"
+test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"
+git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
+REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=paused --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: the verifier checks payment-link creation, payment status, webhook, and cron. Every endpoint must return retryable HTTP 503 `PAYMENT_LISTENERS_PAUSED`. Stop if any endpoint is active; do not run the migration.
+Expected: `merge --ff-only` aborts rather than rewriting history if root `main` cannot advance directly to the reviewed branch. Both local `main` and `origin/main` must equal the captured reviewed SHA, the root checkout must have no uncommitted tracked content, and the deploy must run from that root checkout. The verifier checks payment-link creation, payment status, webhook, and cron; every endpoint must return retryable HTTP 503 `PAYMENT_LISTENERS_PAUSED`. Stop if any SHA/cleanliness assertion fails or any endpoint is active; do not run the migration.
 
 - [ ] **Step 4: Run the migration and freeze the payment cutoff while listeners are paused**
 
@@ -1114,16 +1130,38 @@ Confirm claim tokens are required for payment hold refresh, no token or guest co
 
 - [ ] **Step 8: Reconfirm reconciliation, then explicitly enable and deploy payment listeners**
 
+First commit and complete review of every Task 10 correction intended for this deployment on `codex/room-inventory`; stop if any intended correction is still uncommitted. Publish the exact reviewed SHA while the production listener flag remains false, redeploy that SHA in its paused state, and only then reconcile and enable:
+
 ```bash
-node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www.belvoir-estates.com
-PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners
-git push origin main
-npx vercel env add PAYMENT_LISTENERS_ENABLED production --value "true" --force --yes
-npx vercel --prod --yes
-node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com
+set -euo pipefail
+BELVOIR_ROOT='/Users/pabai/Documents/Model sites/Belvoir Hotel'
+REVIEWED_WORKTREE="$BELVOIR_ROOT/.worktrees/room-inventory"
+test "$(git -C "$REVIEWED_WORKTREE" branch --show-current)" = "codex/room-inventory"
+REVIEWED_HEAD="$(git -C "$REVIEWED_WORKTREE" rev-parse HEAD)"
+test -n "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+git -C "$BELVOIR_ROOT" switch main
+git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory
+ROOT_MAIN="$(git -C "$BELVOIR_ROOT" rev-parse refs/heads/main)"
+test "$ROOT_MAIN" = "$REVIEWED_HEAD"
+test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"
+git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
+REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=paused --base-url=https://www.belvoir-estates.com
+(cd "$BELVOIR_ROOT" && PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners)
+test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"
+REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+npx vercel --cwd "$BELVOIR_ROOT" env add PAYMENT_LISTENERS_ENABLED production --value "true" --force --yes
+npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: the first verifier confirms all four endpoints remain paused, reconciliation exits zero with no unresolved IDs, and the push cannot activate listeners because the production flag is still false. Only then is the flag set to exact `true` and a new deployment created. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
+Expected: the root fast-forward, exact-SHA checks, explicit refspec push, and paused redeployment all succeed before reconciliation. The paused verifier confirms all four endpoints remain stopped, and reconciliation exits zero with no unresolved IDs. Root HEAD and `origin/main` must still equal the reviewed SHA before the flag is set to exact `true` and the active deployment is created from the clean root checkout. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
 
 - [ ] **Step 9: Run production read-only and temporary-row checks**
 
@@ -1141,11 +1179,27 @@ Verify:
 If visual QA required code corrections:
 
 ```bash
-git add index.html admin.html rooms.css rooms.js scripts/build-rooms.mjs rooms/*.html tests/*.test.mjs
-git commit -m "Polish room availability states"
-git push origin main
-npx vercel --prod --yes
-node scripts/verify-payment-listeners.mjs --expect=active --base-url=https://www.belvoir-estates.com
+set -euo pipefail
+BELVOIR_ROOT='/Users/pabai/Documents/Model sites/Belvoir Hotel'
+REVIEWED_WORKTREE="$BELVOIR_ROOT/.worktrees/room-inventory"
+git -C "$REVIEWED_WORKTREE" add index.html admin.html rooms.css rooms.js scripts/build-rooms.mjs rooms/*.html tests/*.test.mjs
+git -C "$REVIEWED_WORKTREE" commit -m "Polish room availability states"
+# Stop here until this new codex/room-inventory HEAD has completed review.
+test "$(git -C "$REVIEWED_WORKTREE" branch --show-current)" = "codex/room-inventory"
+REVIEWED_HEAD="$(git -C "$REVIEWED_WORKTREE" rev-parse HEAD)"
+test -n "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+git -C "$BELVOIR_ROOT" switch main
+git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory
+ROOT_MAIN="$(git -C "$BELVOIR_ROOT" rev-parse refs/heads/main)"
+test "$ROOT_MAIN" = "$REVIEWED_HEAD"
+test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"
+git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
+REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
+test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
+npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Report the final commit, deployment URL, migration/smoke results, automated test counts, responsive widths, accessibility checks, and any remaining placeholders. The expected placeholder list is empty.
+Expected: the later QA commit is review-approved before integration, root `main` can only fast-forward to it, local and remote `main` both equal that reviewed SHA, and the final deployment again comes from a clean root checkout. Report the final commit, deployment URL, migration/smoke results, automated test counts, responsive widths, accessibility checks, and any remaining placeholders. The expected placeholder list is empty.

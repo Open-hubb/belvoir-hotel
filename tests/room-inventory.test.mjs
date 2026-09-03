@@ -62,6 +62,10 @@ const paylinkMigration = readFileSync(
   new URL('../scripts/migrate-paylink.mjs', import.meta.url),
   'utf8',
 );
+const rolloutPlanSource = readFileSync(
+  new URL('../docs/superpowers/plans/2026-09-02-room-inventory-and-availability.md', import.meta.url),
+  'utf8',
+);
 
 function migrationBlock(marker) {
   const start = migration.indexOf(marker);
@@ -3557,6 +3561,59 @@ test('payment rollout contract keeps listeners disabled through post-deploy reco
   });
   assert.equal(PAYMENT_ROLLOUT_CONTRACT.verificationField, 'unresolvedQuarantineIds');
   assert.equal(PAYMENT_ROLLOUT_CONTRACT.enablementField, 'safeToEnableListeners');
+});
+
+test('production rollout publishes and deploys the exact reviewed inventory SHA', () => {
+  const rollout = rolloutPlanSource.slice(
+    rolloutPlanSource.indexOf('### Task 9: Validate the migration and transactional behavior against Neon'),
+  );
+  const occurrences = (needle) => rollout.split(needle).length - 1;
+
+  assert.doesNotMatch(rollout, /push origin main(?:\s|$)/);
+  assert.match(rollout, /BELVOIR_ROOT='\/Users\/pabai\/Documents\/Model sites\/Belvoir Hotel'/);
+  assert.ok(
+    occurrences('REVIEWED_HEAD="$(git -C "$REVIEWED_WORKTREE" rev-parse HEAD)"') >= 3,
+    'each checkpoint must capture the task-reviewed worktree HEAD',
+  );
+  assert.ok(
+    occurrences('git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory') >= 3,
+    'each production deployment checkpoint must fast-forward root main from the reviewed branch',
+  );
+  assert.ok(
+    occurrences('test "$ROOT_MAIN" = "$REVIEWED_HEAD"') >= 3,
+    'each checkpoint must prove root main matches the reviewed worktree HEAD',
+  );
+  assert.ok(
+    occurrences('test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"') >= 3,
+    'each checkpoint must prove the explicit deployment checkout is at the reviewed HEAD',
+  );
+  assert.ok(
+    occurrences('git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main') >= 3,
+    'each checkpoint must push an explicit local-main to remote-main refspec',
+  );
+  assert.ok(
+    occurrences('test "$REMOTE_MAIN" = "$REVIEWED_HEAD"') >= 3,
+    'each checkpoint must prove origin/main matches the reviewed worktree HEAD',
+  );
+  assert.ok(
+    occurrences('test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"') >= 3,
+    'deployments must use a checkout with no uncommitted tracked content',
+  );
+  assert.ok(
+    occurrences('npx vercel --cwd "$BELVOIR_ROOT" --prod --yes') >= 3,
+    'every production deploy must run from the explicit root checkout',
+  );
+
+  const firstMerge = rollout.indexOf('git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory');
+  const firstPush = rollout.indexOf('git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main');
+  const firstPausedDeploy = rollout.indexOf('npx vercel --cwd "$BELVOIR_ROOT" --prod --yes');
+  const firstMigration = rollout.indexOf('scripts/migrate-availability.mjs --listeners-paused-verified');
+  const reconciliation = rollout.indexOf('scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners');
+  const enable = rollout.indexOf('PAYMENT_LISTENERS_ENABLED production --value "true"');
+
+  assert.ok(firstMerge < firstPush && firstPush < firstPausedDeploy);
+  assert.ok(firstPausedDeploy < firstMigration && firstMigration < reconciliation);
+  assert.ok(reconciliation < enable);
 });
 
 test('availability migration defines multi-unit inventory and locked writes', () => {
