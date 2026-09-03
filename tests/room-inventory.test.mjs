@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import { chmod, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
@@ -184,6 +184,8 @@ async function reviewedDeployFixture({ trackedUnsafeFiles = false } = {}) {
   await writeFile(join(repository, '.gitignore'), '.env\n.claude/\n.vercel/\nnode_modules/\n');
   await writeFile(join(repository, '.vercelignore'), 'tests/\n');
   await writeFile(join(repository, 'index.html'), '<h1>Reviewed deployment</h1>\n');
+  await writeFile(join(repository, 'run.sh'), '#!/bin/sh\nexit 0\n');
+  await chmod(join(repository, 'run.sh'), 0o755);
   await writeFile(join(repository, 'vercel.json'), '{"version":2}\n');
   await mkdir(join(repository, '.claude'));
   await mkdir(join(repository, 'node_modules'));
@@ -192,7 +194,7 @@ async function reviewedDeployFixture({ trackedUnsafeFiles = false } = {}) {
   await writeFile(join(repository, 'node_modules', 'local-only.js'), 'throw new Error("must not copy");\n');
   await writeFile(join(repository, 'skills-lock.json'), '{"local":true}\n');
 
-  git('add', '.gitignore', '.vercelignore', 'index.html', 'vercel.json');
+  git('add', '.gitignore', '.vercelignore', 'index.html', 'run.sh', 'vercel.json');
   if (trackedUnsafeFiles) git('add', '--force', '.env', 'node_modules/local-only.js');
   git(
     '-c', 'user.name=Belvoir Test',
@@ -213,6 +215,76 @@ async function reviewedDeployFixture({ trackedUnsafeFiles = false } = {}) {
     git,
     sha: git('rev-parse', 'HEAD'),
   };
+}
+
+async function commitDeployFixtureFile(fixture, file, contents, { executable = false, link = false } = {}) {
+  const absolute = join(fixture.repository, file);
+  await mkdir(dirname(absolute), { recursive: true });
+  if (link) await symlink(contents, absolute);
+  else {
+    await writeFile(absolute, contents);
+    if (executable) await chmod(absolute, 0o755);
+  }
+  fixture.git('add', '--force', file);
+  fixture.git(
+    '-c', 'user.name=Belvoir Test',
+    '-c', 'user.email=belvoir-test@example.invalid',
+    'commit', '-m', `add ${file}`,
+  );
+  fixture.sha = fixture.git('rev-parse', 'HEAD');
+}
+
+async function installDeployFixtureHook(fixture, body) {
+  const hook = join(fixture.repository, '.git', 'hooks', 'post-checkout');
+  await writeFile(hook, `#!/bin/sh\nset -eu\n${body}\n`);
+  await chmod(hook, 0o755);
+}
+
+async function installFakeVercel(fixture) {
+  const binaryDirectory = join(fixture.repository, 'node_modules', '.bin');
+  await mkdir(binaryDirectory, { recursive: true });
+  const binary = join(binaryDirectory, 'vercel');
+  await writeFile(
+    binary,
+    '#!/bin/sh\nset -eu\nprintf invoked > "$BELVOIR_TEST_PRODUCTION_MARKER"\n',
+  );
+  await chmod(binary, 0o755);
+}
+
+function captureChild(child) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => { stdout += chunk; });
+    child.stderr?.on('data', (chunk) => { stderr += chunk; });
+    child.once('error', rejectPromise);
+    child.once('close', (status, signal) => resolvePromise({ status, signal, stdout, stderr }));
+  });
+}
+
+async function waitForCondition(condition, message, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(message);
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+  }
+}
+
+async function runFixtureProduction(fixture, environment = {}) {
+  await installFakeVercel(fixture);
+  const marker = join(fixture.fixtureRoot, 'production-provider-invoked');
+  const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+  const result = await runNode([
+    reviewedDeployHelperPath,
+    `--repo=${fixture.repository}`,
+    `--sha=${fixture.sha}`,
+    '--prod',
+  ], {
+    TMPDIR: fixture.helperTmp,
+    BELVOIR_TEST_PRODUCTION_MARKER: marker,
+    ...environment,
+  });
+  return { beforeWorktrees, marker, result };
 }
 
 function paymentLinkHarness({ booking = null, holdAcquired = true } = {}) {
@@ -3636,13 +3708,14 @@ test('reviewed deploy helper dry-validates only exact-commit files and project m
       '.vercel/project.json',
       '.vercelignore',
       'index.html',
+      'run.sh',
       'vercel.json',
     ]);
     assert.deepEqual(summary.project, {
       orgId: 'team_fixture',
       projectId: 'project_fixture',
     });
-    assert.deepEqual(await readdir(fixture.helperTmp), []);
+    assert.deepEqual(await readdir(fixture.helperTmp), [], result.stderr);
     assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
   } finally {
     await rm(fixture.fixtureRoot, { recursive: true, force: true });
@@ -3687,8 +3760,276 @@ test('reviewed deploy helper requires a full immutable commit SHA and project li
     ], { TMPDIR: fixture.helperTmp });
     assert.notEqual(missingMetadata.status, 0);
     assert.match(missingMetadata.stderr, /\.vercel\/project\.json.*required/i);
+
+    await rm(join(fixture.repository, '.vercel'), { recursive: true, force: true });
+    const outsideMetadata = join(fixture.fixtureRoot, 'outside-vercel');
+    await mkdir(outsideMetadata);
+    await writeFile(
+      join(outsideMetadata, 'project.json'),
+      '{"orgId":"outside_team","projectId":"outside_project"}\n',
+    );
+    await symlink(outsideMetadata, join(fixture.repository, '.vercel'));
+    const linkedParent = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+    ], { TMPDIR: fixture.helperTmp });
+    assert.notEqual(linkedParent.status, 0);
+    assert.match(linkedParent.stderr, /\.vercel.*real directory/i);
+
+    await rm(join(fixture.repository, '.vercel'), { recursive: true, force: true });
+    await mkdir(join(fixture.repository, '.vercel'));
+    await symlink(
+      join(outsideMetadata, 'project.json'),
+      join(fixture.repository, '.vercel', 'project.json'),
+    );
+    const linkedFile = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+    ], { TMPDIR: fixture.helperTmp });
+    assert.notEqual(linkedFile.status, 0);
+    assert.match(linkedFile.stderr, /project\.json.*regular file.*link/i);
     assert.deepEqual(await readdir(fixture.helperTmp), []);
   } finally {
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('reviewed deploy helper rejects same-name byte and executable-mode tampering', async (t) => {
+  const cases = [
+    {
+      name: 'raw bytes',
+      hook: "printf 'tampered after checkout\\n' > index.html",
+      error: /blob|bytes|hash|modified/i,
+    },
+    {
+      name: 'executable mode',
+      hook: 'chmod 0644 run.sh',
+      error: /mode|executable|modified/i,
+    },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const fixture = await reviewedDeployFixture();
+      try {
+        await installDeployFixtureHook(fixture, scenario.hook);
+        const { beforeWorktrees, marker, result } = await runFixtureProduction(fixture);
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, scenario.error);
+        assert.equal(existsSync(marker), false, 'provider child must not start after checkout tampering');
+        assert.deepEqual(await readdir(fixture.helperTmp), []);
+        assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+      } finally {
+        await rm(fixture.fixtureRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('reviewed deploy helper rejects checkout manifest additions and deletions', async (t) => {
+  const cases = [
+    { name: 'addition', hook: "printf 'not reviewed\\n' > injected.txt" },
+    { name: 'deletion', hook: 'rm vercel.json' },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const fixture = await reviewedDeployFixture();
+      try {
+        await installDeployFixtureHook(fixture, scenario.hook);
+        const { beforeWorktrees, marker, result } = await runFixtureProduction(fixture);
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /differs from reviewed commit|unexpected|missing/i);
+        assert.equal(existsSync(marker), false, 'provider child must not start after manifest tampering');
+        assert.deepEqual(await readdir(fixture.helperTmp), []);
+        assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+      } finally {
+        await rm(fixture.fixtureRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('reviewed deploy helper rejects tracked links, secret names, and oversized files', async (t) => {
+  const cases = [
+    {
+      name: 'tracked symbolic link',
+      file: 'linked-index.html',
+      contents: 'index.html',
+      options: { link: true },
+      error: /symbolic link|symlink|mode 120000/i,
+    },
+    {
+      name: 'npm credentials file',
+      file: '.npmrc',
+      contents: '//registry.example.invalid/:_authToken=fake-test-value\n',
+      error: /sensitive|credential|\.npmrc/i,
+    },
+    {
+      name: 'yarn credentials file',
+      file: '.yarnrc.yml',
+      contents: 'npmAuthToken: fake-test-value\n',
+      error: /sensitive|credential|\.yarnrc/i,
+    },
+    {
+      name: 'private key file',
+      file: 'private-key.pem',
+      contents: 'fake-test-key-material\n',
+      error: /sensitive|credential|private-key\.pem/i,
+    },
+    {
+      name: 'oversized file',
+      file: 'oversized.bin',
+      contents: Buffer.alloc((8 * 1024 * 1024) + 1, 0x61),
+      error: /oversized|size|8 MiB/i,
+    },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const fixture = await reviewedDeployFixture();
+      try {
+        await commitDeployFixtureFile(
+          fixture,
+          scenario.file,
+          scenario.contents,
+          scenario.options,
+        );
+        const { beforeWorktrees, marker, result } = await runFixtureProduction(fixture);
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, scenario.error);
+        assert.equal(existsSync(marker), false, 'provider child must not start for unsafe content');
+        assert.deepEqual(await readdir(fixture.helperTmp), []);
+        assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+      } finally {
+        await rm(fixture.fixtureRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('reviewed deploy helper cleans a partially added worktree when checkout receives SIGINT', async () => {
+  const fixture = await reviewedDeployFixture();
+  let child;
+  let completion;
+  try {
+    await installFakeVercel(fixture);
+    const ready = join(fixture.fixtureRoot, 'checkout-hook-ready');
+    const marker = join(fixture.fixtureRoot, 'production-provider-invoked');
+    const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+    await installDeployFixtureHook(
+      fixture,
+      ': > "$BELVOIR_TEST_HOOK_READY"\nsleep 30',
+    );
+    child = spawn(process.execPath, [
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+      '--prod',
+    ], {
+      cwd: repoRoot,
+      detached: true,
+      env: {
+        ...process.env,
+        TMPDIR: fixture.helperTmp,
+        BELVOIR_TEST_HOOK_READY: ready,
+        BELVOIR_TEST_PRODUCTION_MARKER: marker,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    completion = captureChild(child);
+    await waitForCondition(() => existsSync(ready), 'checkout hook did not reach its signal boundary');
+    process.kill(-child.pid, 'SIGINT');
+    const result = await completion;
+
+    assert.ok(result.status !== 0 || result.signal, 'interrupted helper must not report success');
+    assert.equal(existsSync(marker), false);
+    assert.deepEqual(await readdir(fixture.helperTmp), []);
+    assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+      await completion?.catch(() => {});
+    }
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('reviewed deploy helper aborts repeated signals at a no-child setup boundary', async () => {
+  const fixture = await reviewedDeployFixture();
+  let child;
+  let completion;
+  try {
+    await installFakeVercel(fixture);
+    const marker = join(fixture.fixtureRoot, 'production-provider-invoked');
+    const runner = join(fixture.fixtureRoot, 'signal-runner.mjs');
+    const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+    await writeFile(runner, `
+import { pathToFileURL } from 'node:url';
+const [helperPath, repository, reviewedSha] = process.argv.slice(2);
+const { deployReviewedVercel } = await import(pathToFileURL(helperPath).href);
+try {
+  await deployReviewedVercel({
+    repository,
+    reviewedSha,
+    prod: true,
+    onPhase: async (phase, { signal }) => {
+      if (phase !== 'before-provider') return;
+      process.send?.({ phase });
+      await new Promise((resolve) => {
+        const keepAlive = setInterval(() => {}, 1_000);
+        const finish = () => {
+          clearInterval(keepAlive);
+          resolve();
+        };
+        if (signal.aborted) finish();
+        else signal.addEventListener('abort', finish, { once: true });
+      });
+    },
+  });
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = error.exitCode || 1;
+}
+`);
+    child = spawn(process.execPath, [runner, reviewedDeployHelperPath, fixture.repository, fixture.sha], {
+      cwd: repoRoot,
+      detached: true,
+      env: {
+        ...process.env,
+        TMPDIR: fixture.helperTmp,
+        BELVOIR_TEST_PRODUCTION_MARKER: marker,
+      },
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    });
+    completion = captureChild(child);
+    await new Promise((resolvePromise, rejectPromise) => {
+      const timeout = setTimeout(
+        () => rejectPromise(new Error('helper exited or timed out before no-child phase')),
+        5_000,
+      );
+      child.once('message', (message) => {
+        if (message?.phase !== 'before-provider') return;
+        clearTimeout(timeout);
+        resolvePromise();
+      });
+      child.once('close', () => {
+        clearTimeout(timeout);
+        rejectPromise(new Error('helper exited before no-child phase'));
+      });
+    });
+    process.kill(-child.pid, 'SIGTERM');
+    process.kill(-child.pid, 'SIGINT');
+    const result = await completion;
+
+    assert.ok(result.status !== 0 || result.signal, 'signalled helper must not report success');
+    assert.equal(existsSync(marker), false, 'provider child must never start after cancellation');
+    assert.deepEqual(await readdir(fixture.helperTmp), [], result.stderr);
+    assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+      await completion?.catch(() => {});
+    }
     await rm(fixture.fixtureRoot, { recursive: true, force: true });
   }
 });
