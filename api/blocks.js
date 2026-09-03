@@ -12,6 +12,7 @@ const { isAdminRequest } = require('./_auth');
 const { limit } = require('./_ratelimit');
 const { ROOMS, isRoom, parseDay, today, roomCapacity } = require('./_rooms');
 const { createRoomBlock } = require('./_inventory');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -27,6 +28,9 @@ function query(req) {
 }
 
 module.exports = async (req, res) => {
+  // Maintenance writes also consume or release inventory, so hold them behind
+  // the same rollout gate as checkout and settlement mutations.
+  if ((req.method === 'POST' || req.method === 'DELETE') && pausePaymentListener(res)) return;
   if (limit(req, res, 'admin', 30, 60000)) return;
   if (!(await isAdminRequest(db(), req))) return res.status(401).json({ error: 'Unauthorized' });
 

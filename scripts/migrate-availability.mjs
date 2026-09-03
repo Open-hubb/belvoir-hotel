@@ -8,7 +8,8 @@
 //   5. Run legacy-payment-reconciliation.mjs --post-deploy-before-listeners.
 //   6. Resolve every unresolvedQuarantineIds entry and rerun until
 //      safeToEnableListeners is true.
-//   7. Set PAYMENT_LISTENERS_ENABLED=true, deploy, and verify all four active.
+//   7. Set PAYMENT_LISTENERS_ENABLED=true, deploy, and verify checkout plus all
+//      four payment listeners active.
 //
 // Step 3 command (refuses any other listener-state/acknowledgement pairing):
 //   PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local

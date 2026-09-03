@@ -8,6 +8,7 @@ const {
   acquireBookingHold,
   reactivateBooking,
 } = require('./_inventory');
+const { pausePaymentListener } = require('./_payment-listeners');
 
 let _sql = null;
 function db() {
@@ -48,6 +49,11 @@ function rejectNotificationInFlight(res, rows) {
 
 module.exports = async (req, res) => {
   try {
+    // The inventory rollout changes how existing paid rows consume capacity.
+    // Stop every inventory-changing booking write while listeners are paused
+    // so neither a new hold nor an admin transition can race the paid-row
+    // backfill and displace a confirmed reservation.
+    if ((req.method === 'POST' || req.method === 'PATCH') && pausePaymentListener(res)) return;
     const sql = db();
 
     if (req.method === 'POST') {

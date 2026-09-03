@@ -1191,7 +1191,7 @@ test('payment handlers fail closed before side effects unless the listener flag 
     for (const flag of [undefined, 'false', 'TRUE', '1']) {
       await withPaymentListenersFlag(flag, async () => {
         const work = Object.fromEntries(
-          ['link', 'status', 'webhook', 'cron'].map((name) => [name, {
+          ['booking', 'link', 'status', 'webhook', 'cron'].map((name) => [name, {
             database: 0,
             provider: 0,
             settlement: 0,
@@ -1218,6 +1218,19 @@ test('payment handlers fail closed before side effects unless the listener flag 
           log() {},
         };
         const routes = {
+          booking: loadCommonJsWithMocks('../api/bookings.js', {
+            '@neondatabase/serverless': { neon: neonFor('booking') },
+            './_auth': { isAdminRequest: async () => false },
+            './_notify': { notifyBooking: async () => {} },
+            './_paid': { settleBooking: settleFor('booking') },
+            './_inventory': {
+              HOLD_MINUTES: 15,
+              acquireBookingHold: async () => ({ acquired: true, remaining: 1 }),
+              reactivateBooking: async () => ({ acquired: true, remaining: 1 }),
+            },
+            './_rooms': { ROOMS: {}, priceStay: () => ({ ok: false, error: 'Invalid room' }) },
+            './_ratelimit': { limit: () => false },
+          }),
           link: loadCommonJsWithMocks('../api/flot-payment-link.js', {
             '@neondatabase/serverless': { neon: neonFor('link') },
             qrcode: { toDataURL: async () => null },
@@ -1251,6 +1264,7 @@ test('payment handlers fail closed before side effects unless the listener flag 
           }),
         };
         const responses = {
+          booking: responseRecorder(),
           link: responseRecorder(),
           status: responseRecorder(),
           webhook: responseRecorder(),
@@ -1266,6 +1280,7 @@ test('payment handlers fail closed before side effects unless the listener flag 
           for (const entry of Object.values(work)) entry.provider += 1;
           throw new Error('provider work must remain paused');
         }, async () => {
+          await routes.booking({ method: 'POST', headers: {}, body: {} }, responses.booking);
           await routes.link({
             method: 'POST',
             headers: {},
@@ -1296,6 +1311,7 @@ test('payment handlers fail closed before side effects unless the listener flag 
           assert.equal(response.headers['retry-after'], '300');
         }
         assert.deepEqual(work, {
+          booking: { database: 0, provider: 0, settlement: 0 },
           link: { database: 0, provider: 0, settlement: 0 },
           status: { database: 0, provider: 0, settlement: 0 },
           webhook: { database: 0, provider: 0, settlement: 0 },
@@ -1394,22 +1410,109 @@ test('all four payment handlers resume their normal work for explicit true', asy
   });
 });
 
-test('rollout verifier checks all four endpoints in paused and active deployments', async () => {
+test('all inventory mutations fail closed throughout the paused migration window', async () => {
+  for (const flag of [undefined, 'false', 'TRUE', '1']) {
+    await withPaymentListenersFlag(flag, async () => {
+      let bookingDatabases = 0;
+      let blockDatabases = 0;
+      let adminChecks = 0;
+      const bookingRoute = loadCommonJsWithMocks('../api/bookings.js', {
+        '@neondatabase/serverless': { neon: () => { bookingDatabases += 1; return async () => []; } },
+        './_auth': { isAdminRequest: async () => { adminChecks += 1; return false; } },
+        './_notify': { notifyBooking: async () => {} },
+        './_paid': { settleBooking: async () => ({ settled: false }) },
+        './_inventory': {
+          HOLD_MINUTES: 15,
+          acquireBookingHold: async () => ({ acquired: true, remaining: 1 }),
+          reactivateBooking: async () => ({ acquired: true, remaining: 1 }),
+        },
+        './_rooms': { ROOMS: {}, priceStay: () => ({ ok: false, error: 'Invalid room' }) },
+        './_ratelimit': { limit: () => false },
+      });
+      const blockRoute = loadCommonJsWithMocks('../api/blocks.js', {
+        '@neondatabase/serverless': { neon: () => { blockDatabases += 1; return async () => []; } },
+        './_auth': { isAdminRequest: async () => { adminChecks += 1; return false; } },
+        './_ratelimit': { limit: () => false },
+        './_rooms': {
+          ROOMS: {},
+          isRoom: () => false,
+          parseDay: () => null,
+          today: () => new Date(),
+          roomCapacity: () => 0,
+        },
+        './_inventory': { createRoomBlock: async () => ({ created: false, remaining: 0 }) },
+      });
+      const requests = [
+        [bookingRoute, { method: 'POST', headers: {}, body: {} }],
+        [bookingRoute, { method: 'PATCH', headers: {}, body: {} }],
+        [blockRoute, { method: 'POST', headers: {}, body: {} }],
+        [blockRoute, { method: 'DELETE', headers: {}, url: '/api/blocks?id=1' }],
+      ];
+      for (const [route, request] of requests) {
+        const response = responseRecorder();
+        await route(request, response);
+        assert.equal(response.statusCode, 503, `${request.method} must pause for flag=${String(flag)}`);
+        assert.equal(response.body.code, 'PAYMENT_LISTENERS_PAUSED');
+        assert.equal(response.body.retryable, true);
+        assert.equal(response.headers['retry-after'], '300');
+      }
+      assert.equal(bookingDatabases, 0);
+      assert.equal(blockDatabases, 0);
+      assert.equal(adminChecks, 0);
+    });
+  }
+});
+
+test('public booking writes resume validation only for explicit true', async () => {
+  await withPaymentListenersFlag('true', async () => {
+    let databaseClients = 0;
+    const route = loadCommonJsWithMocks('../api/bookings.js', {
+      '@neondatabase/serverless': {
+        neon: () => {
+          databaseClients += 1;
+          return async () => [];
+        },
+      },
+      './_auth': { isAdminRequest: async () => false },
+      './_notify': { notifyBooking: async () => {} },
+      './_paid': { settleBooking: async () => ({ settled: false }) },
+      './_inventory': {
+        HOLD_MINUTES: 15,
+        acquireBookingHold: async () => ({ acquired: true, remaining: 1 }),
+        reactivateBooking: async () => ({ acquired: true, remaining: 1 }),
+      },
+      './_rooms': { ROOMS: {}, priceStay: () => ({ ok: false, error: 'Invalid room' }) },
+      './_ratelimit': { limit: () => false },
+    });
+    const response = responseRecorder();
+    await route({ method: 'POST', headers: {}, body: {} }, response);
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.error, /Missing field/);
+    assert.equal(databaseClients, 1);
+  });
+});
+
+test('rollout verifier checks booking writes and all payment endpoints', async () => {
   let state = 'paused';
   let mismatchedPath = null;
   let seen = [];
   const activeStatuses = new Map([
-    ['/api/flot-payment-link', 400],
-    ['/api/flot-status', 400],
-    ['/api/payment-webhook', 401],
-    ['/api/cron-poll-payments', 401],
+    ['POST /api/bookings', 400],
+    ['PATCH /api/bookings', 401],
+    ['POST /api/blocks', 401],
+    ['DELETE /api/blocks?id=1', 401],
+    ['POST /api/flot-payment-link', 400],
+    ['GET /api/flot-status', 400],
+    ['POST /api/payment-webhook', 401],
+    ['GET /api/cron-poll-payments', 401],
   ]);
   const server = createServer((req, res) => {
-    seen.push(req.url);
-    const shouldMismatch = req.url === mismatchedPath;
+    const requestKey = `${req.method} ${req.url}`;
+    seen.push(requestKey);
+    const shouldMismatch = requestKey === mismatchedPath;
     const status = state === 'paused'
       ? (shouldMismatch ? 200 : 503)
-      : (shouldMismatch ? 503 : activeStatuses.get(req.url));
+      : (shouldMismatch ? 503 : activeStatuses.get(requestKey));
     res.statusCode = status || 404;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(status === 503
@@ -1441,7 +1544,7 @@ test('rollout verifier checks all four endpoints in paused and active deployment
     assert.equal(JSON.parse(active.stdout).state, 'active');
 
     state = 'paused';
-    mismatchedPath = '/api/flot-status';
+    mismatchedPath = 'GET /api/flot-status';
     const mismatch = await runNode([
       'scripts/verify-payment-listeners.mjs', '--expect=paused', `--base-url=${baseUrl}`,
     ]);

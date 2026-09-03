@@ -1023,7 +1023,7 @@ node scripts/verify-payment-listeners.mjs --expect=paused --base-url=https://www
 npm run inventory:smoke
 ```
 
-Expected: all four payment endpoints remain paused. The smoke test passes with one winning hold, one rejected hold, correct remaining counts, a valid quantity block, and `0 temporary rows remain`.
+Expected: all booking/inventory mutations and all four payment endpoints remain paused. The smoke test passes with one winning hold, one rejected hold, correct remaining counts, a valid quantity block, and `0 temporary rows remain`.
 
 - [ ] **Step 6: Re-run the migration to prove idempotency**
 
@@ -1163,7 +1163,7 @@ node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" --repo="$BELVOIR_ROOT" -
 node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: the root fast-forward, exact-SHA checks, explicit refspec push, and isolated paused redeployment all succeed before reconciliation. The paused verifier confirms all four endpoints remain stopped, and reconciliation exits zero with no unresolved IDs. Root HEAD and `origin/main` must still equal the reviewed SHA before the flag is set to exact `true`; the helper then creates a new isolated checkout of that same SHA for the active deployment and cleans it afterward. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
+Expected: the root fast-forward, exact-SHA checks, explicit refspec push, and isolated paused redeployment all succeed before reconciliation. The paused verifier confirms all booking/inventory mutations and all four payment endpoints remain stopped, and reconciliation exits zero with no unresolved IDs. Root HEAD and `origin/main` must still equal the reviewed SHA before the flag is set to exact `true`; the helper then creates a new isolated checkout of that same SHA for the active deployment and cleans it afterward. The final verifier must observe active validation/authentication responses from all booking/inventory mutations and all four payment endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
 
 - [ ] **Step 9: Run production read-only and temporary-row checks**
 

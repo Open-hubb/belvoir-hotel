@@ -4,6 +4,10 @@ import paymentListeners from '../api/_payment-listeners.js';
 
 const { PAUSED_CODE } = paymentListeners;
 const ENDPOINTS = Object.freeze([
+  { path: '/api/bookings', method: 'POST', activeStatus: 400 },
+  { path: '/api/bookings', method: 'PATCH', activeStatus: 401 },
+  { path: '/api/blocks', method: 'POST', activeStatus: 401 },
+  { path: '/api/blocks?id=1', method: 'DELETE', activeStatus: 401 },
   { path: '/api/flot-payment-link', method: 'POST', activeStatus: 400 },
   { path: '/api/flot-status', method: 'GET', activeStatus: 400 },
   { path: '/api/payment-webhook', method: 'POST', activeStatus: 401 },
@@ -39,7 +43,7 @@ export async function verifyPaymentListeners(baseUrl, expectedState, fetchImpl =
   if (failures.length) {
     throw new Error(
       `Payment listener ${expectedState} verification failed: ` +
-      failures.map((failure) => `${failure.path} returned ${failure.status}/${failure.code || 'no-code'}`).join(', '),
+      failures.map((failure) => `${failure.method} ${failure.path} returned ${failure.status}/${failure.code || 'no-code'}`).join(', '),
     );
   }
   return { ok: true, state: expectedState, checks };
