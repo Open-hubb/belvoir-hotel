@@ -7525,6 +7525,11 @@
     const ROOM_PRICES = { comfort: 60, standard: 70, 'ground-floor': 100, 'superior-deluxe': 80, 'superior-twin': 90, studio: 100, 'one-bed': 110, 'two-bed': 150 };
     const ROOM_NAMES = { comfort: 'Superior Double / Comfort', standard: 'Deluxe Standard', 'ground-floor': 'Ground Floor One-Bedroom', 'superior-deluxe': 'Superior Deluxe King', 'superior-twin': 'Superior Deluxe Twin', studio: 'Studio Penthouse', 'one-bed': 'One-Bedroom Apartment', 'two-bed': 'Two-Bedroom Apartment' };
 
+    function isKnownRoomKey(roomKey) {
+      return typeof roomKey === 'string' &&
+        Object.prototype.hasOwnProperty.call(ROOM_NAMES, roomKey);
+    }
+
 
 
     /* ─────────── Enquiry form ─────────── */
@@ -7717,9 +7722,37 @@
         end.toISOString().slice(0, 10) === checkout && start.getTime() >= today;
     }
 
+    function validAvailabilityRoom(room) {
+      if (!room || typeof room !== 'object' || !isKnownRoomKey(room.key)) return false;
+      if (!Number.isInteger(room.remaining) || room.remaining < 0) return false;
+      if (Object.prototype.hasOwnProperty.call(room, 'capacity')) {
+        if (!Number.isInteger(room.capacity) || room.capacity < 1 || room.remaining > room.capacity) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function availabilityRoomsByKey(data) {
+      const byKey = new Map();
+      if (!data || !Array.isArray(data.rooms)) return byKey;
+      data.rooms.forEach(room => {
+        if (!room || !isKnownRoomKey(room.key)) return;
+        if (byKey.has(room.key) || !validAvailabilityRoom(room)) {
+          byKey.set(room.key, null);
+          return;
+        }
+        byKey.set(room.key, room);
+      });
+      return byKey;
+    }
+
     async function fetchAvailability(checkin, checkout, roomKey) {
       const params = new URLSearchParams({ checkin, checkout });
-      if (roomKey) params.set('room', roomKey);
+      if (roomKey) {
+        if (!isKnownRoomKey(roomKey)) throw new Error('Unknown room.');
+        params.set('room', roomKey);
+      }
       const response = await fetch('/api/availability?' + params.toString(), { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -7744,7 +7777,8 @@
     }
 
     function availabilityLabel(room, checkin, checkout) {
-      const remaining = Math.max(0, Number(room && room.remaining) || 0);
+      if (!validAvailabilityRoom(room)) throw new Error('Invalid availability data.');
+      const remaining = room.remaining;
       if (remaining === 0) return 'Fully booked · ' + availabilityDateLabel(checkin, checkout);
       if (remaining === 1) return 'Only 1 room left';
       return remaining + ' rooms available';
@@ -7781,6 +7815,8 @@
     }
 
     function roomDetailsUrl(roomKey) {
+      if (!isKnownRoomKey(roomKey) ||
+          !Object.prototype.hasOwnProperty.call(ROOM_SLUGS, roomKey)) return '/#rooms';
       const url = new URL('/rooms/' + ROOM_SLUGS[roomKey], window.location.origin);
       if (validDateRange(heroSearch.checkin, heroSearch.checkout)) {
         url.searchParams.set('checkin', heroSearch.checkin);
@@ -7799,7 +7835,8 @@
       retry.hidden = true;
       card.classList.remove('cat-room--full', 'cat-room--availability-error');
 
-      if (error || !room) {
+      const cardRoomKey = card.dataset.roomKey;
+      if (error || !isKnownRoomKey(cardRoomKey) || !validAvailabilityRoom(room) || room.key !== cardRoomKey) {
         card.classList.add('cat-room--availability-error');
         icon.innerHTML = '<i data-lucide="wifi-off"></i>';
         text.textContent = 'We could not check availability. Please try again.';
@@ -7835,8 +7872,11 @@
 
       try {
         const data = await loadAvailability(heroSearch.checkin, heroSearch.checkout, Boolean(force));
-        const rooms = new Map((data.rooms || []).map(room => [room.key, room]));
-        cards.forEach(card => setCardAvailability(card, rooms.get(card.dataset.roomKey), null));
+        const rooms = availabilityRoomsByKey(data);
+        cards.forEach(card => {
+          const roomKey = card.dataset.roomKey;
+          setCardAvailability(card, isKnownRoomKey(roomKey) ? rooms.get(roomKey) : null, null);
+        });
       } catch (error) {
         cards.forEach(card => setCardAvailability(card, null, error));
       }
@@ -8241,8 +8281,9 @@
     }
 
     function openBookingWizard(roomKey, displayName) {
+      if (!isKnownRoomKey(roomKey)) return;
       bwState.room = roomKey;
-      bwState.label = displayName || ROOM_NAMES[roomKey] || roomKey;
+      bwState.label = ROOM_NAMES[roomKey];
       bwState.step = 1;
       bwState.payment = '';
       bwState.bookingId = null;
@@ -8418,16 +8459,20 @@
     }
 
     async function bwRoomIsFree(roomKey, ci, co) {
+      if (!isKnownRoomKey(roomKey)) {
+        throw new Error('We could not check availability. Please try again.');
+      }
       const data = await fetchAvailability(ci, co);
-      const room = (data.rooms || []).find(candidate => candidate.key === roomKey);
-      if (!room || !Number.isFinite(Number(room.remaining))) {
+      const rooms = availabilityRoomsByKey(data);
+      const room = rooms.get(roomKey);
+      if (!room) {
         throw new Error('We could not check availability. Please try again.');
       }
       return {
-        free: Number(room.remaining) > 0,
-        remaining: Math.max(0, Number(room.remaining)),
+        free: room.remaining > 0,
+        remaining: room.remaining,
         room,
-        alternatives: (data.rooms || []).filter(candidate => Number(candidate.remaining) > 0)
+        alternatives: [...rooms.values()].filter(candidate => candidate && candidate.remaining > 0)
       };
     }
 
@@ -8465,7 +8510,7 @@
 
         if (!result.free) {
           bwSetAvailability('');
-          const others = (result.alternatives || []).slice(0, 3).map(r => r.name).join(', ');
+          const others = (result.alternatives || []).slice(0, 3).map(r => ROOM_NAMES[r.key]).join(', ');
           return bwShowError(
             'No rooms remain for the ' + bwState.label + ' on those dates.' +
             (others ? ' Still free: ' + others + '.' : ' Please try different dates.')
@@ -8999,10 +9044,26 @@
       fcStopPolling();
       document.getElementById('paymentPopup').classList.remove('active');
 
-      if (draft.room && ROOM_NAMES[draft.room]) {
-        bwState.room = draft.room;
-        bwState.label = draft.label || ROOM_NAMES[draft.room];
+      // An expired checkout row cannot safely accept a different stay. Clear
+      // every private identifier before the guest can edit dates; the resumed
+      // flow will create a fresh enquiry and hold through the server.
+      bwState.bookingId = null;
+      bwState.claim = null;
+      fcState.bookingId = null;
+      fcState.claim = null;
+      fcState.reference = null;
+      fcState.orderId = null;
+      fcState.attemptId = null;
+      fcState.holdExpiresAt = null;
+      fcState.charged = null;
+
+      if (!isKnownRoomKey(draft.room)) {
+        document.body.style.overflow = '';
+        if (typeof lenis !== 'undefined') lenis.start();
+        return;
       }
+      bwState.room = draft.room;
+      bwState.label = ROOM_NAMES[draft.room];
       bwState.step = 1;
       bwState.payment = '';
       bwState.holdExpiresAt = null;
@@ -9065,7 +9126,7 @@
       const roomKey = params.get('room') || '';
       const checkin = params.get('checkin') || '';
       const checkout = params.get('checkout') || '';
-      if (!ROOM_NAMES[roomKey] || !validDateRange(checkin, checkout)) return;
+      if (!isKnownRoomKey(roomKey) || !validDateRange(checkin, checkout)) return;
 
       heroSearch.checkin = checkin;
       heroSearch.checkout = checkout;

@@ -242,6 +242,85 @@ test('availability failures disable booking and offer a working retry', { concur
   }
 });
 
+test('malformed availability rows fail closed instead of enabling booking', { concurrency: false }, async () => {
+  const malformedPage = await browser.newPage();
+  await malformedPage.setRequestInterception(true);
+  malformedPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: '2099-09-10', checkout: '2099-09-13',
+          rooms: [
+            { key: 'comfort', name: 'Superior Double / Comfort', capacity: 1, available: true },
+            { key: 'standard', name: 'Deluxe Standard', capacity: 2, remaining: 'many', available: true },
+            { key: 'superior-deluxe', name: 'Superior Deluxe King', capacity: 3, remaining: -1, available: false },
+            { key: 'superior-twin', name: 'Superior Deluxe Twin', capacity: 1, remaining: 0.5, available: true },
+            { key: 'studio', name: 'Studio Penthouse', capacity: 1, remaining: 2, available: true },
+          ],
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await malformedPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await malformedPage.evaluate(() => {
+      heroSearch.checkin = '2099-09-10';
+      heroSearch.checkout = '2099-09-13';
+      openCategory('rooms');
+    });
+    await malformedPage.waitForFunction(
+      () => [...document.querySelectorAll('#catOverlayGrid .cat-room__availability-text')]
+        .every((node) => node.textContent.trim() !== 'Checking availability…'),
+      { timeout: 5_000 },
+    );
+
+    const roomStates = await malformedPage.$$eval(
+      '#catOverlayGrid [data-room-key]',
+      (cards) => cards.map((card) => ({
+        key: card.dataset.roomKey,
+        disabled: card.querySelector('.cat-room__book').disabled,
+        retryVisible: card.querySelector('.cat-room__retry').hidden === false,
+        status: card.querySelector('.cat-room__availability-text').textContent.trim(),
+      })),
+    );
+    assert.deepEqual(roomStates, [
+      { key: 'comfort', disabled: true, retryVisible: true, status: 'We could not check availability. Please try again.' },
+      { key: 'standard', disabled: true, retryVisible: true, status: 'We could not check availability. Please try again.' },
+      { key: 'superior-deluxe', disabled: true, retryVisible: true, status: 'We could not check availability. Please try again.' },
+      { key: 'superior-twin', disabled: true, retryVisible: true, status: 'We could not check availability. Please try again.' },
+    ]);
+
+    await malformedPage.evaluate(() => {
+      closeCategory();
+      openCategory('studio');
+    });
+    await malformedPage.waitForFunction(
+      () => {
+        const status = document.querySelector('[data-room-key="studio"] .cat-room__availability-text');
+        return status && status.textContent.trim() !== 'Checking availability…';
+      },
+      { timeout: 5_000 },
+    );
+    const studioState = await malformedPage.$eval('[data-room-key="studio"]', (card) => ({
+      disabled: card.querySelector('.cat-room__book').disabled,
+      retryVisible: card.querySelector('.cat-room__retry').hidden === false,
+      status: card.querySelector('.cat-room__availability-text').textContent.trim(),
+    }));
+    assert.deepEqual(studioState, {
+      disabled: true,
+      retryVisible: true,
+      status: 'We could not check availability. Please try again.',
+    });
+  } finally {
+    await malformedPage.close();
+  }
+});
+
 test('valid room-page query dates hydrate the matching booking wizard', { concurrency: false }, async () => {
   const hydrationPage = await browser.newPage();
   await hydrationPage.setViewport({ width: 768, height: 900 });
@@ -275,6 +354,38 @@ test('past room-page query dates are ignored', { concurrency: false }, async () 
   );
   assert.equal(wizardOpen, false);
   await hydrationPage.close();
+});
+
+test('unknown and prototype-named room query values are ignored without errors', { concurrency: false }, async () => {
+  const results = [];
+  for (const key of ['unknown-room', 'toString', 'constructor', '__proto__']) {
+    const hydrationPage = await browser.newPage();
+    const errors = [];
+    hydrationPage.on('pageerror', (error) => errors.push(error.message));
+    try {
+      await hydrationPage.goto(
+        `${baseUrl}/?room=${encodeURIComponent(key)}&checkin=2099-09-10&checkout=2099-09-13`,
+        { waitUntil: 'domcontentloaded', timeout: 30_000 },
+      );
+      results.push({
+        key,
+        wizardOpen: await hydrationPage.$eval(
+          '#bookWizard',
+          (node) => node.classList.contains('active'),
+        ),
+        errors,
+      });
+    } finally {
+      await hydrationPage.close();
+    }
+  }
+
+  assert.deepEqual(results, [
+    { key: 'unknown-room', wizardOpen: false, errors: [] },
+    { key: 'toString', wizardOpen: false, errors: [] },
+    { key: 'constructor', wizardOpen: false, errors: [] },
+    { key: '__proto__', wizardOpen: false, errors: [] },
+  ]);
 });
 
 test('checkout shows the hold deadline and preserves the booking after hold expiry', { concurrency: false }, async () => {
@@ -325,6 +436,7 @@ test('payment-link hold expiry returns to the same guest and dates', { concurren
     document.getElementById('bwName').value = 'Expiry Guest';
     document.getElementById('bwPhone').value = '+23277111111';
     document.getElementById('bwEmail').value = 'expiry@example.com';
+    document.getElementById('bwRequests').value = 'Late airport pickup';
     bwState.payment = 'full';
     openFlotCheckout(78, 'claim-78', 180, 'BEL-78', '2027-09-10T14:35:00.000Z');
     fcPick('card');
@@ -351,6 +463,11 @@ test('payment-link hold expiry returns to the same guest and dates', { concurren
       checkin: document.getElementById('bwCheckin').value,
       checkout: document.getElementById('bwCheckout').value,
       email: document.getElementById('bwEmail').value,
+      requests: document.getElementById('bwRequests').value,
+      bookingId: bwState.bookingId,
+      claim: bwState.claim,
+      paymentBookingId: fcState.bookingId,
+      paymentClaim: fcState.claim,
     };
   });
 
@@ -361,6 +478,71 @@ test('payment-link hold expiry returns to the same guest and dates', { concurren
   assert.equal(state.checkin, '2027-09-10');
   assert.equal(state.checkout, '2027-09-13');
   assert.equal(state.email, 'expiry@example.com');
+  assert.equal(state.requests, 'Late airport pickup');
+  assert.equal(state.bookingId, null);
+  assert.equal(state.claim, null);
+  assert.equal(state.paymentBookingId, null);
+  assert.equal(state.paymentClaim, null);
+});
+
+test('checkout after hold expiry cannot reuse the expired booking identity', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    document.getElementById('bwCheckin').value = '2027-09-10';
+    document.getElementById('bwCheckout').value = '2027-09-13';
+    document.getElementById('bwGuests').value = '3';
+    document.getElementById('bwName').value = 'Changed Stay Guest';
+    document.getElementById('bwPhone').value = '+23277222222';
+    document.getElementById('bwEmail').value = 'changed@example.com';
+    document.getElementById('bwRequests').value = 'Quiet room, please';
+    bwState.bookingId = 88;
+    bwState.claim = 'expired-claim-88';
+    bwState.payment = 'full';
+    openFlotCheckout(88, 'expired-claim-88', 180, 'BEL-88', '2027-09-10T14:35:00.000Z');
+    fcResult('hold-expired');
+    document.getElementById('fcResultBtn').click();
+
+    const restored = {
+      room: bwState.room,
+      checkin: document.getElementById('bwCheckin').value,
+      checkout: document.getElementById('bwCheckout').value,
+      guests: document.getElementById('bwGuests').value,
+      name: document.getElementById('bwName').value,
+      phone: document.getElementById('bwPhone').value,
+      email: document.getElementById('bwEmail').value,
+      requests: document.getElementById('bwRequests').value,
+      bookingId: bwState.bookingId,
+      claim: bwState.claim,
+    };
+
+    document.getElementById('bwCheckin').value = '2027-10-01';
+    document.getElementById('bwCheckout').value = '2027-10-03';
+    bwState.payment = 'full';
+    let checkoutRecord = null;
+    saveBooking = async (record) => {
+      checkoutRecord = JSON.parse(JSON.stringify(record));
+      return null;
+    };
+    await bwCheckout();
+    return { restored, checkoutRecord };
+  });
+
+  assert.deepEqual(state.restored, {
+    room: 'comfort',
+    checkin: '2027-09-10',
+    checkout: '2027-09-13',
+    guests: '3',
+    name: 'Changed Stay Guest',
+    phone: '+23277222222',
+    email: 'changed@example.com',
+    requests: 'Quiet room, please',
+    bookingId: null,
+    claim: null,
+  });
+  assert.equal(state.checkoutRecord.id, null);
+  assert.equal(state.checkoutRecord.claim, null);
+  assert.equal(state.checkoutRecord.checkin, '2027-10-01');
+  assert.equal(state.checkoutRecord.checkout, '2027-10-03');
 });
 
 test('payment polling sends the claim and stops on hold expiry', { concurrency: false }, async () => {
