@@ -106,6 +106,293 @@ test('room category dialog does not leak focus to the background', { concurrency
   assert.equal(focusIsInDialog, true);
 });
 
+test('room cards show intercepted live inventory and preserve selected dates in details links', { concurrency: false }, async () => {
+  const inventoryPage = await browser.newPage();
+  await inventoryPage.setViewport({ width: 375, height: 812 });
+  await inventoryPage.setRequestInterception(true);
+  inventoryPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: url.searchParams.get('checkin'),
+          checkout: url.searchParams.get('checkout'),
+          rooms: [
+            { key: 'comfort', name: 'Superior Double / Comfort', capacity: 1, remaining: 0, available: false },
+            { key: 'standard', name: 'Deluxe Standard', capacity: 2, remaining: 2, available: true },
+            { key: 'superior-deluxe', name: 'Superior Deluxe King', capacity: 3, remaining: 1, available: true },
+            { key: 'superior-twin', name: 'Superior Deluxe Twin', capacity: 1, remaining: 1, available: true },
+          ],
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await inventoryPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await inventoryPage.waitForFunction(
+      () => getComputedStyle(document.querySelector('#preloader')).display === 'none',
+      { timeout: 8_000 },
+    );
+    await inventoryPage.evaluate(() => {
+      const checkin = document.getElementById('heroCheckin');
+      const checkout = document.getElementById('heroCheckout');
+      checkin.value = '2027-09-10';
+      checkout.value = '2027-09-13';
+      checkin.dispatchEvent(new Event('change', { bubbles: true }));
+      checkout.dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('heroBookForm').requestSubmit();
+    });
+    await inventoryPage.click('.cat-card--rooms');
+    await inventoryPage.waitForFunction(
+      () => document.querySelector('[data-room-key="comfort"] .cat-room__availability')?.hidden === false,
+      { timeout: 5_000 },
+    );
+
+    assert.equal(
+      await inventoryPage.$eval('[data-room-key="superior-deluxe"] .cat-room__availability', (node) => node.textContent.trim()),
+      'Only 1 room left',
+    );
+    assert.match(
+      await inventoryPage.$eval('[data-room-key="comfort"] .cat-room__availability-text', (node) => node.textContent),
+      /Fully booked · 10–13 Sep/,
+    );
+    assert.equal(
+      await inventoryPage.$eval('[data-room-key="comfort"] .cat-room__book', (node) => node.disabled),
+      true,
+    );
+    assert.equal(
+      await inventoryPage.$eval('[data-room-key="comfort"] .cat-room__book', (node) => node.textContent.trim()),
+      'Choose different dates',
+    );
+
+    const details = await inventoryPage.$eval(
+      '[data-room-key="comfort"] .cat-room__ghost',
+      (node) => new URL(node.href).search,
+    );
+    assert.match(details, /checkin=2027-09-10/);
+    assert.match(details, /checkout=2027-09-13/);
+  } finally {
+    await inventoryPage.close();
+  }
+});
+
+test('availability failures disable booking and offer a working retry', { concurrency: false }, async () => {
+  const retryPage = await browser.newPage();
+  let availabilityCalls = 0;
+  await retryPage.setRequestInterception(true);
+  retryPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      availabilityCalls += 1;
+      if (availabilityCalls === 1) {
+        return request.respond({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Could not check availability.' }),
+        });
+      }
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: '2027-09-10', checkout: '2027-09-13',
+          rooms: [{ key: 'comfort', name: 'Superior Double / Comfort', capacity: 1, remaining: 1, available: true }],
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  try {
+    await retryPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await retryPage.waitForFunction(
+      () => getComputedStyle(document.querySelector('#preloader')).display === 'none',
+      { timeout: 8_000 },
+    );
+    await retryPage.evaluate(() => {
+      heroSearch.checkin = '2027-09-10';
+      heroSearch.checkout = '2027-09-13';
+      openCategory('rooms');
+    });
+    await retryPage.waitForSelector('[data-room-key="comfort"] .cat-room__retry');
+    assert.equal(
+      await retryPage.$eval('[data-room-key="comfort"] .cat-room__book', (node) => node.disabled),
+      true,
+    );
+    assert.match(
+      await retryPage.$eval('[data-room-key="comfort"] .cat-room__availability-text', (node) => node.textContent),
+      /could not check availability/i,
+    );
+
+    await retryPage.click('[data-room-key="comfort"] .cat-room__retry');
+    await retryPage.waitForFunction(
+      () => document.querySelector('[data-room-key="comfort"] .cat-room__availability-text')?.textContent.trim() === 'Only 1 room left',
+      { timeout: 5_000 },
+    );
+    assert.equal(
+      await retryPage.$eval('[data-room-key="comfort"] .cat-room__book', (node) => node.disabled),
+      false,
+    );
+  } finally {
+    await retryPage.close();
+  }
+});
+
+test('valid room-page query dates hydrate the matching booking wizard', { concurrency: false }, async () => {
+  const hydrationPage = await browser.newPage();
+  await hydrationPage.setViewport({ width: 768, height: 900 });
+  await hydrationPage.goto(
+    `${baseUrl}/?room=comfort&checkin=2027-09-10&checkout=2027-09-13`,
+    { waitUntil: 'domcontentloaded', timeout: 30_000 },
+  );
+  await hydrationPage.waitForSelector('#bookWizard.active');
+  const hydrated = await hydrationPage.evaluate(() => ({
+    room: document.getElementById('bwRoomName').textContent.trim(),
+    checkin: document.getElementById('bwCheckin').value,
+    checkout: document.getElementById('bwCheckout').value,
+  }));
+  assert.deepEqual(hydrated, {
+    room: 'Superior Double / Comfort',
+    checkin: '2027-09-10',
+    checkout: '2027-09-13',
+  });
+  await hydrationPage.close();
+});
+
+test('past room-page query dates are ignored', { concurrency: false }, async () => {
+  const hydrationPage = await browser.newPage();
+  await hydrationPage.goto(
+    `${baseUrl}/?room=comfort&checkin=2020-09-10&checkout=2020-09-13`,
+    { waitUntil: 'domcontentloaded', timeout: 30_000 },
+  );
+  const wizardOpen = await hydrationPage.$eval(
+    '#bookWizard',
+    (node) => node.classList.contains('active'),
+  );
+  assert.equal(wizardOpen, false);
+  await hydrationPage.close();
+});
+
+test('checkout shows the hold deadline and preserves the booking after hold expiry', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    const holdExpiresAt = '2027-09-10T14:35:00.000Z';
+    document.getElementById('bwCheckin').value = '2027-09-10';
+    document.getElementById('bwCheckout').value = '2027-09-13';
+    document.getElementById('bwName').value = 'Test Guest';
+    document.getElementById('bwPhone').value = '+23277000000';
+    document.getElementById('bwEmail').value = 'guest@example.com';
+    bwState.payment = 'full';
+    bwState.bookingId = 77;
+    bwState.claim = 'claim-77';
+    saveBooking = async () => ({
+      id: 77, claim: 'claim-77', reference: 'BEL-77', holdExpiresAt,
+    });
+    await bwCheckout();
+    const notice = document.getElementById('fcAmountSub').textContent;
+
+    fcResult('hold-expired');
+    document.getElementById('fcResultBtn').click();
+    return {
+      notice,
+      wizardOpen: document.getElementById('bookWizard').classList.contains('active'),
+      step: bwState.step,
+      room: bwState.room,
+      checkin: document.getElementById('bwCheckin').value,
+      checkout: document.getElementById('bwCheckout').value,
+      name: document.getElementById('bwName').value,
+    };
+  });
+
+  assert.match(state.notice, /Your room is reserved for payment until \d{2}:\d{2}/);
+  assert.equal(state.wizardOpen, true);
+  assert.equal(state.step, 1);
+  assert.equal(state.room, 'comfort');
+  assert.equal(state.checkin, '2027-09-10');
+  assert.equal(state.checkout, '2027-09-13');
+  assert.equal(state.name, 'Test Guest');
+});
+
+test('payment-link hold expiry returns to the same guest and dates', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    document.getElementById('bwCheckin').value = '2027-09-10';
+    document.getElementById('bwCheckout').value = '2027-09-13';
+    document.getElementById('bwName').value = 'Expiry Guest';
+    document.getElementById('bwPhone').value = '+23277111111';
+    document.getElementById('bwEmail').value = 'expiry@example.com';
+    bwState.payment = 'full';
+    openFlotCheckout(78, 'claim-78', 180, 'BEL-78', '2027-09-10T14:35:00.000Z');
+    fcPick('card');
+    const nativeFetch = window.fetch;
+    window.fetch = async (input, options) => {
+      if (String(input).includes('/api/flot-payment-link')) {
+        return new Response(JSON.stringify({ code: 'HOLD_EXPIRED', error: 'Provider text' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return nativeFetch(input, options);
+    };
+    await fcStart();
+    const result = {
+      title: document.getElementById('fcResultTitle').textContent,
+      text: document.getElementById('fcResultText').textContent,
+      button: document.getElementById('fcResultBtn').textContent,
+    };
+    document.getElementById('fcResultBtn').click();
+    return {
+      ...result,
+      wizardOpen: document.getElementById('bookWizard').classList.contains('active'),
+      checkin: document.getElementById('bwCheckin').value,
+      checkout: document.getElementById('bwCheckout').value,
+      email: document.getElementById('bwEmail').value,
+    };
+  });
+
+  assert.equal(state.title, 'Reservation time expired');
+  assert.equal(state.text, 'Your 15-minute reservation expired. Please recheck these dates before paying.');
+  assert.equal(state.button, 'Recheck dates');
+  assert.equal(state.wizardOpen, true);
+  assert.equal(state.checkin, '2027-09-10');
+  assert.equal(state.checkout, '2027-09-13');
+  assert.equal(state.email, 'expiry@example.com');
+});
+
+test('payment polling sends the claim and stops on hold expiry', { concurrency: false }, async () => {
+  await openBookingDates();
+  const state = await page.evaluate(async () => {
+    document.getElementById('bwCheckin').value = '2027-09-10';
+    document.getElementById('bwCheckout').value = '2027-09-13';
+    openFlotCheckout(79, 'claim-79', 180, 'BEL-79', '2027-09-10T14:35:00.000Z');
+    fcState.orderId = 'order-79';
+    fcState.attemptId = 'attempt-79';
+    let statusUrl = '';
+    window.fetch = async (input) => {
+      statusUrl = String(input);
+      return new Response(JSON.stringify({ code: 'HOLD_EXPIRED' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    fcBeginPolling();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return {
+      statusUrl,
+      timerStopped: fcState.timer === null,
+      text: document.getElementById('fcResultText').textContent,
+    };
+  });
+
+  assert.match(state.statusUrl, /claim=claim-79/);
+  assert.equal(state.timerStopped, true);
+  assert.equal(state.text, 'Your 15-minute reservation expired. Please recheck these dates before paying.');
+});
+
 test('booking dialog does not leak focus to the background', { concurrency: false }, async () => {
   await openBookingDates();
   await page.keyboard.down('Shift');
