@@ -6617,7 +6617,7 @@
 
       <div class="detail-modal__gallery">
         <div class="detail-modal__stage">
-          <img id="detailStageImg" src="" alt="">
+          <img id="detailStageImg" src="" alt="" width="1600" height="1200">
           <button class="detail-modal__nav detail-modal__nav--prev" onclick="detailPrev()" aria-label="Previous photo">
             <i data-lucide="chevron-left"></i>
           </button>
@@ -7898,7 +7898,7 @@
       document.getElementById('catOverlayTagline').textContent = cat.tagline;
       document.getElementById('catOverlayGrid').innerHTML = cat.rooms.map(r =>
         '<article class="cat-room" data-room-key="' + r.key + '">' +
-          '<div class="cat-room__img"><img src="' + r.img + '" alt="' + r.name + ' at Belvoir" loading="lazy"></div>' +
+          '<div class="cat-room__img"><img src="' + r.img + '" alt="' + r.name + ' at Belvoir" width="1600" height="1000" loading="lazy"></div>' +
           '<div class="cat-room__body">' +
             '<div class="cat-room__row"><h4 class="cat-room__name">' + r.name + '</h4>' +
               '<div class="cat-room__price">$' + r.price + ' <small>/night</small>'
@@ -8135,7 +8135,7 @@
       else { note.style.display = 'none'; }
 
       document.getElementById('detailThumbs').innerHTML = data.images
-        .map((img, i) => '<button class="detail-modal__thumb' + (i === 0 ? ' active' : '') + '" onclick="detailGoTo(' + i + ')" aria-label="View photo ' + (i + 1) + '"><img src="' + img.src + '" alt="" loading="lazy"></button>').join('');
+        .map((img, i) => '<button class="detail-modal__thumb' + (i === 0 ? ' active' : '') + '" onclick="detailGoTo(' + i + ')" aria-label="View photo ' + (i + 1) + '"><img src="' + img.src + '" alt="" width="160" height="120" loading="lazy"></button>').join('');
 
       updateDetailStage();
       document.getElementById('detailModal').classList.add('active');
