@@ -8566,6 +8566,14 @@
       }
     }
 
+    function fcPaymentResultKind(data) {
+      const hasAttemptReceipt = data.status === 'completed' && data.receiptAvailable !== false;
+      if (hasAttemptReceipt && !data.bookingFinal) return 'payment-recorded';
+      if (data.inventoryConflict || data.settlementOutcome === 'conflict') return 'conflict';
+      if (hasAttemptReceipt) return 'completed';
+      return 'booking-final';
+    }
+
     function fcBeginPolling() {
       fcStopPolling();
       fcState.startedAt = Date.now();
@@ -8596,13 +8604,7 @@
           if (!res.ok) return; // transient, keep polling
           if (data.bookingFinal || data.status === 'completed') {
             fcStopPolling();
-            const hasAttemptReceipt = data.status === 'completed' && data.receiptAvailable !== false;
-            const finalKind = data.inventoryConflict || data.settlementOutcome === 'conflict'
-              ? 'conflict'
-              : (hasAttemptReceipt && !data.bookingFinal
-                ? 'payment-recorded'
-                : (hasAttemptReceipt ? 'completed' : 'booking-final'));
-            fcResult(finalKind, null, data);
+            fcResult(fcPaymentResultKind(data), null, data);
           } else if (data.status === 'failed') {
             // A card error only. The booking stays open so the guest can retry.
             fcStopPolling();

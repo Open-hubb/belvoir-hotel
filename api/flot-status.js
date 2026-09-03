@@ -182,6 +182,9 @@ module.exports = async (req, res) => {
       : (settlement && settlement.booking
         ? settlement.booking.inventory_status
         : payment.inventory_status);
+    const historicalReset = Boolean(
+      settlement && settlement.alreadyProcessed === true && !bookingFinal,
+    );
     return res.status(200).json({
       status,
       attemptStatus: status,
@@ -198,9 +201,11 @@ module.exports = async (req, res) => {
       orderId,
       updatedAt: data.updatedAt,
       testMode: F.TEST_MODE,
-      inventoryConflict: settlement
-        ? settlement.conflict === true
-        : bookingInventoryStatus === 'conflict',
+      inventoryConflict: historicalReset
+        ? bookingInventoryStatus === 'conflict'
+        : (settlement
+          ? settlement.conflict === true
+          : bookingInventoryStatus === 'conflict'),
     });
   } catch (err) {
     F.log('STATUS_ERROR', { orderId, attemptId, message: String(err && err.message) });

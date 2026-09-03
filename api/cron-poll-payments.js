@@ -93,12 +93,18 @@ module.exports = async (req, res) => {
       LEFT JOIN booking_settlement_events settlement_event
         ON settlement_event.booking_id = p.booking_id
        AND settlement_event.settlement_key = 'flot-payment:' || p.id::text
+      LEFT JOIN legacy_payment_reconciliation legacy_reconciliation
+        ON legacy_reconciliation.payment_id = p.id
       WHERE (
           (p.status IN ('created', 'pending')
            AND p.received_at > now() - (${STALE_AFTER_HOURS} || ' hours')::interval)
           OR (p.status = 'completed'
               AND b.payment_status IS DISTINCT FROM 'paid'
-              AND settlement_event.id IS NULL)
+              AND settlement_event.id IS NULL
+              AND (
+                legacy_reconciliation.payment_id IS NULL
+                OR legacy_reconciliation.resolution = 'recover'
+              ))
         )
         AND p.provider_ref IS NOT NULL
       ORDER BY p.received_at ASC

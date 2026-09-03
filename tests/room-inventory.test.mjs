@@ -43,6 +43,10 @@ const migration = readFileSync(
   new URL('../scripts/migrate-availability.mjs', import.meta.url),
   'utf8',
 );
+const legacyReconciliationSource = readFileSync(
+  new URL('../scripts/legacy-payment-reconciliation.mjs', import.meta.url),
+  'utf8',
+);
 const paylinkMigration = readFileSync(
   new URL('../scripts/migrate-paylink.mjs', import.meta.url),
   'utf8',
@@ -54,6 +58,14 @@ function migrationBlock(marker) {
   const end = migration.indexOf('\n});', start);
   assert.notEqual(end, -1, `unterminated migration block: ${marker}`);
   return migration.slice(start, end);
+}
+
+function indexFunction(name) {
+  const start = indexSource.indexOf(`function ${name}`);
+  assert.notEqual(start, -1, `missing inline function: ${name}`);
+  const end = indexSource.indexOf('\n    }', start);
+  assert.notEqual(end, -1, `unterminated inline function: ${name}`);
+  return Function(`"use strict"; return (${indexSource.slice(start, end + 6)});`)();
 }
 
 function taggedSql(rowsByCall) {
@@ -1042,6 +1054,39 @@ test('completed polling reports a processed attempt without repaying an admin-re
   }]);
 });
 
+test('historical conflict polling reports the current reset booking instead of a live conflict', async () => {
+  const harness = paymentStatusHarness({
+    providerStatus: 'completed',
+    payment: {
+      payment_status: 'unpaid',
+      inventory_status: 'unreserved',
+      attempt_status: 'completed',
+    },
+    settlement: {
+      settled: false,
+      alreadyPaid: false,
+      alreadyProcessed: true,
+      conflict: true,
+      settlementOutcome: 'conflict',
+      booking: {
+        id: 91,
+        payment_status: 'unpaid',
+        inventory_status: 'unreserved',
+      },
+    },
+  });
+  const res = responseRecorder();
+
+  await withFetch(harness.providerFetch, () => harness.route(harness.request(), res));
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, 'completed');
+  assert.equal(res.body.bookingFinal, false);
+  assert.equal(res.body.settlementAlreadyProcessed, true);
+  assert.equal(res.body.settlementOutcome, 'conflict');
+  assert.equal(res.body.inventoryConflict, false);
+});
+
 test('polling keeps attempt identity when another attempt already paid the booking', async () => {
   const harness = paymentStatusHarness({
     providerStatus: 'pending',
@@ -1902,6 +1947,84 @@ test('cron settles a recorded completed attempt whose booking transition was int
   }]);
 });
 
+test('cron excludes quarantined legacy attempts until an operator marks one recover', async () => {
+  let resolution = 'pending';
+  let settlementEvent = false;
+  let paymentStatus = 'unpaid';
+  let settlementCalls = 0;
+  const sql = async (strings) => {
+    const text = strings.join(' ');
+    if (/SELECT p\.id/.test(text) && /FROM payments p/.test(text)) {
+      assert.match(text, /LEFT JOIN legacy_payment_reconciliation legacy_reconciliation/);
+      assert.match(text, /legacy_reconciliation\.resolution = 'recover'/);
+      if (resolution !== 'recover' || settlementEvent) return [];
+      return [{
+        id: 502,
+        reference: 'belvoir-92',
+        provider_ref: 'attempt-ambiguous',
+        booking_id: 92,
+        status: 'completed',
+      }];
+    }
+    if (/UPDATE payments SET status = 'completed'/.test(text)) return [];
+    if (/UPDATE payments SET status = 'expired'/.test(text)) return [];
+    throw new Error(`Unexpected quarantined-attempt cron query: ${text}`);
+  };
+  const route = loadCommonJsWithMocks('../api/cron-poll-payments.js', {
+    '@neondatabase/serverless': { neon: () => sql },
+    './_flot': { TEST_MODE: false, log() {} },
+    './_paid': {
+      settleBooking: async (_sql, bookingId, settlementKey) => {
+        assert.equal(bookingId, 92);
+        assert.equal(settlementKey, 'flot-payment:502');
+        settlementCalls += 1;
+        settlementEvent = true;
+        paymentStatus = 'paid';
+        return {
+          settled: true,
+          alreadyPaid: false,
+          alreadyProcessed: false,
+          conflict: false,
+          booking: { id: 92, payment_status: paymentStatus, inventory_status: 'reserved' },
+        };
+      },
+      deliverPendingPaymentNotifications: async () => ({ claimed: 0, delivered: 0, pending: 0 }),
+    },
+    './_ratelimit': { sweepRateLimits: async () => 0 },
+  });
+  const oldSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'cron-secret';
+  try {
+    const pending = responseRecorder();
+    await route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, pending);
+    assert.equal(pending.body.checked, 0);
+    assert.equal(paymentStatus, 'unpaid');
+    assert.equal(settlementCalls, 0);
+
+    resolution = 'ignore';
+    const ignored = responseRecorder();
+    await route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, ignored);
+    assert.equal(ignored.body.checked, 0);
+    assert.equal(paymentStatus, 'unpaid');
+    assert.equal(settlementCalls, 0);
+
+    resolution = 'recover';
+    const recovered = responseRecorder();
+    await route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, recovered);
+    assert.equal(recovered.body.checked, 1);
+    assert.equal(recovered.body.completed, 1);
+    assert.equal(paymentStatus, 'paid');
+    assert.equal(settlementCalls, 1);
+
+    const repeated = responseRecorder();
+    await route({ method: 'GET', headers: { authorization: 'Bearer cron-secret' } }, repeated);
+    assert.equal(repeated.body.checked, 0);
+    assert.equal(settlementCalls, 1);
+  } finally {
+    if (oldSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = oldSecret;
+  }
+});
+
 test('cron excludes a completed attempt already registered before an admin reset', async () => {
   let settlementCalls = 0;
   const sql = async (strings) => {
@@ -2059,9 +2182,28 @@ test('checkout status polling includes the private booking claim and handles hol
   const polling = indexSource.slice(indexSource.indexOf('function fcBeginPolling'), indexSource.indexOf('function fcResult'));
   assert.match(polling, /[&?]claim=['"]?\s*\+\s*encodeURIComponent\(fcState\.claim\)/);
   assert.match(polling, /HOLD_EXPIRED/);
-  assert.match(polling, /inventoryConflict/);
-  assert.match(polling, /hasAttemptReceipt && !data\.bookingFinal[\s\S]*'payment-recorded'/);
   assert.match(indexSource, /Payment recorded — booking status changed/);
+});
+
+test('checkout renders an already-processed conflict on a reset booking as payment recorded', () => {
+  const resultKind = indexFunction('fcPaymentResultKind');
+
+  assert.equal(resultKind({
+    status: 'completed',
+    receiptAvailable: true,
+    bookingFinal: false,
+    settlementAlreadyProcessed: true,
+    settlementOutcome: 'conflict',
+    inventoryConflict: false,
+  }), 'payment-recorded');
+  assert.equal(resultKind({
+    status: 'completed',
+    receiptAvailable: true,
+    bookingFinal: true,
+    settlementAlreadyProcessed: false,
+    settlementOutcome: 'conflict',
+    inventoryConflict: true,
+  }), 'conflict');
 });
 
 test('inventory adapter normalizes Neon numeric and date values', async () => {
@@ -2337,6 +2479,189 @@ test('room catalogue exposes Belvoir confirmed capacities', () => {
   assert.equal(roomCapacity('unknown'), 0);
 });
 
+test('legacy payment reconciliation preserves resets, quarantines ambiguity, and is rerunnable', async () => {
+  const { reconcileLegacyPaymentAttempts } = await import(
+    `../scripts/legacy-payment-reconciliation.mjs?fixture=${Date.now()}`
+  );
+  const state = {
+    cutoff: null,
+    bookings: new Map([
+      [91, {
+        id: 91,
+        payment_status: 'unpaid',
+        inventory_status: 'unreserved',
+        status: 'active',
+        notes: 'Correction applied\nPaid via Flot · attempt-accounted · browser',
+        payment_generation: 0,
+      }],
+      [92, {
+        id: 92,
+        payment_status: 'unpaid',
+        inventory_status: 'unreserved',
+        status: 'active',
+        notes: 'Paid via Flot attempt-ambiguous browser',
+        payment_generation: 0,
+      }],
+      [93, {
+        id: 93,
+        payment_status: 'paid',
+        inventory_status: 'reserved',
+        status: 'active',
+        notes: null,
+        payment_generation: 1,
+      }],
+    ]),
+    payments: [
+      {
+        id: 501,
+        booking_id: 91,
+        provider_ref: 'attempt-accounted',
+        status: 'completed',
+        completed_at: '2026-08-10T10:00:00.000Z',
+        received_at: '2026-08-10T09:59:00.000Z',
+      },
+      {
+        id: 502,
+        booking_id: 92,
+        provider_ref: 'attempt-ambiguous',
+        status: 'completed',
+        completed_at: '2026-08-11T10:00:00.000Z',
+        received_at: '2026-08-11T09:59:00.000Z',
+      },
+      {
+        id: 503,
+        booking_id: 93,
+        provider_ref: 'attempt-currently-paid',
+        status: 'completed',
+        completed_at: '2026-08-12T10:00:00.000Z',
+        received_at: '2026-08-12T09:59:00.000Z',
+      },
+    ],
+    events: new Map(),
+    quarantine: new Map(),
+  };
+  const sql = async (strings, ...values) => {
+    const text = strings.join(' ');
+    if (/INSERT INTO legacy_payment_reconciliation_cutovers/.test(text)) {
+      if (state.cutoff !== null) return [];
+      state.cutoff = Math.max(...state.payments.map((payment) => payment.id));
+      return [{ legacy_max_payment_id: String(state.cutoff) }];
+    }
+    if (/SELECT legacy_max_payment_id/.test(text) && /legacy_payment_reconciliation_cutovers/.test(text)) {
+      return [{ legacy_max_payment_id: String(state.cutoff) }];
+    }
+    if (/SELECT payment\.id AS payment_id/.test(text)) {
+      const cutoff = Number(values[0]);
+      return state.payments
+        .filter((payment) => payment.id <= cutoff && payment.status === 'completed')
+        .map((payment) => {
+          const booking = state.bookings.get(payment.booking_id);
+          return {
+            payment_id: payment.id,
+            booking_id: payment.booking_id,
+            provider_ref: payment.provider_ref,
+            completed_at: payment.completed_at,
+            received_at: payment.received_at,
+            booking_payment_status: booking.payment_status,
+            booking_inventory_status: booking.inventory_status,
+            booking_notes: booking.notes,
+            payment_generation: booking.payment_generation,
+            settlement_event_id: state.events.has(payment.id) ? payment.id : null,
+            reconciliation_resolution: state.quarantine.get(payment.id)?.resolution || null,
+          };
+        });
+    }
+    if (/WITH generation AS/.test(text) && /INSERT INTO booking_settlement_events/.test(text)) {
+      const [minimumGeneration, bookingId, eventBookingId, settlementKey, outcome, settledAt] = values;
+      assert.equal(bookingId, eventBookingId);
+      const booking = state.bookings.get(Number(bookingId));
+      booking.payment_generation = Math.max(booking.payment_generation, Number(minimumGeneration));
+      const paymentId = Number(String(settlementKey).replace('flot-payment:', ''));
+      if (!state.events.has(paymentId)) {
+        state.events.set(paymentId, {
+          booking_id: Number(bookingId),
+          payment_generation: booking.payment_generation,
+          outcome,
+          settled_at: settledAt,
+        });
+      }
+      return [{ id: paymentId }];
+    }
+    if (/INSERT INTO legacy_payment_reconciliation\s/.test(text)) {
+      const [paymentId, bookingId, reason] = values;
+      if (!state.quarantine.has(Number(paymentId))) {
+        state.quarantine.set(Number(paymentId), {
+          booking_id: Number(bookingId),
+          reason,
+          resolution: 'pending',
+          resolved_at: null,
+        });
+      }
+      return [];
+    }
+    if (/SELECT reconciliation\.payment_id/.test(text)) {
+      return [...state.quarantine.entries()]
+        .filter(([paymentId]) => !state.events.has(paymentId))
+        .map(([paymentId, row]) => ({ payment_id: paymentId, resolution: row.resolution }));
+    }
+    throw new Error(`Unexpected reconciliation query: ${text}`);
+  };
+  const logs = [];
+
+  const first = await reconcileLegacyPaymentAttempts(sql, {
+    logger: { log: (message) => logs.push(message) },
+  });
+
+  assert.equal(state.bookings.get(91).payment_status, 'unpaid');
+  assert.equal(state.bookings.get(91).inventory_status, 'unreserved');
+  assert.equal(state.bookings.get(91).payment_generation, 1);
+  assert.equal(state.events.get(501).outcome, 'reserved');
+  assert.equal(state.events.get(503).outcome, 'reserved');
+  assert.equal(state.events.has(502), false);
+  assert.equal(state.quarantine.get(502).resolution, 'pending');
+  assert.equal(
+    state.quarantine.get(502).reason,
+    'completed-unpaid-without-settlement-evidence',
+  );
+  assert.equal(state.bookings.get(93).payment_status, 'paid');
+  assert.equal(state.bookings.get(93).inventory_status, 'reserved');
+  assert.deepEqual(first.pendingIds, [502]);
+  assert.match(logs[0], /1 legacy completed payment/);
+  assert.match(logs[0], /502/);
+
+  state.bookings.set(94, {
+    id: 94,
+    payment_status: 'unpaid',
+    inventory_status: 'held',
+    status: 'active',
+    notes: null,
+    payment_generation: 0,
+  });
+  state.payments.push({
+    id: 504,
+    booking_id: 94,
+    provider_ref: 'attempt-post-migration',
+    status: 'completed',
+    completed_at: '2026-09-03T12:01:00.000Z',
+    received_at: '2026-09-03T12:00:00.000Z',
+  });
+  state.quarantine.get(502).resolution = 'recover';
+  state.quarantine.get(502).resolved_at = '2026-09-03T12:00:00.000Z';
+  state.bookings.get(92).notes = 'Paid via Flot · attempt-ambiguous · operator-note';
+  const eventCount = state.events.size;
+  await reconcileLegacyPaymentAttempts(sql, { logger: { log() {} } });
+
+  assert.equal(state.cutoff, 503);
+  assert.equal(state.events.size, eventCount);
+  assert.equal(state.events.has(502), false);
+  assert.equal(state.events.has(504), false);
+  assert.equal(state.quarantine.has(504), false);
+  assert.equal(state.quarantine.get(502).resolution, 'recover');
+  assert.equal(state.quarantine.get(502).resolved_at, '2026-09-03T12:00:00.000Z');
+  assert.equal(state.bookings.get(91).payment_status, 'unpaid');
+  assert.equal(state.bookings.get(91).inventory_status, 'unreserved');
+});
+
 test('availability migration defines multi-unit inventory and locked writes', () => {
   for (const required of [
     'CREATE TABLE IF NOT EXISTS room_inventory',
@@ -2391,8 +2716,15 @@ test('notification outbox has deterministic uniqueness and concurrency-safe leas
   assert.match(migration, /ADD COLUMN IF NOT EXISTS notification_delivery_outbox_id bigint/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS booking_settlement_events/);
   assert.match(migration, /UNIQUE \(booking_id, settlement_key\)/);
-  assert.match(migration, /'flot-payment:' \|\| payment\.id::text/);
-  assert.match(migration, /payment\.status = 'completed'[\s\S]*booking\.payment_status = 'paid'/);
+  assert.match(legacyReconciliationSource, /`flot-payment:\$\{candidate\.payment_id\}`/);
+  assert.match(legacyReconciliationSource, /booking_payment_status === 'paid'/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS legacy_payment_reconciliation_cutovers/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS legacy_payment_reconciliation/);
+  assert.match(migration, /CHECK \(resolution IN \('pending', 'recover', 'ignore'\)\)/);
+  assert.match(migration, /detected_at timestamptz/);
+  assert.match(migration, /resolved_at timestamptz/);
+  assert.match(migration, /updated_at timestamptz/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION belvoir_resolve_legacy_payment/);
   assert.match(migration, /ALTER TABLE payment_notification_outbox\s+ADD COLUMN IF NOT EXISTS payment_generation integer/);
   assert.match(migration, /ON payment_notification_outbox \(booking_id, payment_generation, outcome, channel\)/);
   assert.match(migration, /dedupe_key text NOT NULL UNIQUE/);

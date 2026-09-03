@@ -9,6 +9,7 @@
 import { neon } from '@neondatabase/serverless';
 import { createRequire } from 'node:module';
 import { deduplicatePaymentAttempts } from './payment-attempt-dedupe.mjs';
+import { reconcileLegacyPaymentAttempts } from './legacy-payment-reconciliation.mjs';
 
 const require = createRequire(import.meta.url);
 const { ROOMS } = require('../api/_rooms.js');
@@ -203,6 +204,54 @@ await step('durable payment notification outbox', async () => {
   await sql`
     CREATE INDEX IF NOT EXISTS booking_settlement_events_generation
     ON booking_settlement_events (booking_id, payment_generation)`;
+  // Freeze the legacy population once. Later migration reruns must not
+  // quarantine a post-migration callback that legitimately needs recovery.
+  await sql`
+    CREATE TABLE IF NOT EXISTS legacy_payment_reconciliation_cutovers (
+      migration_key text PRIMARY KEY,
+      legacy_max_payment_id bigint NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    )`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS legacy_payment_reconciliation (
+      payment_id bigint PRIMARY KEY REFERENCES payments(id) ON DELETE CASCADE,
+      booking_id bigint NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      reason text NOT NULL,
+      resolution text NOT NULL DEFAULT 'pending'
+        CHECK (resolution IN ('pending', 'recover', 'ignore')),
+      detected_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      resolved_at timestamptz,
+      updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    )`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS legacy_payment_reconciliation_resolution
+    ON legacy_payment_reconciliation (resolution, payment_id)`;
+  // Operators deliberately release an ambiguous attempt with:
+  //   SELECT belvoir_resolve_legacy_payment(<payment id>, 'recover');
+  // or permanently suppress it with 'ignore'. Cron consumes only 'recover'.
+  await sql`
+    CREATE OR REPLACE FUNCTION belvoir_resolve_legacy_payment(
+      p_payment_id bigint,
+      p_resolution text
+    )
+    RETURNS boolean
+    LANGUAGE plpgsql VOLATILE AS $$
+    DECLARE
+      v_updated integer;
+    BEGIN
+      IF p_resolution IS NULL OR p_resolution NOT IN ('recover', 'ignore') THEN
+        RAISE EXCEPTION 'resolution must be recover or ignore'
+          USING ERRCODE = '22023';
+      END IF;
+      UPDATE legacy_payment_reconciliation
+      SET resolution = p_resolution,
+          resolved_at = clock_timestamp(),
+          updated_at = clock_timestamp()
+      WHERE payment_id = p_payment_id;
+      GET DIAGNOSTICS v_updated = ROW_COUNT;
+      RETURN v_updated > 0;
+    END;
+    $$`;
 });
 
 // Exclusion constraints model a capacity of one and must not survive the
@@ -599,30 +648,11 @@ await step('backfill paid booking inventory', async () => {
   }
 });
 
-// A completed canonical payment row for an already-paid booking represents
-// money that the existing system has accounted for. Register it after the
-// inventory backfill so a later admin reset cannot make an old provider
-// attempt look like a new payment. Completed rows whose booking is still
-// unpaid are deliberately excluded: cron must be able to recover those.
-await step('backfill settled payment attempt identities', async () => {
-  await sql`
-    INSERT INTO booking_settlement_events
-      (booking_id, settlement_key, payment_generation, outcome, settled_at)
-    SELECT payment.booking_id,
-      'flot-payment:' || payment.id::text,
-      booking.payment_generation,
-      CASE
-        WHEN booking.status IS DISTINCT FROM 'active'
-          OR booking.inventory_status = 'conflict' THEN 'conflict'
-        ELSE 'reserved'
-      END,
-      COALESCE(payment.completed_at, payment.received_at, clock_timestamp())
-    FROM payments AS payment
-    JOIN bookings AS booking ON booking.id = payment.booking_id
-    WHERE payment.status = 'completed'
-      AND booking.payment_status = 'paid'
-      AND booking.payment_generation > 0
-    ON CONFLICT (booking_id, settlement_key) DO NOTHING`;
+// Reliable evidence is registered as immutable history. Ambiguous legacy
+// completed/unpaid attempts are quarantined until an operator explicitly
+// selects recover or ignore; migration reruns preserve that resolution.
+await step('reconcile legacy completed payment identities', async () => {
+  await reconcileLegacyPaymentAttempts(sql);
 });
 
 await step('inventory indexes', async () => {
