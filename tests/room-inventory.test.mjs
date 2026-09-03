@@ -4455,3 +4455,217 @@ test('legacy paid backfill serializes capacity checks and excludes started rows'
   assert.match(backfill, /SET inventory_status = 'reserved'/);
   assert.match(backfill, /SET inventory_status = 'conflict'/);
 });
+
+function inventorySmokeFixture({ failAvailability = false, failPaymentCleanup = false } = {}) {
+  const identifiers = {
+    roomKey: '__inventory_smoke_test_fixture',
+    claims: [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ],
+    references: [
+      'BLV-SMOKE-11111111111141118111111111111111',
+      'BLV-SMOKE-22222222222242228222222222222222',
+    ],
+  };
+  const state = {
+    calls: [],
+    holdArrivals: 0,
+    held: false,
+    cleanup: [],
+    finalCountChecks: 0,
+  };
+  let releaseHolds;
+  const bothHoldsArrived = new Promise((resolve) => { releaseHolds = resolve; });
+
+  const inspectionSql = async (strings, ...values) => {
+    const text = strings.join(' ');
+    state.calls.push({ client: 'inspection', text, values });
+    if (/to_regprocedure/.test(text)) {
+      return [{ resolved_signature: values[0] }];
+    }
+    if (/information_schema\.columns/.test(text)) {
+      const expectedTypes = new Map([
+        ['bookings.hold_expires_at', 'timestamp with time zone'],
+        ['bookings.inventory_status', 'text'],
+        ['room_blocks.units', 'integer'],
+      ]);
+      return [{ data_type: expectedTypes.get(`${values[0]}.${values[1]}`) }];
+    }
+    if (/INSERT INTO room_inventory/.test(text)) return [{ room_key: values[0] }];
+    if (/INSERT INTO bookings/.test(text)) {
+      return [
+        { id: '9001', claim_token: identifiers.claims[0] },
+        { id: '9002', claim_token: identifiers.claims[1] },
+      ];
+    }
+    if (/SELECT \* FROM belvoir_room_availability/.test(text)) {
+      if (failAvailability) {
+        throw new Error(`availability failed for ${identifiers.claims[0]}`);
+      }
+      return [{ room_key: identifiers.roomKey, capacity: '1', remaining: '0' }];
+    }
+    if (/SELECT \* FROM belvoir_create_room_block/.test(text)) {
+      return [{ created: true, block_id: '7001', remaining: '0' }];
+    }
+    if (/DELETE FROM payments/.test(text)) {
+      state.cleanup.push('payments');
+      if (failPaymentCleanup) {
+        throw new Error(`payment cleanup failed for ${identifiers.references[0]}`);
+      }
+      return [];
+    }
+    if (/DELETE FROM bookings/.test(text)) {
+      state.cleanup.push('bookings');
+      return [];
+    }
+    if (/DELETE FROM room_blocks/.test(text)) {
+      state.cleanup.push('blocks');
+      return [];
+    }
+    if (/DELETE FROM room_inventory/.test(text)) {
+      state.cleanup.push('inventory');
+      return [];
+    }
+    if (/temporary_rows_remaining/.test(text)) {
+      state.finalCountChecks += 1;
+      return [{ temporary_rows_remaining: '0' }];
+    }
+    throw new Error(`Unexpected inventory-smoke inspection query: ${text}`);
+  };
+
+  const runtimeClient = (client) => async (strings, ...values) => {
+    const text = strings.join(' ');
+    state.calls.push({ client, text, values });
+    if (!/belvoir_acquire_booking_hold/.test(text)) {
+      throw new Error(`Unexpected inventory-smoke runtime query: ${text}`);
+    }
+    state.holdArrivals += 1;
+    if (state.holdArrivals === 2) releaseHolds();
+    await bothHoldsArrived;
+    if (!state.held) {
+      state.held = true;
+      return [{ acquired: true, hold_expires_at: '2027-04-01T12:15:00.000Z', remaining: '0' }];
+    }
+    return [{ acquired: false, hold_expires_at: null, remaining: '0' }];
+  };
+
+  return {
+    identifiers,
+    inspectionSql,
+    runtimeSqlA: runtimeClient('runtime-a'),
+    runtimeSqlB: runtimeClient('runtime-b'),
+    state,
+  };
+}
+
+test('inventory smoke verifies schema, concurrency, availability, blocks, and cleanup', async () => {
+  const smoke = await import(
+    `../scripts/smoke-inventory.mjs?success=${Date.now()}`
+  );
+  const fixture = inventorySmokeFixture();
+  const messages = [];
+
+  const result = await smoke.runInventorySmoke({
+    inspectionSql: fixture.inspectionSql,
+    runtimeSqlA: fixture.runtimeSqlA,
+    runtimeSqlB: fixture.runtimeSqlB,
+    identifiers: fixture.identifiers,
+    now: () => new Date('2026-01-01T00:00:00.000Z'),
+    logger: { log: (message) => messages.push(message) },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    functionsVerified: 5,
+    columnsVerified: 3,
+    winningHolds: 1,
+    liveHoldRemaining: 0,
+    quantityBlockCreated: true,
+    temporaryRowsRemaining: 0,
+  });
+  assert.equal(fixture.state.holdArrivals, 2);
+  assert.deepEqual(fixture.state.cleanup, ['payments', 'bookings', 'blocks', 'inventory']);
+  assert.equal(fixture.state.finalCountChecks, 1);
+  assert.match(messages.at(-1), /0 temporary rows remain/);
+  const runtimeClients = fixture.state.calls
+    .filter((call) => /belvoir_acquire_booking_hold/.test(call.text))
+    .map((call) => call.client)
+    .sort();
+  assert.deepEqual(runtimeClients, ['runtime-a', 'runtime-b']);
+  for (const call of fixture.state.calls) {
+    for (const identifier of [
+      fixture.identifiers.roomKey,
+      ...fixture.identifiers.claims,
+      ...fixture.identifiers.references,
+    ]) {
+      assert.equal(call.text.includes(identifier), false, 'temporary identifiers must be parameters');
+    }
+  }
+});
+
+test('inventory smoke reports the original and cleanup errors safely and still verifies cleanup', async () => {
+  const smoke = await import(
+    `../scripts/smoke-inventory.mjs?cleanup=${Date.now()}`
+  );
+  const fixture = inventorySmokeFixture({
+    failAvailability: true,
+    failPaymentCleanup: true,
+  });
+
+  await assert.rejects(
+    smoke.runInventorySmoke({
+      inspectionSql: fixture.inspectionSql,
+      runtimeSqlA: fixture.runtimeSqlA,
+      runtimeSqlB: fixture.runtimeSqlB,
+      identifiers: fixture.identifiers,
+      now: () => new Date('2026-01-01T00:00:00.000Z'),
+      logger: { log() {} },
+    }),
+    (error) => {
+      assert.equal(error.name, 'InventorySmokeError');
+      assert.match(error.report.primaryError, /availability failed/);
+      assert.match(error.report.cleanupErrors.join(' '), /payment cleanup failed/);
+      const exposed = JSON.stringify(error.report);
+      for (const identifier of [
+        fixture.identifiers.roomKey,
+        ...fixture.identifiers.claims,
+        ...fixture.identifiers.references,
+      ]) assert.equal(exposed.includes(identifier), false);
+      return true;
+    },
+  );
+
+  assert.deepEqual(fixture.state.cleanup, ['payments', 'bookings', 'blocks', 'inventory']);
+  assert.equal(fixture.state.finalCountChecks, 1);
+});
+
+test('inventory smoke refuses unsafe room keys before issuing SQL', async () => {
+  const smoke = await import(
+    `../scripts/smoke-inventory.mjs?unsafe=${Date.now()}`
+  );
+  const fixture = inventorySmokeFixture();
+
+  await assert.rejects(
+    smoke.runInventorySmoke({
+      inspectionSql: fixture.inspectionSql,
+      runtimeSqlA: fixture.runtimeSqlA,
+      runtimeSqlB: fixture.runtimeSqlB,
+      identifiers: { ...fixture.identifiers, roomKey: 'standard' },
+      logger: { log() {} },
+    }),
+    /unsafe temporary room key/i,
+  );
+  assert.deepEqual(fixture.state.calls, []);
+});
+
+test('inventory smoke CLI requires both direct and runtime database URLs', async () => {
+  const missingBoth = await runNode(['scripts/smoke-inventory.mjs'], {
+    DATABASE_URL: null,
+    DATABASE_URL_UNPOOLED: null,
+  });
+  assert.notEqual(missingBoth.status, 0);
+  assert.match(missingBoth.stderr, /DATABASE_URL_UNPOOLED/);
+  assert.match(missingBoth.stderr, /DATABASE_URL/);
+  assert.doesNotMatch(missingBoth.stderr, /postgres(?:ql)?:\/\//i);
+});
