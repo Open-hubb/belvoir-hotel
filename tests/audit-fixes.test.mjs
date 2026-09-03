@@ -44,6 +44,13 @@ function contrastRatio(foreground, background) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
+function compositeColour(foreground, background, opacity) {
+  const front = cssRgb(foreground);
+  const back = cssRgb(background);
+  const channels = front.map((channel, index) => channel * opacity + back[index] * (1 - opacity));
+  return `rgb(${channels.join(', ')})`;
+}
+
 async function openHome() {
   await page.setViewport({ width: 375, height: 812 });
   await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -1431,6 +1438,54 @@ test('room availability action text and focus indicators meet AA contrast in eve
     await roomPage.waitForFunction(() => document.getElementById('roomAvailabilitySubmit').textContent.trim() === 'Try again');
     await roomPage.hover('#roomAvailabilitySubmit');
     assertTextContrast(await colours('#roomAvailabilitySubmit'), 'hovered retry action');
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('disabled checking action remains AA while the pointer stays over it', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') return;
+    return request.continue();
+  });
+
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    await roomPage.evaluate(() => {
+      document.getElementById('roomCheckin').value = '2027-09-10';
+      document.getElementById('roomCheckout').value = '2027-09-12';
+    });
+    await roomPage.hover('#roomAvailabilitySubmit');
+    await roomPage.evaluate(() => document.querySelector('[data-room-availability]').requestSubmit());
+    await roomPage.waitForFunction(() => {
+      const action = document.getElementById('roomAvailabilitySubmit');
+      return action.disabled && action.textContent.trim() === 'Checking…' && action.matches(':hover');
+    });
+
+    const checking = await roomPage.$eval('#roomAvailabilitySubmit', (node) => {
+      const style = getComputedStyle(node);
+      return {
+        foreground: style.color,
+        background: style.backgroundColor,
+        opacity: Number(style.opacity),
+        disabled: node.disabled,
+        hovered: node.matches(':hover'),
+      };
+    });
+    const cardBackground = 'rgb(255, 255, 255)';
+    const effectiveForeground = compositeColour(checking.foreground, cardBackground, checking.opacity);
+    const effectiveBackground = compositeColour(checking.background, cardBackground, checking.opacity);
+    assert.equal(checking.disabled, true);
+    assert.equal(checking.hovered, true);
+    assert.ok(
+      contrastRatio(effectiveForeground, effectiveBackground) >= 4.5,
+      `disabled checking text contrast should be at least 4.5:1: ${JSON.stringify({
+        ...checking, effectiveForeground, effectiveBackground,
+      })}`,
+    );
   } finally {
     await roomPage.close();
   }

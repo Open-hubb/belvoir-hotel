@@ -153,9 +153,15 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   font-weight: 500;
   letter-spacing: 0.08em;
 }
-#roomAvailabilitySubmit:hover { background: var(--gold); border-color: var(--gold); color: var(--navy); }
-#roomAvailabilitySubmit:active { transform: scale(0.98); }
-#roomAvailabilitySubmit:disabled { cursor: wait; opacity: 0.66; }
+#roomAvailabilitySubmit:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+#roomAvailabilitySubmit:active:not(:disabled) { transform: scale(0.98); }
+#roomAvailabilitySubmit:disabled {
+  border-color: #77716a;
+  background: #ebe8e2;
+  color: var(--navy);
+  cursor: wait;
+  opacity: 1;
+}
 .rp__availability-result {
   position: relative;
   margin: 1rem 0 0;
