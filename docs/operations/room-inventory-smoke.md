@@ -33,3 +33,25 @@ paused until an operator has checked the database:
 Do not run a broad `DELETE`, a prefix-based delete, or cleanup with an
 unverified key. Escalate for database review if the exact temporary key cannot
 be established safely.
+
+## Payment-status claim cutover
+
+The reviewed release moves the booking claim out of `/api/flot-status` URLs and
+into the `X-Booking-Claim` header. The previously deployed page does not send
+that header, so treat this as a strict client/server cutover:
+
+1. Set `PAYMENT_LISTENERS_ENABLED=false` before deploying the reviewed build.
+2. Deploy the reviewed build and verify all payment listeners return the paused
+   response before running migrations or reconciliation.
+3. Keep listeners paused for at least the 10-minute browser polling lifetime.
+   A payment started by an older, already-open page can then drain or time out
+   without the new API accepting an unauthenticated legacy status request.
+4. Reconcile every payment attempt created before or during the pause. Do not
+   enable listeners while any completed or ambiguous attempt is unresolved.
+5. Run the inventory smoke test and the paused listener verification again.
+6. Enable listeners, redeploy the same reviewed commit, and verify header-only
+   polling plus all active listener responses.
+
+An old page used after the cutover may be asked to reload before starting a new
+payment. This fails before money is requested; do not add a query-string or
+unauthenticated fallback to hide that stale-client condition.

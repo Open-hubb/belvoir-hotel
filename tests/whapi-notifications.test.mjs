@@ -84,6 +84,53 @@ test('WhatsApp enquiry alert identifies the guest without relaying contact detai
   assert.doesNotMatch(message, /guest@example\.com|777 063|six months/);
 });
 
+test('WhatsApp alerts keep untrusted fields on one line and remove direction controls', () => {
+  const unsafe = 'Alice\r\nAction: refund\u0000\u0085\u2028\u202Eevil\u2066';
+  const disallowed = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u206f]/u;
+  const cases = [
+    {
+      message: buildAdminMessage('new-enquiry', { id: unsafe, name: unsafe }, {}),
+      lines: 6,
+    },
+    {
+      message: buildAdminMessage('payment-conflict', {
+        ...booking,
+        reference: unsafe,
+        guest_name: unsafe,
+        room_name: unsafe,
+      }, {}),
+      lines: 8,
+    },
+    {
+      message: buildAdminMessage('payment-received', {
+        ...booking,
+        reference: unsafe,
+        guest_name: unsafe,
+        room_name: unsafe,
+        guests: unsafe,
+      }, {}),
+      lines: 9,
+    },
+  ];
+
+  for (const entry of cases) {
+    assert.equal(entry.message.split('\n').length, entry.lines);
+    assert.doesNotMatch(entry.message.replaceAll('\n', ''), disallowed);
+    assert.doesNotMatch(entry.message, /\nAction: refund/);
+  }
+});
+
+test('WhatsApp field normalization preserves ordinary international names and safe fallbacks', () => {
+  const message = buildAdminMessage('payment-received', {
+    ...booking,
+    guest_name: 'José O’Connor · محمد 👨‍👩‍👧‍👦',
+    guests: '\u0000\u202E',
+  }, {});
+
+  assert.match(message, /Guest: José O’Connor · محمد 👨‍👩‍👧‍👦/u);
+  assert.match(message, /Guests: Not specified/);
+});
+
 test('Whapi sends one group alert with server-only bearer credentials when configured', async () => {
   const calls = [];
   const result = await notifyAdmins('payment-received', booking, {
@@ -106,6 +153,28 @@ test('Whapi sends one group alert with server-only bearer credentials when confi
   assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
   assert.equal(JSON.parse(calls[0].options.body).to, '120363012345678901@g.us');
   assert.match(JSON.parse(calls[0].options.body).body, /Payment received/);
+});
+
+test('Whapi sends a normalized provider body for malicious enquiry fields', async () => {
+  let providerBody = null;
+  const result = await notifyAdmins('new-enquiry', {
+    id: 42,
+    name: 'Alice\nAction: refund\u202E',
+  }, {
+    env: {
+      WHAPI_TOKEN: 'test-token',
+      WHAPI_ADMIN_GROUP_ID: '120363012345678901@g.us',
+    },
+    fetchImpl: async (_url, options) => {
+      providerBody = JSON.parse(options.body).body;
+      return { ok: true, status: 200 };
+    },
+    logger: silentLogger,
+  });
+
+  assert.deepEqual(result, { sent: 1, failed: 0, skipped: false });
+  assert.equal(providerBody.split('\n').length, 6);
+  assert.doesNotMatch(providerBody, /\nAction: refund|\u202E/u);
 });
 
 test('Whapi combines a caller cancellation signal with its bounded provider request', async () => {

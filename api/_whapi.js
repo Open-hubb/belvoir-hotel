@@ -31,6 +31,19 @@ function day(value) {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : 'Date unavailable';
 }
 
+function singleLine(value, fallback, maxLength = 160) {
+  const normalized = String(value ?? '')
+    // Directional controls can visually reorder trusted labels and values.
+    .replace(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u206f]/gu, '')
+    // Whapi renders these as line or layout controls after decoding the JSON.
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, maxLength)
+    .trim();
+  return normalized || fallback;
+}
+
 function dashboardUrl(env) {
   const origin = String(env.PUBLIC_ORIGIN || DEFAULT_ORIGIN).replace(/\/+$/, '');
   return `${origin}/admin`;
@@ -53,8 +66,8 @@ function buildAdminMessage(event, record, env = process.env) {
 
     return [
       `*Belvoir · New enquiry*`,
-      `Enquiry: #${record.id || 'new'}`,
-      `Guest: ${record.name || 'Name unavailable'}`,
+      `Enquiry: #${singleLine(record.id, 'new', 40)}`,
+      `Guest: ${singleLine(record.name, 'Name unavailable', 120)}`,
       `Interest: ${enquiryKind}`,
       `Source: ${record.source === 'long-stay' ? 'Long-stay form' : 'Contact form'}`,
       `Dashboard: ${dashboardUrl(env)}`,
@@ -62,7 +75,13 @@ function buildAdminMessage(event, record, env = process.env) {
   }
 
   const booking = record;
-  const reference = booking.reference || (booking.id ? `BLV-${String(booking.id).padStart(5, '0')}` : 'Unavailable');
+  const reference = singleLine(
+    booking.reference || (booking.id ? `BLV-${String(booking.id).padStart(5, '0')}` : ''),
+    'Unavailable',
+    80,
+  );
+  const guestName = singleLine(booking.guest_name, 'Name unavailable', 120);
+  const roomName = singleLine(booking.room_name, 'Room unavailable', 120);
   const nights = Number(booking.nights);
   const stay = `${day(booking.checkin)} to ${day(booking.checkout)}${
     Number.isFinite(nights) && nights > 0 ? ` (${nights} night${nights === 1 ? '' : 's'})` : ''
@@ -72,8 +91,8 @@ function buildAdminMessage(event, record, env = process.env) {
     return [
       '*Belvoir · URGENT payment conflict*',
       `Reference: ${reference}`,
-      `Guest: ${booking.guest_name || 'Name unavailable'}`,
-      `Room: ${booking.room_name || 'Room unavailable'}`,
+      `Guest: ${guestName}`,
+      `Room: ${roomName}`,
       `Stay: ${stay}`,
       'Payment received, but the room is no longer available for these dates.',
       'Action: Reassign the guest or arrange a refund immediately.',
@@ -91,10 +110,10 @@ function buildAdminMessage(event, record, env = process.env) {
   return [
     `*Belvoir · Payment received — booking confirmed*`,
     `Reference: ${reference}`,
-    `Guest: ${booking.guest_name || 'Name unavailable'}`,
-    `Room: ${booking.room_name || 'Room unavailable'}`,
+    `Guest: ${guestName}`,
+    `Room: ${roomName}`,
     `Stay: ${stay}`,
-    `Guests: ${booking.guests || 'Not specified'}`,
+    `Guests: ${singleLine(booking.guests, 'Not specified', 40)}`,
     `Payment type: ${deposit ? '30% deposit' : 'Paid in full'}`,
     `Payment received: ${money(booking.amount_due)}`,
     `Dashboard: ${dashboardUrl(env)}`,

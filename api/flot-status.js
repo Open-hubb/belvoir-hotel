@@ -1,4 +1,5 @@
-// GET /api/flot-status?orderId=belvoir-19&attemptId=<id>&claim=<booking claim>
+// GET /api/flot-status?orderId=belvoir-19&attemptId=<id>
+// X-Booking-Claim: <booking claim>
 //
 // Polled by the payment modal. This is the path that does not depend on Flot's
 // webhook configuration: when Flot reports the attempt completed, the booking
@@ -39,9 +40,10 @@ module.exports = async (req, res) => {
   const q = query(req);
   const orderId = String(q.orderId || '');
   const attemptId = String(q.attemptId || '');
-  const claim = String(q.claim || '');
+  const claimHeader = req.headers && req.headers['x-booking-claim'];
+  const claim = String(Array.isArray(claimHeader) ? claimHeader[0] : claimHeader || '');
   if (!orderId || !attemptId || !claim) {
-    return res.status(400).json({ error: 'orderId, attemptId and claim are required.' });
+    return res.status(400).json({ error: 'orderId, attemptId and booking claim are required.' });
   }
 
   const path = `/merchants/private/v1/external-orders/${encodeURIComponent(orderId)}/payment-attempts/${encodeURIComponent(attemptId)}`;

@@ -593,8 +593,10 @@ test('payment polling sends the claim and stops on hold expiry', { concurrency: 
     fcState.orderId = 'order-79';
     fcState.attemptId = 'attempt-79';
     let statusUrl = '';
-    window.fetch = async (input) => {
+    let statusClaim = '';
+    window.fetch = async (input, options = {}) => {
       statusUrl = String(input);
+      statusClaim = options.headers && options.headers['X-Booking-Claim'];
       return new Response(JSON.stringify({ code: 'HOLD_EXPIRED' }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' },
@@ -604,12 +606,14 @@ test('payment polling sends the claim and stops on hold expiry', { concurrency: 
     await new Promise((resolve) => setTimeout(resolve, 50));
     return {
       statusUrl,
+      statusClaim,
       timerStopped: fcState.timer === null,
       text: document.getElementById('fcResultText').textContent,
     };
   });
 
-  assert.match(state.statusUrl, /claim=claim-79/);
+  assert.doesNotMatch(state.statusUrl, /(?:^|[?&])claim=/);
+  assert.equal(state.statusClaim, 'claim-79');
   assert.equal(state.timerStopped, true);
   assert.equal(state.text, 'Your 15-minute reservation expired. Please recheck these dates before paying.');
 });
@@ -1006,6 +1010,7 @@ test('the current payment-link response starts polling its matching checkout ide
   const state = await page.evaluate(async () => {
     let statusUrl = '';
     let statusSignal = null;
+    let statusClaim = null;
     window.fetch = async (input, options) => {
       const url = String(input);
       if (url.includes('/api/flot-payment-link')) {
@@ -1022,6 +1027,7 @@ test('the current payment-link response starts polling its matching checkout ide
       }
       statusUrl = url;
       statusSignal = options && options.signal;
+      statusClaim = options && options.headers && options.headers['X-Booking-Claim'];
       return new Promise(() => {});
     };
 
@@ -1035,6 +1041,7 @@ test('the current payment-link response starts polling its matching checkout ide
       orderId: fcState.orderId,
       attemptId: fcState.attemptId,
       statusUrl,
+      statusClaim,
       statusRequestActive: Boolean(statusSignal && !statusSignal.aborted),
       startFinished: fcStartingSession === null,
       visiblePanel: fcPanels.find((id) => document.getElementById(id).hidden === false),
@@ -1049,7 +1056,8 @@ test('the current payment-link response starts polling its matching checkout ide
     claim: 'claim-501',
     orderId: 'order-501',
     attemptId: 'attempt-501',
-    statusUrl: '/api/flot-status?orderId=order-501&attemptId=attempt-501&claim=claim-501',
+    statusUrl: '/api/flot-status?orderId=order-501&attemptId=attempt-501',
+    statusClaim: 'claim-501',
     statusRequestActive: true,
     startFinished: true,
     visiblePanel: 'fcQr',

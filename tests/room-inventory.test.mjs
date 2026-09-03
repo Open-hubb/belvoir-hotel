@@ -429,7 +429,8 @@ function paymentStatusHarness({
   });
   const request = (claim = 'status-claim') => ({
     method: 'GET',
-    query: { orderId: 'belvoir-91', attemptId: 'attempt-91', claim },
+    headers: { 'x-booking-claim': claim },
+    query: { orderId: 'belvoir-91', attemptId: 'attempt-91' },
     url: '/api/flot-status',
   });
   const providerFetch = async () => {
@@ -597,10 +598,10 @@ function legacySettlementRouteHarness({ initialResolution = 'pending' } = {}) {
     webhookRoute,
     statusRequest: {
       method: 'GET',
+      headers: { 'x-booking-claim': 'legacy-claim' },
       query: {
         orderId: 'belvoir-92',
         attemptId: 'attempt-legacy',
-        claim: 'legacy-claim',
       },
       url: '/api/flot-status',
     },
@@ -1272,8 +1273,8 @@ test('payment handlers fail closed before side effects unless the listener flag 
           }, responses.link);
           await routes.status({
             method: 'GET',
-            headers: {},
-            query: { orderId: 'belvoir-91', attemptId: 'attempt-91', claim: 'claim' },
+            headers: { 'x-booking-claim': 'claim' },
+            query: { orderId: 'belvoir-91', attemptId: 'attempt-91' },
             url: '/api/flot-status',
           }, responses.status);
           await routes.webhook({
@@ -1645,6 +1646,42 @@ test('payment-status rejects an invalid claim before exposing or querying provid
   assert.deepEqual(res.body, { error: 'This payment cannot be checked from here.' });
   assert.deepEqual(harness.events, []);
   assert.deepEqual(harness.holds, []);
+});
+
+test('payment-status rejects a valid claim supplied only in the query string', async () => {
+  const harness = paymentStatusHarness();
+  const res = responseRecorder();
+
+  await withFetch(harness.providerFetch, () => harness.route({
+    method: 'GET',
+    headers: {},
+    query: {
+      orderId: 'belvoir-91',
+      attemptId: 'attempt-91',
+      claim: 'status-claim',
+    },
+    url: '/api/flot-status?orderId=belvoir-91&attemptId=attempt-91&claim=status-claim',
+  }, res));
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.body, { error: 'orderId, attemptId and booking claim are required.' });
+  assert.deepEqual(harness.events, []);
+  assert.deepEqual(harness.holds, []);
+});
+
+test('payment-status accepts the header claim when identifiers come from the raw URL', async () => {
+  const harness = paymentStatusHarness({ providerStatus: 'pending' });
+  const res = responseRecorder();
+
+  await withFetch(harness.providerFetch, () => harness.route({
+    method: 'GET',
+    headers: { 'x-booking-claim': 'status-claim' },
+    url: '/api/flot-status?orderId=belvoir-91&attemptId=attempt-91&claim=ignored-query-value',
+  }, res));
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, 'pending');
+  assert.deepEqual(harness.holds, [{ bookingId: 91, claim: 'status-claim' }]);
 });
 
 test('pending payment polling refreshes only the claim-bound booking hold', async () => {
@@ -3051,9 +3088,10 @@ test('admin cannot mark a booking paid and cancelled in one ambiguous mutation',
   assert.equal(settlementCalls, 0);
 });
 
-test('checkout status polling includes the private booking claim and handles hold expiry', () => {
+test('checkout status polling keeps the private booking claim out of URLs and handles hold expiry', () => {
   const polling = indexSource.slice(indexSource.indexOf('function fcBeginPolling'), indexSource.indexOf('function fcResult'));
-  assert.match(polling, /[&?]claim=['"]?\s*\+\s*encodeURIComponent\(fcState\.claim\)/);
+  assert.doesNotMatch(polling, /[&?]claim=/);
+  assert.match(polling, /['"]X-Booking-Claim['"]\s*:\s*session\.claim/);
   assert.match(polling, /HOLD_EXPIRED/);
   assert.match(indexSource, /Payment recorded — booking status changed/);
 });

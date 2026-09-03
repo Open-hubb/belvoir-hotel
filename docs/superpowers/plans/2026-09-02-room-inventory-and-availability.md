@@ -564,7 +564,7 @@ git commit -m "Enforce temporary room holds at checkout"
 
 **Interfaces:**
 - Consumes: `acquireBookingHold` and `settleBookingInventory`.
-- `GET /api/flot-status` additionally requires `claim` and refreshes only the matching booking.
+- `GET /api/flot-status` additionally requires the private booking claim in the `X-Booking-Claim` request header and refreshes only the matching booking.
 - `settleBooking` returns `{settled, alreadyPaid, conflict, booking}`.
 - Produces WhatsApp event: `payment-conflict`, reserved for money received without inventory.
 
@@ -618,7 +618,7 @@ Select the booking's claim token and status, validate the request claim, call `a
 
 - [ ] **Step 4: Authenticate payment polling and refresh active attempts**
 
-Add `claim` to the status URL in `index.html` and validate it in `api/flot-status.js` against the booking connected to `orderId`. For provider states `created` or `pending`, call `acquireBookingHold`. Return 409 with `code = 'HOLD_EXPIRED'` if capacity has been lost. Failed attempts are not refreshed.
+Send the private booking claim in the `X-Booking-Claim` header from `index.html` and validate it in `api/flot-status.js` against the booking connected to `orderId`. Never serialize the claim into the URL. For provider states `created` or `pending`, call `acquireBookingHold`. Return 409 with `code = 'HOLD_EXPIRED'` if capacity has been lost. Failed attempts are not refreshed.
 
 - [ ] **Step 5: Make settlement atomically decide reserved versus conflict**
 
@@ -820,7 +820,7 @@ On homepage load, parse `room`, `checkin`, and `checkout`. When the room key exi
 
 Replace `bwRoomIsFree` with the shared fetcher. Use `room.remaining` in messages. Immediately before payment, handle 409 by retaining guest details, returning to dates, and announcing the room became full. On successful checkout, store `saved.holdExpiresAt` and show `Your room is reserved for payment until HH:MM` in the payment modal.
 
-Include `claim` in every `/api/flot-status` poll URL. If polling returns `HOLD_EXPIRED`, stop polling and show `Your 15-minute reservation expired. Please recheck these dates before paying.`
+Include the private booking claim in the `X-Booking-Claim` header of every `/api/flot-status` poll, and keep it out of the URL. If polling returns `HOLD_EXPIRED`, stop polling and show `Your 15-minute reservation expired. Please recheck these dates before paying.`
 
 If `/api/flot-payment-link` itself returns `HOLD_EXPIRED`, show the same message and make the result button reopen the booking wizard at the date step with the guest's room, dates, and contact details preserved.
 

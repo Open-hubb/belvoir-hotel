@@ -9033,8 +9033,7 @@
         orderId: fcState.orderId,
         attemptId: fcState.attemptId,
         statusUrl: '/api/flot-status?orderId=' + encodeURIComponent(fcState.orderId) +
-                   '&attemptId=' + encodeURIComponent(fcState.attemptId) +
-                   '&claim=' + encodeURIComponent(fcState.claim),
+                   '&attemptId=' + encodeURIComponent(fcState.attemptId),
         startedAt: Date.now(),
         timer: null,
         controller: null,
@@ -9062,7 +9061,10 @@
         session.controller = controller;
         session.inFlight = true;
         try {
-          const res = await fetch(session.statusUrl, { signal: controller.signal });
+          const res = await fetch(session.statusUrl, {
+            headers: { 'X-Booking-Claim': session.claim },
+            signal: controller.signal
+          });
           if (!fcPollSessionIsCurrent(session)) return;
           const data = await res.json();
           if (!fcPollSessionIsCurrent(session)) return;
