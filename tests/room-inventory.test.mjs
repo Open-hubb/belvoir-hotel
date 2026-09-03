@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
@@ -65,6 +68,9 @@ const paylinkMigration = readFileSync(
 const rolloutPlanSource = readFileSync(
   new URL('../docs/superpowers/plans/2026-09-02-room-inventory-and-availability.md', import.meta.url),
   'utf8',
+);
+const reviewedDeployHelperPath = fileURLToPath(
+  new URL('../scripts/deploy-reviewed-vercel.mjs', import.meta.url),
 );
 
 function migrationBlock(marker) {
@@ -161,6 +167,52 @@ function runNode(args, environment = {}) {
     child.once('error', reject);
     child.once('close', (status, signal) => resolve({ status, signal, stdout, stderr }));
   });
+}
+
+async function reviewedDeployFixture({ trackedUnsafeFiles = false } = {}) {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), 'belvoir-reviewed-deploy-test-'));
+  const repository = join(fixtureRoot, 'repository');
+  const helperTmp = join(fixtureRoot, 'helper-tmp');
+  await mkdir(repository);
+  await mkdir(helperTmp);
+
+  const git = (...args) => execFileSync('git', ['-C', repository, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  git('init', '-b', 'main');
+  await writeFile(join(repository, '.gitignore'), '.env\n.claude/\n.vercel/\nnode_modules/\n');
+  await writeFile(join(repository, '.vercelignore'), 'tests/\n');
+  await writeFile(join(repository, 'index.html'), '<h1>Reviewed deployment</h1>\n');
+  await writeFile(join(repository, 'vercel.json'), '{"version":2}\n');
+  await mkdir(join(repository, '.claude'));
+  await mkdir(join(repository, 'node_modules'));
+  await writeFile(join(repository, '.env'), 'DATABASE_URL=must-not-copy\n');
+  await writeFile(join(repository, '.claude', 'settings.local.json'), '{"local":true}\n');
+  await writeFile(join(repository, 'node_modules', 'local-only.js'), 'throw new Error("must not copy");\n');
+  await writeFile(join(repository, 'skills-lock.json'), '{"local":true}\n');
+
+  git('add', '.gitignore', '.vercelignore', 'index.html', 'vercel.json');
+  if (trackedUnsafeFiles) git('add', '--force', '.env', 'node_modules/local-only.js');
+  git(
+    '-c', 'user.name=Belvoir Test',
+    '-c', 'user.email=belvoir-test@example.invalid',
+    'commit', '-m', 'fixture',
+  );
+
+  await mkdir(join(repository, '.vercel'));
+  await writeFile(
+    join(repository, '.vercel', 'project.json'),
+    '{"orgId":"team_fixture","projectId":"project_fixture"}\n',
+  );
+
+  return {
+    fixtureRoot,
+    repository,
+    helperTmp,
+    git,
+    sha: git('rev-parse', 'HEAD'),
+  };
 }
 
 function paymentLinkHarness({ booking = null, holdAcquired = true } = {}) {
@@ -3563,6 +3615,84 @@ test('payment rollout contract keeps listeners disabled through post-deploy reco
   assert.equal(PAYMENT_ROLLOUT_CONTRACT.enablementField, 'safeToEnableListeners');
 });
 
+test('reviewed deploy helper dry-validates only exact-commit files and project metadata', async () => {
+  const fixture = await reviewedDeployFixture();
+  try {
+    const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+    const result = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+    ], { TMPDIR: fixture.helperTmp });
+
+    assert.equal(result.status, 0, result.stderr);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.mode, 'dry-run');
+    assert.equal(summary.deployed, false);
+    assert.equal(summary.reviewedSha, fixture.sha);
+    assert.equal(summary.checkoutSha, fixture.sha);
+    assert.deepEqual(summary.files, [
+      '.gitignore',
+      '.vercel/project.json',
+      '.vercelignore',
+      'index.html',
+      'vercel.json',
+    ]);
+    assert.deepEqual(summary.project, {
+      orgId: 'team_fixture',
+      projectId: 'project_fixture',
+    });
+    assert.deepEqual(await readdir(fixture.helperTmp), []);
+    assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+  } finally {
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('reviewed deploy helper rejects unsafe committed paths and cleans its failed checkout', async () => {
+  const fixture = await reviewedDeployFixture({ trackedUnsafeFiles: true });
+  try {
+    const beforeWorktrees = fixture.git('worktree', 'list', '--porcelain');
+    const result = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+    ], { TMPDIR: fixture.helperTmp });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /refusing deployment.*(?:\.env|node_modules)/i);
+    assert.deepEqual(await readdir(fixture.helperTmp), []);
+    assert.equal(fixture.git('worktree', 'list', '--porcelain'), beforeWorktrees);
+  } finally {
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('reviewed deploy helper requires a full immutable commit SHA and project link metadata', async () => {
+  const fixture = await reviewedDeployFixture();
+  try {
+    const symbolic = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      '--sha=HEAD',
+    ], { TMPDIR: fixture.helperTmp });
+    assert.notEqual(symbolic.status, 0);
+    assert.match(symbolic.stderr, /full commit SHA/i);
+
+    await rm(join(fixture.repository, '.vercel', 'project.json'));
+    const missingMetadata = await runNode([
+      reviewedDeployHelperPath,
+      `--repo=${fixture.repository}`,
+      `--sha=${fixture.sha}`,
+    ], { TMPDIR: fixture.helperTmp });
+    assert.notEqual(missingMetadata.status, 0);
+    assert.match(missingMetadata.stderr, /\.vercel\/project\.json.*required/i);
+    assert.deepEqual(await readdir(fixture.helperTmp), []);
+  } finally {
+    await rm(fixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
 test('production rollout publishes and deploys the exact reviewed inventory SHA', () => {
   const rollout = rolloutPlanSource.slice(
     rolloutPlanSource.indexOf('### Task 9: Validate the migration and transactional behavior against Neon'),
@@ -3597,16 +3727,20 @@ test('production rollout publishes and deploys the exact reviewed inventory SHA'
   );
   assert.ok(
     occurrences('test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"') >= 3,
-    'deployments must use a checkout with no uncommitted tracked content',
+    'integration must still reject uncommitted tracked content in root',
   );
-  assert.ok(
-    occurrences('npx vercel --cwd "$BELVOIR_ROOT" --prod --yes') >= 3,
-    'every production deploy must run from the explicit root checkout',
-  );
+  const reviewedDeploy = 'node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" ' +
+    '--repo="$BELVOIR_ROOT" --sha="$REVIEWED_HEAD" --prod';
+  const productionDeployCommands = rollout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.endsWith('--prod'));
+  assert.deepEqual(productionDeployCommands, Array(4).fill(reviewedDeploy));
+  assert.doesNotMatch(rollout, /npx vercel --cwd "\$BELVOIR_ROOT" --prod/);
 
   const firstMerge = rollout.indexOf('git -C "$BELVOIR_ROOT" merge --ff-only codex/room-inventory');
   const firstPush = rollout.indexOf('git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main');
-  const firstPausedDeploy = rollout.indexOf('npx vercel --cwd "$BELVOIR_ROOT" --prod --yes');
+  const firstPausedDeploy = rollout.indexOf(reviewedDeploy);
   const firstMigration = rollout.indexOf('scripts/migrate-availability.mjs --listeners-paused-verified');
   const reconciliation = rollout.indexOf('scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners');
   const enable = rollout.indexOf('PAYMENT_LISTENERS_ENABLED production --value "true"');

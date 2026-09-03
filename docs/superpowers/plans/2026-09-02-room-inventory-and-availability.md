@@ -944,11 +944,13 @@ git commit -m "Add availability checks to room detail pages"
 
 **Files:**
 - Create: `scripts/smoke-inventory.mjs`
+- Create: `scripts/deploy-reviewed-vercel.mjs`
 - Modify: `package.json`
 - Modify: `HANDOFF.md`
 
 **Interfaces:**
 - Produces command: `npm run inventory:smoke`.
+- Produces dry-by-default command: `node scripts/deploy-reviewed-vercel.mjs --repo=<root> --sha=<full-reviewed-sha>`; only explicit `--prod` may invoke Vercel.
 - Consumes: `DATABASE_URL_UNPOOLED` for schema inspection and `DATABASE_URL` for runtime-like concurrency calls.
 - Smoke rows use a unique `__inventory_smoke_<timestamp>` room key and are removed in `finally`.
 
@@ -976,7 +978,7 @@ Document that the schema migration runs with the direct URL, the smoke test uses
 
 - [ ] **Step 3: Deploy the guarded build with every payment listener explicitly disabled**
 
-After the `codex/room-inventory` HEAD has completed task review, run exactly in this order. The root checkout is the only deployment working directory; do not deploy from `.worktrees/room-inventory`, which may contain intentionally unstaged files such as `package-lock.json`.
+After the `codex/room-inventory` HEAD has completed task review, run exactly in this order. The root checkout is only the verified integration and Vercel project-link source; never deploy its directory or `.worktrees/room-inventory`, because either may contain ignored or untracked local files. The deployment helper requires a regular root `.vercel/project.json`, creates a temporary detached worktree at the full reviewed SHA, copies only that project-link file into it, verifies its complete file set and detached HEAD, and removes the temporary worktree on success or failure.
 
 ```bash
 set -euo pipefail
@@ -996,11 +998,11 @@ git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
 REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
 test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
 test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
-npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" --repo="$BELVOIR_ROOT" --sha="$REVIEWED_HEAD" --prod
 node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=paused --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: `merge --ff-only` aborts rather than rewriting history if root `main` cannot advance directly to the reviewed branch. Both local `main` and `origin/main` must equal the captured reviewed SHA, the root checkout must have no uncommitted tracked content, and the deploy must run from that root checkout. The verifier checks payment-link creation, payment status, webhook, and cron; every endpoint must return retryable HTTP 503 `PAYMENT_LISTENERS_PAUSED`. Stop if any SHA/cleanliness assertion fails or any endpoint is active; do not run the migration.
+Expected: `merge --ff-only` aborts rather than rewriting history if root `main` cannot advance directly to the reviewed branch. Both local `main` and `origin/main` must equal the captured reviewed SHA, and root must have no uncommitted tracked content. The helper must report that the detached checkout SHA equals the reviewed SHA, invoke Vercel only from that isolated checkout, and clean it afterward; root-only ignored, untracked, `.env`, and `node_modules` files are never deployment inputs. The verifier checks payment-link creation, payment status, webhook, and cron; every endpoint must return retryable HTTP 503 `PAYMENT_LISTENERS_PAUSED`. Stop if any SHA, metadata, manifest, cleanup, or endpoint assertion fails; do not run the migration.
 
 - [ ] **Step 4: Run the migration and freeze the payment cutoff while listeners are paused**
 
@@ -1060,7 +1062,7 @@ Expected: all Node/Puppeteer tests and all sitemap SEO checks PASS.
 - [ ] **Step 9: Commit the operational checkpoint**
 
 ```bash
-git add scripts/smoke-inventory.mjs package.json
+git add scripts/smoke-inventory.mjs scripts/deploy-reviewed-vercel.mjs package.json
 git commit -m "Add room inventory production smoke test"
 ```
 
@@ -1149,7 +1151,7 @@ git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
 REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
 test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
 test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
-npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" --repo="$BELVOIR_ROOT" --sha="$REVIEWED_HEAD" --prod
 node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=paused --base-url=https://www.belvoir-estates.com
 (cd "$BELVOIR_ROOT" && PAYMENT_LISTENERS_ENABLED=false node --env-file=.env.local scripts/legacy-payment-reconciliation.mjs --post-deploy-before-listeners)
 test "$(git -C "$BELVOIR_ROOT" rev-parse HEAD)" = "$REVIEWED_HEAD"
@@ -1157,11 +1159,11 @@ REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/ma
 test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
 test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
 npx vercel --cwd "$BELVOIR_ROOT" env add PAYMENT_LISTENERS_ENABLED production --value "true" --force --yes
-npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" --repo="$BELVOIR_ROOT" --sha="$REVIEWED_HEAD" --prod
 node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: the root fast-forward, exact-SHA checks, explicit refspec push, and paused redeployment all succeed before reconciliation. The paused verifier confirms all four endpoints remain stopped, and reconciliation exits zero with no unresolved IDs. Root HEAD and `origin/main` must still equal the reviewed SHA before the flag is set to exact `true` and the active deployment is created from the clean root checkout. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
+Expected: the root fast-forward, exact-SHA checks, explicit refspec push, and isolated paused redeployment all succeed before reconciliation. The paused verifier confirms all four endpoints remain stopped, and reconciliation exits zero with no unresolved IDs. Root HEAD and `origin/main` must still equal the reviewed SHA before the flag is set to exact `true`; the helper then creates a new isolated checkout of that same SHA for the active deployment and cleans it afterward. The final verifier must observe active validation/authentication responses from all four endpoints; any HTTP 503 `PAYMENT_LISTENERS_PAUSED` result fails the rollout.
 
 - [ ] **Step 9: Run production read-only and temporary-row checks**
 
@@ -1198,8 +1200,8 @@ git -C "$BELVOIR_ROOT" push origin refs/heads/main:refs/heads/main
 REMOTE_MAIN="$(git -C "$BELVOIR_ROOT" ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
 test "$REMOTE_MAIN" = "$REVIEWED_HEAD"
 test -z "$(git -C "$BELVOIR_ROOT" status --porcelain --untracked-files=no)"
-npx vercel --cwd "$BELVOIR_ROOT" --prod --yes
+node "$BELVOIR_ROOT/scripts/deploy-reviewed-vercel.mjs" --repo="$BELVOIR_ROOT" --sha="$REVIEWED_HEAD" --prod
 node "$BELVOIR_ROOT/scripts/verify-payment-listeners.mjs" --expect=active --base-url=https://www.belvoir-estates.com
 ```
 
-Expected: the later QA commit is review-approved before integration, root `main` can only fast-forward to it, local and remote `main` both equal that reviewed SHA, and the final deployment again comes from a clean root checkout. Report the final commit, deployment URL, migration/smoke results, automated test counts, responsive widths, accessibility checks, and any remaining placeholders. The expected placeholder list is empty.
+Expected: the later QA commit is review-approved before integration, root `main` can only fast-forward to it, and local and remote `main` both equal that reviewed SHA. The final deployment again comes from a temporary detached checkout whose manifest is exactly the reviewed commit plus `.vercel/project.json`, never from either persistent checkout. Report the final commit, deployment URL, migration/smoke results, automated test counts, responsive widths, accessibility checks, and any remaining placeholders. The expected placeholder list is empty.
