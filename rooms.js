@@ -179,7 +179,14 @@
     return start.toLocaleDateString('en-GB', options) + '–' + end.toLocaleDateString('en-GB', options);
   }
 
-  function strictRoomPayload(data, roomKey, roomName, checkin, checkout) {
+  function moneyCents(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
+    var scaled = value * 100;
+    var rounded = Math.round(scaled);
+    return Math.abs(scaled - rounded) <= 0.000001 ? rounded : null;
+  }
+
+  function strictRoomPayload(data, roomKey, roomName, expectedRate, checkin, checkout) {
     if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.rooms) || data.rooms.length !== 1) {
       return null;
     }
@@ -195,7 +202,11 @@
 
     var nights = Math.round((parseIsoDay(checkout) - parseIsoDay(checkin)) / 86400000);
     if (!Number.isInteger(room.nights) || room.nights !== nights) return null;
-    if (!Number.isFinite(room.total) || room.total < 0) return null;
+    var expectedRateCents = moneyCents(expectedRate);
+    var rateCents = moneyCents(room.rate);
+    var totalCents = moneyCents(room.total);
+    if (expectedRateCents === null || expectedRateCents <= 0 || rateCents !== expectedRateCents) return null;
+    if (totalCents === null || totalCents !== expectedRateCents * nights) return null;
     if (owns(data, 'nights') && data.nights !== nights) return null;
     if (owns(data, 'anyAvailable') && data.anyAvailable !== room.available) return null;
     return room;
@@ -208,7 +219,8 @@
 
     var roomKey = main.getAttribute('data-room-key');
     var roomName = main.getAttribute('data-room-name');
-    if (!owns(ROOM_NAMES, roomKey) || ROOM_NAMES[roomKey] !== roomName) return;
+    var expectedRate = Number(main.getAttribute('data-room-rate'));
+    if (!owns(ROOM_NAMES, roomKey) || ROOM_NAMES[roomKey] !== roomName || moneyCents(expectedRate) === null) return;
 
     var checkin = document.getElementById('roomCheckin');
     var checkout = document.getElementById('roomCheckout');
@@ -321,7 +333,7 @@
         if (request.generation !== generation || controller.signal.aborted) return;
         if (!response.ok) throw new Error('Availability request failed.');
 
-        var room = strictRoomPayload(data, roomKey, roomName, chosenCheckin, chosenCheckout);
+        var room = strictRoomPayload(data, roomKey, roomName, expectedRate, chosenCheckin, chosenCheckout);
         if (!room) throw new Error('Invalid availability response.');
 
         if (room.remaining === 0) {

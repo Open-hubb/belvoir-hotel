@@ -212,7 +212,7 @@ ${JSON.stringify(ld, null, 2)}
     </div>
   </nav>
 
-  <main id="main" data-room-key="${esc(key)}" data-room-name="${esc(d.title)}">
+  <main id="main" data-room-key="${esc(key)}" data-room-name="${esc(d.title)}" data-room-rate="${rate}">
     <nav class="rp__crumbs" aria-label="Breadcrumb">
       <a href="/#rooms" class="rp__back" data-room-back aria-label="Back to the previous page">Back</a>
       <ol>

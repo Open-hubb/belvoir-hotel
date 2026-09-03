@@ -22,6 +22,28 @@ let page;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function cssRgb(value) {
+  const channels = String(value).match(/[\d.]+/g)?.slice(0, 3).map(Number);
+  assert.equal(channels?.length, 3, `expected an rgb colour, received ${value}`);
+  return channels;
+}
+
+function relativeLuminance(value) {
+  const channels = cssRgb(value).map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(foreground, background) {
+  const values = [relativeLuminance(foreground), relativeLuminance(background)]
+    .sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 async function openHome() {
   await page.setViewport({ width: 375, height: 812 });
   await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -1100,6 +1122,7 @@ test('every room detail page has a labelled availability form', { concurrency: f
     const html = await response.text();
     assert.match(html, /<main\b[^>]*\bdata-room-key="[^"]+"/);
     assert.match(html, /<main\b[^>]*\bdata-room-name="[^"]+"/);
+    assert.match(html, /<main\b[^>]*\bdata-room-rate="\d+(?:\.\d+)?"/);
     assert.match(html, /<form\b[^>]*\bdata-room-availability/);
     assert.match(html, /<label\b[^>]*for="roomCheckin"/);
     assert.match(html, /<label\b[^>]*for="roomCheckout"/);
@@ -1259,6 +1282,155 @@ test('room detail rejects malformed inventory and fails closed with retry guidan
       await roomPage.$eval('#roomAvailabilitySubmit', (node) => node.textContent.trim()),
       'Try again',
     );
+  } finally {
+    await roomPage.close();
+  }
+});
+
+test('room detail rejects malformed rates and totals instead of enabling booking', { concurrency: false }, async () => {
+  const malformedRows = [
+    { label: 'string rate', row: { rate: 'free', total: 120 } },
+    { label: 'missing rate', row: { total: 120 } },
+    { label: 'negative rate', row: { rate: -60, total: 120 } },
+    { label: 'unexpected rate', row: { rate: 61, total: 122 } },
+    { label: 'string total', row: { rate: 60, total: '120' } },
+    { label: 'missing total', row: { rate: 60 } },
+    { label: 'negative total', row: { rate: 60, total: -1 } },
+    { label: 'mismatched total', row: { rate: 60, total: 60 } },
+    { label: 'sub-cent total', row: { rate: 60, total: 120.001 } },
+  ];
+
+  for (const malformed of malformedRows) {
+    const roomPage = await browser.newPage();
+    await roomPage.setRequestInterception(true);
+    roomPage.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/availability') {
+        return request.respond({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
+            rooms: [{
+              key: 'comfort', name: 'Superior Double / Comfort',
+              capacity: 1, remaining: 1, available: true, nights: 2,
+              ...malformed.row,
+            }],
+            anyAvailable: true,
+          }),
+        });
+      }
+      return request.continue();
+    });
+
+    try {
+      await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+      await roomPage.evaluate(() => {
+        document.getElementById('roomCheckin').value = '2027-09-10';
+        document.getElementById('roomCheckout').value = '2027-09-12';
+        document.querySelector('[data-room-availability]').requestSubmit();
+      });
+      await roomPage.waitForFunction(
+        () => document.getElementById('roomAvailabilityResult').textContent.includes('could not check'),
+        { timeout: 2_000 },
+      );
+      assert.equal(
+        await roomPage.$eval('.rp__availability .rp__book', (node) => node.getAttribute('aria-disabled')),
+        'true',
+        malformed.label,
+      );
+    } finally {
+      await roomPage.close();
+    }
+  }
+});
+
+test('room availability action text and focus indicators meet AA contrast in every state', { concurrency: false }, async () => {
+  const roomPage = await browser.newPage();
+  let fail = false;
+  await roomPage.setRequestInterception(true);
+  roomPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/availability') {
+      if (fail) {
+        return request.respond({ status: 503, contentType: 'application/json', body: '{"error":"Unavailable"}' });
+      }
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checkin: url.searchParams.get('checkin'), checkout: url.searchParams.get('checkout'), nights: 2,
+          rooms: [{ key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 120 }],
+          anyAvailable: true,
+        }),
+      });
+    }
+    return request.continue();
+  });
+
+  const colours = async (selector) => roomPage.$eval(selector, (node) => {
+    const style = getComputedStyle(node);
+    return { foreground: style.color, background: style.backgroundColor, outline: style.outlineColor };
+  });
+  const assertTextContrast = (state, label) => {
+    assert.ok(
+      contrastRatio(state.foreground, state.background) >= 4.5,
+      `${label} text contrast should be at least 4.5:1: ${JSON.stringify(state)}`,
+    );
+  };
+
+  try {
+    await roomPage.goto(`${baseUrl}/rooms/superior-double-comfort`, { waitUntil: 'domcontentloaded' });
+    const disabled = await colours('.rp__availability .rp__book');
+    assertTextContrast(disabled, 'disabled booking action');
+
+    assertTextContrast(await colours('#roomAvailabilitySubmit'), 'default availability action');
+    await roomPage.hover('#roomAvailabilitySubmit');
+    assertTextContrast(await colours('#roomAvailabilitySubmit'), 'hovered availability action');
+    await roomPage.mouse.down();
+    assertTextContrast(await colours('#roomAvailabilitySubmit'), 'active availability action');
+    await roomPage.mouse.up();
+    await roomPage.$eval('#roomAvailabilitySubmit', (node) => node.focus());
+    const submitFocus = await colours('#roomAvailabilitySubmit');
+    assertTextContrast(submitFocus, 'focused availability action');
+    assert.ok(contrastRatio(submitFocus.outline, 'rgb(255, 255, 255)') >= 3, 'submit focus indicator');
+
+    await roomPage.evaluate(() => {
+      document.getElementById('roomCheckin').value = '2027-09-10';
+      document.getElementById('roomCheckout').value = '2027-09-12';
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+    await roomPage.waitForFunction(
+      () => document.getElementById('roomAvailabilityResult').textContent.trim() === 'Only 1 room left',
+    );
+    assertTextContrast(await colours('.rp__availability .rp__book'), 'default booking action');
+    await roomPage.$eval('.rp__availability .rp__book', (node) => {
+      node.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    });
+    await roomPage.hover('.rp__availability .rp__book');
+    assertTextContrast(await colours('.rp__availability .rp__book'), 'hovered booking action');
+    await roomPage.mouse.down();
+    assertTextContrast(await colours('.rp__availability .rp__book'), 'active booking action');
+    await roomPage.mouse.up();
+    await roomPage.$eval('.rp__availability .rp__book', (node) => node.focus());
+    const bookFocus = await colours('.rp__availability .rp__book');
+    assertTextContrast(bookFocus, 'focused booking action');
+    assert.ok(contrastRatio(bookFocus.outline, 'rgb(255, 255, 255)') >= 3, 'booking focus indicator');
+
+    fail = true;
+    await roomPage.evaluate(() => {
+      const checkin = document.getElementById('roomCheckin');
+      checkin.value = '2027-10-10';
+      checkin.dispatchEvent(new Event('input', { bubbles: true }));
+      const checkout = document.getElementById('roomCheckout');
+      checkout.value = '2027-10-12';
+      checkout.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('[data-room-availability]').requestSubmit();
+    });
+    await roomPage.waitForFunction(() => document.getElementById('roomAvailabilitySubmit').textContent.trim() === 'Try again');
+    await roomPage.hover('#roomAvailabilitySubmit');
+    assertTextContrast(await colours('#roomAvailabilitySubmit'), 'hovered retry action');
   } finally {
     await roomPage.close();
   }
