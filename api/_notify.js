@@ -235,9 +235,10 @@ async function notifyBooking(b) {
  * Content for a reset or invitation email. Kept separate from delivery so it
  * can be checked without credentials and so no raw access token is logged.
  */
-function buildAdminAccessEmail({ kind, name, url }) {
+function buildAdminAccessEmail({ kind, name, url, expiresIn }) {
   const invite = kind === 'invite';
   const action = invite ? 'Set your password' : 'Reset password';
+  const expiry = expiresIn || (invite ? '24 hours' : '30 minutes');
   const note = invite
     ? 'An owner has invited you to the Belvoir bookings dashboard. Set your own password to activate access.'
     : 'Use the secure link below to choose a new password for your Belvoir bookings dashboard account.';
@@ -250,14 +251,14 @@ function buildAdminAccessEmail({ kind, name, url }) {
       invite ? 'Dashboard invitation' : 'Password reset',
       invite ? 'You have been invited' : 'Reset your password',
       row(invite ? 'Invited administrator' : 'Account', name),
-      note + '\n\nThis link expires in 30 minutes and can be used only once. If you did not expect this email, you can safely ignore it.',
+      note + `\n\nThis link expires in ${expiry} and can be used only once. If you did not expect this email, you can safely ignore it.`,
       { href: url, label: action },
     ),
   };
 }
 
-async function sendAdminAccessEmail({ to, name, kind, url }) {
-  return send({ to, ...buildAdminAccessEmail({ kind, name, url }) });
+async function sendAdminAccessEmail({ to, name, kind, url, expiresIn }) {
+  return send({ to, ...buildAdminAccessEmail({ kind, name, url, expiresIn }) });
 }
 
 module.exports = {

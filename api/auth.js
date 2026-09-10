@@ -49,7 +49,8 @@ const KEY_ACCOUNT = 'access-key@local';
 const SETUP_DOMAIN = (process.env.NOTIFY_EMAIL || 'info@belvoir-estates.com')
   .split(',')[0].trim().split('@').pop().toLowerCase();
 const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
-const ACCESS_LINK_MINUTES = 30;
+const RESET_LINK_MINUTES = 30;
+const INVITE_LINK_HOURS = 24;
 const emailLooksValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 function publicOrigin() {
@@ -151,7 +152,7 @@ module.exports = async (req, res) => {
 
       const user = rows[0];
       const access = A.createAccessToken();
-      const expiresAt = new Date(Date.now() + ACCESS_LINK_MINUTES * 60_000).toISOString();
+      const expiresAt = new Date(Date.now() + RESET_LINK_MINUTES * 60_000).toISOString();
       await sql`
         INSERT INTO admin_access_tokens (token_hash, user_id, purpose, expires_at)
         VALUES (${access.hash}, ${user.id}, 'reset', ${expiresAt})
@@ -407,19 +408,36 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'That email address does not look right.' });
       }
 
-      const exists = await sql`SELECT 1 FROM admin_users WHERE lower(email) = ${email} LIMIT 1`;
-      if (exists.length) return res.status(409).json({ error: 'That email already has an account.' });
+      const existing = await sql`
+        SELECT id, email, name, role, disabled, password_hash
+        FROM admin_users
+        WHERE lower(email) = ${email}
+        LIMIT 1`;
+      let user;
+      let created = false;
+      if (existing.length) {
+        user = existing[0];
+        if (user.disabled || user.password_hash !== 'pending-invitation') {
+          return res.status(409).json({ error: 'That email already has an active or disabled account.' });
+        }
+      } else {
+        const rows = await sql`
+          INSERT INTO admin_users (email, password_hash, name, role)
+          VALUES (${email}, 'pending-invitation', ${name || email}, ${role})
+          RETURNING id, email, name, role, disabled`;
+        user = rows[0];
+        created = true;
+      }
 
-      const rows = await sql`
-        INSERT INTO admin_users (email, password_hash, name, role)
-        VALUES (${email}, 'pending-invitation', ${name || email}, ${role})
-        RETURNING id, email, name, role`;
-      const user = rows[0];
       const access = A.createAccessToken();
-      const expiresAt = new Date(Date.now() + ACCESS_LINK_MINUTES * 60_000).toISOString();
+      const expiresAt = new Date(Date.now() + INVITE_LINK_HOURS * 60 * 60_000).toISOString();
       await sql`
         INSERT INTO admin_access_tokens (token_hash, user_id, purpose, expires_at)
-        VALUES (${access.hash}, ${user.id}, 'invite', ${expiresAt})`;
+        VALUES (${access.hash}, ${user.id}, 'invite', ${expiresAt})
+        ON CONFLICT (user_id, purpose) DO UPDATE
+        SET token_hash = EXCLUDED.token_hash,
+            created_at = now(),
+            expires_at = EXCLUDED.expires_at`;
 
       try {
         const sent = await sendAdminAccessEmail({
@@ -427,18 +445,26 @@ module.exports = async (req, res) => {
           name: user.name || user.email,
           kind: 'invite',
           url: accessLink(access.token),
+          expiresIn: '24 hours',
         });
         if (sent && sent.skipped) {
-          await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+          if (created) await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+          else await sql`DELETE FROM admin_access_tokens WHERE token_hash = ${access.hash}`;
           return res.status(503).json({ error: 'Email delivery is not configured. The invitation was not created.' });
         }
       } catch (error) {
-        await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+        if (created) await sql`DELETE FROM admin_users WHERE id = ${user.id}`;
+        else await sql`DELETE FROM admin_access_tokens WHERE token_hash = ${access.hash}`;
         console.error('admin invitation email failed:', error.message);
         return res.status(502).json({ error: 'The invitation email could not be sent. Please try again.' });
       }
 
-      return res.status(201).json({ ok: true, user, expiresAt });
+      return res.status(201).json({
+        ok: true,
+        user: publicUser(user),
+        expiresAt,
+        resent: !created,
+      });
     }
 
     // ── disable or re-enable a staff account ─────────────────────────────
