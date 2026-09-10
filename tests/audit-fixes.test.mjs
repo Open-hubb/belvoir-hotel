@@ -1747,6 +1747,53 @@ test('admin inventory views stay within a 375px viewport', { concurrency: false 
   assert.ok(widths.bookings.page <= widths.bookings.viewport, JSON.stringify(widths.bookings));
 });
 
+test('admin invite controls stay large, aligned, and responsive', { concurrency: false }, async () => {
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+  async function inviteLayout(width, height) {
+    await page.setViewport({ width, height });
+    return page.evaluate(() => {
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('dashView').classList.add('active');
+      ME = { id: 1, role: 'owner' };
+      USERS = [];
+      VIEW = 'team';
+      renderTeam();
+
+      const controls = [...document.querySelectorAll('.team-invite__form > input, .team-invite__form > select, .team-invite__form > button')];
+      return {
+        viewport: document.documentElement.clientWidth,
+        page: document.documentElement.scrollWidth,
+        rects: controls.map((control) => {
+          const rect = control.getBoundingClientRect();
+          return {
+            id: control.id || control.textContent.trim(),
+            left: Math.round(rect.left),
+            top: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          };
+        }),
+      };
+    });
+  }
+
+  const desktop = await inviteLayout(1440, 900);
+  assert.equal(desktop.rects.length, 4);
+  assert.ok(desktop.rects.every((rect) => rect.height >= 52), JSON.stringify(desktop.rects));
+  assert.ok(Math.max(...desktop.rects.map((rect) => rect.top)) - Math.min(...desktop.rects.map((rect) => rect.top)) <= 1);
+
+  const tablet = await inviteLayout(768, 900);
+  assert.ok(tablet.rects.every((rect) => rect.height >= 52), JSON.stringify(tablet.rects));
+  assert.equal(tablet.rects[2].top, tablet.rects[3].top);
+
+  const mobile = await inviteLayout(375, 812);
+  assert.ok(mobile.page <= mobile.viewport, JSON.stringify(mobile));
+  assert.ok(mobile.rects.every((rect) => rect.height >= 52), JSON.stringify(mobile.rects));
+  assert.ok(Math.max(...mobile.rects.map((rect) => rect.left)) - Math.min(...mobile.rects.map((rect) => rect.left)) <= 1);
+  assert.ok(Math.max(...mobile.rects.map((rect) => rect.width)) - Math.min(...mobile.rects.map((rect) => rect.width)) <= 1);
+});
+
 test('admin booking cards distinguish conflicts, live holds, and abandoned checkout', { concurrency: false }, async () => {
   await page.setViewport({ width: 1440, height: 900 });
   await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
