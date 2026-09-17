@@ -10,14 +10,14 @@
 // used for display. The check in scripts/check-rates.mjs compares the two.
 
 const ROOMS = {
-  'comfort':          { name: 'Superior Double / Comfort', rate: 60,  capacity: 1 },
-  'standard':         { name: 'Deluxe Standard',           rate: 70,  capacity: 2 },
-  'ground-floor':     { name: 'Ground Floor One-Bedroom',  rate: 100, capacity: 2 },
-  'superior-deluxe':  { name: 'Superior Deluxe King',      rate: 80,  capacity: 3 },
-  'superior-twin':    { name: 'Superior Deluxe Twin',      rate: 90,  capacity: 1 },
-  'studio':           { name: 'Studio Penthouse',          rate: 100, capacity: 1 },
-  'one-bed':          { name: 'One-Bedroom Apartment',     rate: 110, capacity: 3 },
-  'two-bed':          { name: 'Two-Bedroom Apartment',     rate: 150, capacity: 2 },
+  'comfort':          { name: 'Superior Double / Comfort', rate: 79,  capacity: 1 },
+  'standard':         { name: 'Deluxe Standard',           rate: 89,  capacity: 2 },
+  'ground-floor':     { name: 'Ground Floor One-Bedroom',  rate: 119, capacity: 2 },
+  'superior-deluxe':  { name: 'Superior Deluxe King',      rate: 99,  capacity: 3 },
+  'superior-twin':    { name: 'Superior Deluxe Twin',      rate: 109, capacity: 1 },
+  'studio':           { name: 'Studio Penthouse',          rate: 119, capacity: 1 },
+  'one-bed':          { name: 'One-Bedroom Apartment',     rate: 129, capacity: 3 },
+  'two-bed':          { name: 'Two-Bedroom Apartment',     rate: 169, capacity: 2 },
 };
 
 const DEPOSIT_RATE = 0.3;   // matches "30% non-refundable deposit" on the site

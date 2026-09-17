@@ -3592,6 +3592,30 @@ test('room catalogue exposes Belvoir confirmed capacities', () => {
   assert.equal(roomCapacity('unknown'), 0);
 });
 
+test('room catalogue applies the approved nineteen-dollar nightly increase', () => {
+  const expectedRates = {
+    comfort: 79,
+    standard: 89,
+    'ground-floor': 119,
+    'superior-deluxe': 99,
+    'superior-twin': 109,
+    studio: 119,
+    'one-bed': 129,
+    'two-bed': 169,
+  };
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(ROOMS).map(([key, room]) => [key, room.rate])),
+    expectedRates,
+  );
+  for (const [key, rate] of Object.entries(expectedRates)) {
+    assert.match(
+      indexSource,
+      new RegExp(`key: '${key.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}'[^\\n]+price: ${rate}(?:,|\\s)`),
+      `${key} room picker rate should match the server catalogue`,
+    );
+  }
+});
+
 test('legacy payment reconciliation preserves resets, quarantines ambiguity, and is rerunnable', async () => {
   const { reconcileLegacyPaymentAttempts } = await import(
     `../scripts/legacy-payment-reconciliation.mjs?fixture=${Date.now()}`

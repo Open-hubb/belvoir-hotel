@@ -1104,7 +1104,7 @@ test('AI-facing rate summary matches the bookable room rates', { concurrency: fa
 
   assert.match(
     text,
-    /Rates: rooms from \$60\/night, studio flats from \$100, apartments from \$100 to \$150/,
+    /Rates: rooms from \$79\/night, studio flats from \$119, apartments from \$119 to \$169/,
   );
 });
 
@@ -1162,8 +1162,8 @@ test('room detail availability enables a date-preserving booking link', { concur
           checkout: url.searchParams.get('checkout'),
           nights: 2,
           rooms: [{
-            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
-            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 79,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 158,
           }],
           anyAvailable: true,
         }),
@@ -1210,8 +1210,8 @@ test('fully booked room detail keeps its dates and returns focus to check-in', {
         body: JSON.stringify({
           checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
           rooms: [{
-            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
-            capacity: 1, remaining: 0, available: false, nights: 2, total: 120,
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 79,
+            capacity: 1, remaining: 0, available: false, nights: 2, total: 158,
           }],
           anyAvailable: false,
         }),
@@ -1269,8 +1269,8 @@ test('room detail rejects malformed inventory and fails closed with retry guidan
         body: JSON.stringify({
           checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
           rooms: [{
-            key: 'comfort', name: 'Wrong room', rate: 60,
-            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+            key: 'comfort', name: 'Wrong room', rate: 79,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 158,
           }],
           anyAvailable: true,
         }),
@@ -1304,15 +1304,15 @@ test('room detail rejects malformed inventory and fails closed with retry guidan
 
 test('room detail rejects malformed rates and totals instead of enabling booking', { concurrency: false }, async () => {
   const malformedRows = [
-    { label: 'string rate', row: { rate: 'free', total: 120 } },
-    { label: 'missing rate', row: { total: 120 } },
-    { label: 'negative rate', row: { rate: -60, total: 120 } },
-    { label: 'unexpected rate', row: { rate: 61, total: 122 } },
-    { label: 'string total', row: { rate: 60, total: '120' } },
-    { label: 'missing total', row: { rate: 60 } },
-    { label: 'negative total', row: { rate: 60, total: -1 } },
-    { label: 'mismatched total', row: { rate: 60, total: 60 } },
-    { label: 'sub-cent total', row: { rate: 60, total: 120.001 } },
+    { label: 'string rate', row: { rate: 'free', total: 158 } },
+    { label: 'missing rate', row: { total: 158 } },
+    { label: 'negative rate', row: { rate: -79, total: 158 } },
+    { label: 'unexpected rate', row: { rate: 80, total: 160 } },
+    { label: 'string total', row: { rate: 79, total: '158' } },
+    { label: 'missing total', row: { rate: 79 } },
+    { label: 'negative total', row: { rate: 79, total: -1 } },
+    { label: 'mismatched total', row: { rate: 79, total: 79 } },
+    { label: 'sub-cent total', row: { rate: 79, total: 158.001 } },
   ];
 
   for (const malformed of malformedRows) {
@@ -1375,8 +1375,8 @@ test('room availability action text and focus indicators meet AA contrast in eve
         contentType: 'application/json',
         body: JSON.stringify({
           checkin: url.searchParams.get('checkin'), checkout: url.searchParams.get('checkout'), nights: 2,
-          rooms: [{ key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
-            capacity: 1, remaining: 1, available: true, nights: 2, total: 120 }],
+          rooms: [{ key: 'comfort', name: 'Superior Double / Comfort', rate: 79,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 158 }],
           anyAvailable: true,
         }),
       });
@@ -1513,8 +1513,8 @@ test('room detail hydrates only valid future date queries and automatically chec
         body: JSON.stringify({
           checkin: '2027-09-10', checkout: '2027-09-12', nights: 2,
           rooms: [{
-            key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
-            capacity: 1, remaining: 1, available: true, nights: 2, total: 120,
+            key: 'comfort', name: 'Superior Double / Comfort', rate: 79,
+            capacity: 1, remaining: 1, available: true, nights: 2, total: 158,
           }],
           anyAvailable: true,
         }),
@@ -1582,9 +1582,9 @@ test('a stale room availability response cannot overwrite newer dates', { concur
             checkout: current === 1 ? '2027-09-12' : '2027-10-12',
             nights: 2,
             rooms: [{
-              key: 'comfort', name: 'Superior Double / Comfort', rate: 60,
+              key: 'comfort', name: 'Superior Double / Comfort', rate: 79,
               capacity: 1, remaining: current === 1 ? 0 : 1,
-              available: current !== 1, nights: 2, total: 120,
+              available: current !== 1, nights: 2, total: 158,
             }],
             anyAvailable: current !== 1,
           }), { status: 200, headers: { 'Content-Type': 'application/json' } })), current === 1 ? 180 : 10);
