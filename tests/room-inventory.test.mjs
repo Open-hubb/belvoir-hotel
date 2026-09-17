@@ -49,6 +49,10 @@ const indexSource = readFileSync(
   new URL('../index.html', import.meta.url),
   'utf8',
 );
+const vercelConfig = JSON.parse(readFileSync(
+  new URL('../vercel.json', import.meta.url),
+  'utf8',
+));
 const adminSource = readFileSync(
   new URL('../admin.html', import.meta.url),
   'utf8',
@@ -3613,6 +3617,23 @@ test('room catalogue applies the approved nineteen-dollar nightly increase', () 
       new RegExp(`key: '${key.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}'[^\\n]+price: ${rate}(?:,|\\s)`),
       `${key} room picker rate should match the server catalogue`,
     );
+  }
+});
+
+test('public aliases permanently redirect to the canonical www domain', () => {
+  const redirectByHost = Object.fromEntries(
+    vercelConfig.redirects.map((redirect) => [
+      redirect.has?.find((condition) => condition.type === 'host')?.value,
+      redirect,
+    ]),
+  );
+  for (const host of ['belvoir-estates.com', 'belvoir-hotel.vercel.app']) {
+    assert.deepEqual(redirectByHost[host], {
+      source: '/(.*)',
+      has: [{ type: 'host', value: host }],
+      destination: 'https://www.belvoir-estates.com/$1',
+      permanent: true,
+    });
   }
 });
 

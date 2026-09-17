@@ -24,6 +24,17 @@
       ],
       "destination": "https://www.belvoir-estates.com/$1",
       "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "belvoir-hotel.vercel.app"
+        }
+      ],
+      "destination": "https://www.belvoir-estates.com/$1",
+      "permanent": true
     }
   ],
   "headers": [
